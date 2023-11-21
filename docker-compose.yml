@@ -1,0 +1,37 @@
+version: '3'
+services:
+  checkin:
+#    image: 'lidaning/checkin:1.0'
+    build: ./checkin/
+    ports:
+      - '5020:5020'
+    environment:
+      - 'TZ=Asia/Shanghai'
+  todos:
+#    image: 'lidaning/todos:1.0'
+    build: ./todos/
+    ports:
+      - '5070:5070'
+    environment:
+      - 'TZ=Asia/Shanghai'
+  countcrying:
+#    image: 'lidaning/countcrying:1.0'
+    build: ./countcrying/
+    ports:
+      - '5000:5000'
+    environment:
+      - 'TZ=Asia/Shanghai'
+  studyplan:
+#    image: 'lidaning/studyplan:1.0'
+    build: ./studyplan/
+    ports:
+      - '5030:5030'
+    environment:
+      - 'TZ=Asia/Shanghai'
+  encourager:
+#    image: 'lidaning/encourager:1.0'
+    build: ./encourager/
+    ports:
+      - '5050:5050'
+    environment:
+      - 'TZ=Asia/Shanghai'

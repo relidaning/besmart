@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Finish' em! $w$ </title>
+  {% include 'common/nav.html' %}
+</head>
+<body>
+<div class="container" style="padding-bottom: 50px; padding-top: 80px;">
+  <div class="summary_div">Completed <span style="font-size: 1.5em; color: red;">{{done_counts_today}}</span> tasks today, <span style="font-size: 1.5em; color: red;">{{(todos|length)}}</span> remains!</div>
+  {% for todo in todos %}
+  <div class="mb-3 task-card" id="div_{{todo.id}}">
+    <input type="hidden" id="todoId" value="{{todo.id}}">
+    <input type="checkbox" id="checkbox_{{todo.id}}" onchange="handleComplete('{{todo.id}}')">
+    <label class="form-check-label" for="checkbox_{{todo.id}}" style="padding: 1em; word-wrap: break-word; overflow: hidden;">
+      {{todo.todo_name}}
+    </label>
+  </div>
+  {% endfor %}
+</div>
+{% include 'common/foot.html' %}
+</body>
+<script>
+    $(document).ready(function () {
+    })
+
+    function handleComplete(id){
+        $.ajax({
+            type: "post",
+            url: "/complete/" + id,
+            success: function (result) {
+                if (result.code == 200) window.location.href='/'
+                  // $('#div_'+id).hide()
+            }
+        });
+    }
+</script>
+</html>

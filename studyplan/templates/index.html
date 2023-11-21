@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Good Good Study :p </title>
+  {% include 'common/nav.html' %}
+</head>
+<body>
+<div class="container" style="height: 80%; margin-bottom: 50px;">
+  <div class="mb-3 form-check content">
+    <input type="hidden" id="taskId" value="{{plan.id}}">
+    <h1 class="title">{{plan.plan_name}}</h1>
+    <div class="text-center">{{plan.start_date}} ~ {{plan.end_date}}</div>
+    <hr/>
+    <p style="text-align: center;">
+      {{plan.explanation}}
+    </p>
+    <hr/>
+    {% for score in scores %}
+    <span class="score">
+      <div class="score_score">{{score.score}}</div>
+      <div class="score_date">{{score.score_date}}</div>
+    </span>
+    {% endfor %}
+    <hr/>
+    <div id="average_div" style="text-align: center; font-size: 2em; color: #dc3545; padding-bottom: 100px;">
+      {{average}}
+    </div>
+  </div>
+</div>
+{% include 'common/foot.html' %}
+</body>
+<script>
+    $(document).ready(() => {
+    })
+</script>
+<style>
+    .score {
+        display: inline-block;
+        border: 1px solid #fff;
+        margin: 1em;
+        padding: 1em;
+        border-radius: 1rem 1rem 1rem 1rem;
+    }
+
+    .score_score {
+        text-align: center;
+        color: #fff;
+        font-size: 2em;
+    }
+</style>
+</html>

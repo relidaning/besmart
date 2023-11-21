@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<body>
+{% include 'nav.html' %}
+<div class="container">
+  <div class="row" style="margin-top: 2rem;">
+    <h2 class="title">How many times of crying?</h2>
+  </div>
+  <div class="row content">
+    <div class="col-md-6">
+      <p class="text-center">Cried <span id="_times" class="cried">{{times}}</span> times today.</p>
+    </div>
+  </div>
+  <div class="row fixed-buttom">
+    <button type="button" class="btn button-goodlooking" onclick="handleClick()">Cried!</button>
+  </div>
+</div>
+{% include 'foot.html' %}
+<script>
+    $(document).ready(function () {
+        window.scrollTo(0, 1)
+    })
+
+    function handleClick() {
+        /*let times = parseInt($("#_times").text())
+        $("#_times").text(++times)*/
+
+        $.ajax({
+            url: "/add",
+            type: "POST",
+            success: function (response) {
+                $("#_times").text(response.data)
+            },
+            error: function (xhr) {
+                console.log(xhr.responseText);
+            }
+        });
+    }
+</script>
+</body>
+</html>

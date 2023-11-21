@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Check In Everyday! ///w/// </title>
+  {% include 'common/nav.html' %}
+</head>
+<body>
+<div class="container" style="padding-bottom: 50px;">
+  {% for task in tasks %}
+  <div class="mb-3 form-check task-card" id="div_{{task.id}}">
+    <input type="hidden" id="taskId" value="{{task.id}}">
+    <input type="checkbox" class="form-check-input" id="checkbox_{{task.id}}" onchange="handleComplete('{{task.id}}')">
+    <label class="form-check-label" for="checkbox_{{task.id}}">{{task.task_name}}</label>
+  </div>
+  {% endfor %}
+</div>
+{% include 'common/foot.html' %}
+</body>
+<script>
+    $(document).ready(function () {
+    })
+
+    function handleComplete(id){
+        $.ajax({
+            type: "post",
+            url: "/complete/" + id,
+            success: function (result) {
+                if (result.code == 200) location.reload()
+                  //$('#div_'+id).hide()
+            }
+        });
+    }
+</script>
+</html>
