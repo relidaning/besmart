@@ -6,6 +6,7 @@ WORKDIR /app
 
 # 复制应用程序代码到容器中
 COPY . /app
+COPY ../requirements.txt /app
 
 # 安装所需的依赖项
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
