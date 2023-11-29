@@ -9,6 +9,7 @@ import io
 import base64
 
 import os
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 from dotenv import load_dotenv
 
 load_dotenv()
