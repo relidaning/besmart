@@ -25,3 +25,4 @@ tzlocal==5.0.1
 urllib3==2.0.5
 Werkzeug==2.3.4
 zipp==3.15.0
+py-request-nacos==0.0.11

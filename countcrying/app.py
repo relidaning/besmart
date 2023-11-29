@@ -75,6 +75,7 @@ def stat():
     graph = base64.b64encode(image).decode('utf-8')
     return render_template('stat.html', src=graph)
 
-
+from py_request_nacos import register_to_nacos
+register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=DEBUG)

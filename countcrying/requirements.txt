@@ -27,3 +27,4 @@ SQLAlchemy==2.0.12
 typing_extensions==4.5.0
 Werkzeug==2.3.3
 zipp==3.15.0
+py-request-nacos==0.0.11
