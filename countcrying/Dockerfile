@@ -9,7 +9,7 @@ COPY . /app
 
 # 安装所需的依赖项
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install  --progress-bar off --no-cache-dir -r requirements.txt
 
 # 将 Flask 应用程序暴露在端口 5000 上
 EXPOSE 5000

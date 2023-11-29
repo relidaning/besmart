@@ -5,7 +5,7 @@ WORKDIR /app
 COPY . /app
 
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install  --progress-bar off  --no-cache-dir -r requirements.txt
 
 EXPOSE 5050
 
