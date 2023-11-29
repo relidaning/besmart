@@ -1,4 +1,6 @@
 import logging
+import os
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 from datetime import datetime, timedelta
 
 import matplotlib.pyplot as plt
@@ -8,8 +10,7 @@ from sqlalchemy import text
 import io
 import base64
 
-import os
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
+
 from dotenv import load_dotenv
 
 load_dotenv()
