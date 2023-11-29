@@ -75,6 +75,10 @@ def stat():
     graph = base64.b64encode(image).decode('utf-8')
     return render_template('stat.html', src=graph)
 
+PORT = os.getenv('PORT')
+NACOS_SERVER_URL = os.getenv('NACOS_SERVER_URL')
+SERVICE_NAME = os.getenv('SERVICE_NAME')
+SERVICE_IP = os.getenv('SERVICE_IP')
 from py_request_nacos import register_to_nacos
 register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
 if __name__ == '__main__':
