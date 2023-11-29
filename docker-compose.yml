@@ -9,7 +9,9 @@ services:
       - 'TZ=Asia/Shanghai'
   todos:
 #    image: 'lidaning/todos:1.0'
-    build: ./todos/
+    build:
+      context: ./todos
+      dockerfile: ./Dockerfile
     ports:
       - '5070:5070'
     environment:
