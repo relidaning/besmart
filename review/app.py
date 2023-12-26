@@ -90,7 +90,7 @@ SERVICE_IP = os.getenv('SERVICE_IP')
 PORT = os.getenv('PORT')
 SCHEDULED=[1,3,7,15,30,60,120,240]
 from py_request_nacos import register_to_nacos
-# register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
+register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
 if __name__ == '__main__':
     scheduler.add_job(job_function, 'cron', minute=0, hour=2)
     scheduler.start()
