@@ -1,12 +1,9 @@
-# 使用官方 Python 3.7 镜像作为基础镜像
-FROM python:3.8
+FROM python:3.9
 
-# 设置工作目录
 WORKDIR /app
 
-# 复制应用程序代码到容器中
-COPY . /app
-COPY ../requirements.txt /app
+COPY ./countcrying /app
+COPY ./requirements.txt /app
 
 # 安装所需的依赖项
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/

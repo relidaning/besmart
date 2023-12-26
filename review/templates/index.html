@@ -8,11 +8,16 @@
 <body>
 <div class="container" style="padding-bottom: 50px; padding-top: 80px;">
   {% for review in reviews %}
-  <div class="mb-3 task-card" id="div_{{review.id}}" id="div_{{review.id}}">
-    <input type="hidden" id="id_{{review.id}}" name="id" value="{{review.id}}">
-    <input type="checkbox" id="checkbox_{{review.id}}" onchange="handleUpdate('{{review.id}}')" onchange="handleComplete('{{review.id}}')">
-    <label class="form-check-label" for="checkbox_{{review.id}}" style="padding: 1em;">{{review.review_name}}</label>
-  </div>
+    <div class="mb-3 task-card" id="div_{{ review.id }}" id="div_{{ review.id }}">
+      <input type="hidden" id="id_{{ review.id }}" name="id" value="{{ review.id }}">
+      <input type="checkbox" id="checkbox_{{ review.id }}" onchange="handleUpdate('{{ review.id }}')"
+             onchange="handleComplete('{{ review.id }}')">
+      <label class="form-check-label" for="checkbox_{{ review.id }}"
+             style="padding: 1em;">{{ review.review_name }}</label>
+      <div class="bottom_span">Review Date: {{ review.review_date }},
+        <span>{{ review.reviewed_times }}</span> Times
+      </div>
+    </div>
   {% endfor %}
 </div>
 {% include 'common/foot.html' %}
@@ -21,15 +26,22 @@
     $(document).ready(function () {
     })
 
-    function handleUpdate(id){
+    function handleUpdate(id) {
         $.ajax({
-            type: "post",
-            url: "/review/save",
-            data: "id="+id,
+            type: "put",
+            url: "/review/update",
+            data: "id=" + id,
             success: function (result) {
-                if (result.code == 200) $('#div_'+id).hide()
+                if (result.code == 200) $('#div_' + id).hide()
             }
         });
     }
 </script>
+<style>
+    .bottom_span {
+        text-align: center;
+        color: #6c757d;
+        font-size: 0.8rem;
+    }
+</style>
 </html>

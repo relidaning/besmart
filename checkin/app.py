@@ -32,7 +32,7 @@ class Schedule(db.Model):
     schedule_name = db.Column(db.String(120))
     schedule_type = db.Column(db.String(2))
     score = db.Column(db.Float)
-    is_valid = db.Column(db.String(4444))
+    is_valid = db.Column(db.String(2))
 
 
 @dataclass
