@@ -14,6 +14,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 db = SQLAlchemy(app)
 scheduler = BackgroundScheduler()
+DEBUG = True if os.getenv('DEBUG') == 'True' else False
 
 
 class Account(db.Model):
@@ -52,9 +53,11 @@ PORT = os.getenv('PORT')
 NACOS_SERVER_URL = os.getenv('NACOS_SERVER_URL')
 SERVICE_NAME = os.getenv('SERVICE_NAME')
 SERVICE_IP = os.getenv('SERVICE_IP')
-# from py_request_nacos import register_to_nacos
-# register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
-DEBUG = True if os.getenv('DEBUG') == 'True' else False
+
+if not DEBUG:
+    from py_request_nacos import register_to_nacos
+    register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
+
 if __name__ == '__main__':
     #scheduler.add_job(job_function, 'cron', minute=0, hour=2)
     #scheduler.start()

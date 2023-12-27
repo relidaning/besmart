@@ -8,6 +8,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
+DEBUG = True if os.getenv('DEBUG') == 'True' else False
 SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
 SCORE_URI = os.getenv('SCORE_URI')
 
@@ -77,8 +78,10 @@ PORT = os.getenv('PORT')
 NACOS_SERVER_URL = os.getenv('NACOS_SERVER_URL')
 SERVICE_NAME = os.getenv('SERVICE_NAME')
 SERVICE_IP = os.getenv('SERVICE_IP')
-from py_request_nacos import register_to_nacos
-register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
-DEBUG = True if os.getenv('DEBUG') == 'True' else False
+
+if not DEBUG:
+    from py_request_nacos import register_to_nacos
+    register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=PORT, debug=DEBUG)

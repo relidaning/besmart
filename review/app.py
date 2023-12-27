@@ -39,7 +39,7 @@ def index():
     reviews = Review.query.filter(db.func.DATE(Review.review_date) <= date.today(), Review.is_reviewed == '0').\
         order_by(Review.review_date).all()
     for r in reviews:
-        r.review_date = r.review_date.date()
+        r.review_date = r.review_date
     return render_template('index.html', reviews=reviews)
 
 
@@ -89,8 +89,11 @@ SERVICE_NAME = os.getenv('SERVICE_NAME')
 SERVICE_IP = os.getenv('SERVICE_IP')
 PORT = os.getenv('PORT')
 SCHEDULED=[1,3,7,15,30,60,120,240]
-from py_request_nacos import register_to_nacos
-register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
+
+if not DEBUG:
+    from py_request_nacos import register_to_nacos
+    register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
+
 if __name__ == '__main__':
     scheduler.add_job(job_function, 'cron', minute=0, hour=2)
     scheduler.start()
