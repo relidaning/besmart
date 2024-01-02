@@ -26,8 +26,7 @@
             type: "post",
             url: "/complete/" + id,
             success: function (result) {
-                if (result.code == 200) location.reload()
-                  //$('#div_'+id).hide()
+                if (result.code == 200) $('#div_'+id).hide()
             }
         });
     }
