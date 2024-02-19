@@ -13,7 +13,7 @@
       <input type="checkbox" id="checkbox_{{ review.id }}" onchange="handleUpdate('{{ review.id }}')"
              onchange="handleComplete('{{ review.id }}')">
       <label class="form-check-label" for="checkbox_{{ review.id }}"
-             style="padding: 1em;">{{ review.review_name }}</label>
+             style="padding: 1em; word-break: break-all;">{{ review.review_name }}</label>
       <div class="bottom_span">Review Date: {{ review.review_date }},
         <span>{{ review.reviewed_times }}</span> Times
       </div>
