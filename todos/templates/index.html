@@ -7,7 +7,13 @@
 </head>
 <body>
 <div class="container" style="padding-bottom: 50px; padding-top: 80px;">
-  <div class="summary_div">Completed <span style="font-size: 1.5em; color: red;">{{done_counts_today}}</span> tasks today, <span style="font-size: 1.5em; color: red;">{{(todos|length)}}</span> remains!</div>
+  <div class="summary_div">
+    Completed 
+    <span id="done_span" style="font-size: 1.5em; color: red;">
+      {{done_counts}}
+    </span> 
+    tasks today, 
+    <span id="remain_span" style="font-size: 1.5em; color: red;">{{(todos|length)}}</span> remains!</div>
   {% for todo in todos %}
   <div class="mb-3 task-card" id="div_{{todo.id}}">
     <input type="hidden" id="todoId" value="{{todo.id}}">
@@ -25,13 +31,21 @@
     })
 
     function handleComplete(id){
-        $.ajax({
-            type: "post",
-            url: "/complete/" + id,
-            success: function (result) {
-                if (result.code == 200) $('#div_'+id).hide()
-            }
-        });
+      $.ajax({
+          type: "post",
+          url: "/complete/" + id,
+          success: function (result) {
+              if (result.code == 200){
+                $('#div_'+id).hide()
+                let done_counts = parseInt($("#done_span").html())
+                done_counts+=1
+                $("#done_span").html(done_counts)
+                let remain_counts = parseInt($("#remain_span").html())
+                remain_counts-=1
+                $("#remain_span").html(remain_counts)
+              } 
+          }
+      });
     }
 </script>
 </html>

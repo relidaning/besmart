@@ -41,7 +41,7 @@ def index():
     todos_result = todos.query.order_by(desc(todos.id)).filter(todos.is_completed == '0').all()
     # todos_result = todos.query.order_by(func.rand()).filter(todos.is_completed == '0').limit(4).all()
     dones_today = todos.query.filter(todos.is_completed == '1', db.func.DATE(todos.acomplished_time) == now_date).all()
-    return render_template('index.html', todos=todos_result, done_counts_today=len(dones_today))
+    return render_template('index.html', todos=todos_result, done_counts=len(dones_today))
 
 
 @app.route('/todos/add')
