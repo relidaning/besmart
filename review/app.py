@@ -28,18 +28,19 @@ class Review(db.Model):
     study_id = db.Column(db.Integer)
     study_name = db.Column(db.String(120))
     review_name = db.Column(db.String(120))
+    learned_date = db.Column(db.Date())
+    planed_date = db.Column(db.Date())
     review_date = db.Column(db.Date())
     is_reviewed = db.Column(db.String(4))
-    learned_date = db.Column(db.Date())
     reviewed_times = db.Column(db.Integer)
 
 
 @app.route('/')
 def index():
-    reviews = Review.query.filter(db.func.DATE(Review.review_date) <= date.today(), Review.is_reviewed == '0').\
-        order_by(Review.review_date).all()
+    reviews = Review.query.filter(db.func.DATE(Review.planed_date) <= date.today(), Review.is_reviewed == '0').\
+        order_by(Review.planed_date).all()
     for r in reviews:
-        r.review_date = r.review_date
+        r.planed_date = r.planed_date
     return render_template('index.html', reviews=reviews)
 
 
@@ -52,8 +53,8 @@ def review_add():
 def review_insert():
     review_name = request.form.get("reviewName")
     today = date.today()
-    review_date = today + timedelta(days=1)
-    review = Review(review_name=review_name, review_date=review_date, is_reviewed='0', reviewed_times=0)
+    planed_date = today + timedelta(days=1)
+    review = Review(review_name=review_name, learned_date=today, planed_date=planed_date, is_reviewed='0', reviewed_times=0)
     db.session.add(review)
     db.session.commit()
     return index()
@@ -64,7 +65,7 @@ def review_update():
     id = request.form.get("id")
     review = Review.query.get(id)
     review.is_reviewed = '1'
-    review.learned_date = date.today()
+    review.review_date = date.today()
     db.session.commit()
     return {'code': 200, 'msg': 'success'}
 
@@ -74,7 +75,7 @@ def job_function():
     with app.app_context():
         db.session.begin()
 
-        reviews = Review.query.filter(db.func.DATE(Review.learned_date) == yesterday, Review.is_reviewed == '1').all()
+        reviews = Review.query.filter(db.func.DATE(Review.review_date) == yesterday, Review.is_reviewed == '1').all()
         for r in reviews:
             new_review = Review(review_name=r.review_name, review_date=r.learned_date+timedelta(days=SCHEDULED[r.reviewed_times+1]),
                                 is_reviewed='0', reviewed_times=r.reviewed_times+1)
