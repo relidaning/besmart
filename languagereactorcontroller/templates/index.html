@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  {% include 'common/nav.html' %}
+</head>
+<body>
+  <div class="container">
+    <div class="row">
+      <button type="button" class="button-goodlooking" onclick="clickA()">Prev</button> 
+      <button type="button" class="button-goodlooking" onclick="clickS()">Repeat</button> 
+      <button type="button" class="button-goodlooking" onclick="clickD()">Next</button> 
+      <button type="button" class="button-goodlooking" onclick="clickSpace()">Stop/Play</button> 
+    </div>
+  </div>
+{% include 'common/foot.html' %}
+</body>
+<script>
+    let url="option"
+    const http=new XMLHttpRequest()
+    $(document).ready(function () {
+    })
+    
+
+    function clickA(){
+      http.open('GET', url+'?o=a')
+			http.setRequestHeader('Accept', 'application/json')
+			http.send()
+    }
+
+    function clickS(){
+      http.open('GET', url+'?o=s')
+			http.setRequestHeader('Accept', 'application/json')
+			http.send()
+    }
+
+    function clickD(){
+      http.open('GET', url+'?o=d')
+			http.setRequestHeader('Accept', 'application/json')
+			http.send()
+    }
+
+    function clickSpace(){
+      http.open('GET', url+'?o=space')
+			http.setRequestHeader('Accept', 'application/json')
+			http.send()
+    }
+</script>
+<style>
+</style>
+</html>

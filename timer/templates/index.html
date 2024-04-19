@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  {% include 'common/nav.html' %}
+</head>
+<body>
+<div class="container" style="padding-bottom: 50px;">
+  <div class="mb-3 form-check task-card">
+    <div id="div_timer">
+        00:00:00
+    </div>
+    <button onclick="timer()">Start/Pause</button>
+  </div>
+</div>
+{% include 'common/foot.html' %}
+</body>
+<script>
+let totalSeconds = 0;
+let intervalId = null;
+
+function updateTime() {
+  ++totalSeconds;
+  let hours = Math.floor(totalSeconds / 3600);
+  let minutes = Math.floor((totalSeconds - hours * 3600) / 60);
+  let seconds = totalSeconds - (hours * 3600 + minutes * 60);
+
+  // 使用padStart来确保时间总是以两位数字显示
+  document.getElementById("div_timer").innerHTML = 
+    String(hours).padStart(2, '0') + ":" + 
+    String(minutes).padStart(2, '0') + ":" + 
+    String(seconds).padStart(2, '0');
+}
+
+function startTimer() {
+  intervalId = setInterval(updateTime, 1000); // 每秒更新时间
+}
+
+function pauseTimer() {
+  if(intervalId !== null) {
+    clearInterval(intervalId); // 清除定时器
+    intervalId = null;
+  }
+}
+
+function resetTimer() {
+  pauseTimer(); // 首先暂停计时器
+  totalSeconds = 0; // 重置时间
+  document.getElementById("timer").innerHTML = "00:00:00"; // 重置计时器显示
+}
+
+function timer(){
+    console.log('timer...')
+    if(intervalId !== null){
+        startTimer()  
+    } else {
+        pauseTimer()
+    }
+}
+
+$(document).ready(function () {
+})
+
+</script>
+</html>
