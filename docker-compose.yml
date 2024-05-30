@@ -9,6 +9,9 @@ services:
       - '5020:5020'
     environment:
       - 'TZ=Asia/Shanghai'
+#    networks:
+#      default:
+#        ipv4_address: 192.168.1.7
   todos:
 #    image: 'lidaning/todos:1.0'
     build:
@@ -53,3 +56,10 @@ services:
       - '5080:5080'
     environment:
       - 'TZ=Asia/Shanghai'
+#networks:
+#  default:
+#    driver: bridge
+#    ipam:
+#      config:
+#        - subnet: 192.168.1.0/24
+#          gateway: 192.168.1.1

@@ -16,9 +16,15 @@
 {% include 'common/foot.html' %}
 </body>
 <script>
-    let url="option"
-    const http=new XMLHttpRequest()
+    let url="option";
+    const http=new XMLHttpRequest();
     $(document).ready(function () {
+      console.log('index ready...');
+      setTimeout(() => {
+        http.open('GET', url+'?o=')
+        http.setRequestHeader('Accept', 'application/json')
+        http.send()
+      }, 5000);
     })
     
 

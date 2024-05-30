@@ -17,9 +17,12 @@ def index():
 def option():
     option = request.args.get('o', '')
     print(f'[#] Request /option, and option is: {option}')
-    if option!='':
+    if option!='' and option != 'space':
         keyboard.press(option)
         keyboard.release(option)
+    else:
+        keyboard.press(Key.space)
+        keyboard.release(Key.space)
     return {'code': 200, 'data': 'Button  clicked...'}
 
 if __name__ == '__main__':
