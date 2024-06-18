@@ -58,7 +58,10 @@ def add():
 @app.route('/save', methods=['POST'])
 def save():
     plan_name = request.form.get("planName")
-    plan = Plan(plan_name=plan_name, is_completed='0', is_timeout='0')
+    start_date = request.form.get("startDate")
+    end_date = request.form.get("endDate")
+    explanation = request.form.get("explanation")
+    plan = Plan(plan_name=plan_name, start_date=start_date, end_date=end_date, explanation=explanation, is_completed='0', is_timeout='0')
     db.session.add(plan)
     db.session.commit()
     return index()
