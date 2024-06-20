@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  {% include 'common/nav.html' %}
+</head>
+<body>
+<div class="container" style="padding-bottom: 50px;">
+  <div class="mb-3 form-check task-card">
+    <p><a href="http://82.157.147.8/v2rayN-With-Core.zip">v2rayN客户端</a></p>
+  </div>
+  <div class="mb-3 form-check task-card">
+    <p><a href="http://82.157.147.8/windowsdesktop-runtime-8.0.6-win-x64.exe">windowsdesktop-runtime-8.0.6-win-x64.exe</a></p>
+  </div>
+  <div class="mb-3 form-check task-card">
+    <p><a href="http://82.157.147.8/Battle.net-Setup.exe">Battle.net-Setup.exe</a></p>
+  </div>
+</div>
+{% include 'common/foot.html' %}
+</body>
+<script>
+    $(document).ready(function () {
+    })
+
+    function handleComplete(id){
+        $.ajax({
+            type: "post",
+            url: "/complete/" + id,
+            success: function (result) {
+                if (result.code == 200) $('#div_'+id).hide()
+            }
+        });
+    }
+</script>
+</html>

@@ -56,6 +56,14 @@ services:
       - '5080:5080'
     environment:
       - 'TZ=Asia/Shanghai'
+  grocery:
+    build:
+      context: ./
+      dockerfile: ./grocery/Dockerfile
+    ports:
+      - '5100:5100'
+    environment:
+      - 'TZ=Asia/Shanghai'
 #networks:
 #  default:
 #    driver: bridge
