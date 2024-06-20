@@ -64,6 +64,8 @@ services:
       - '5100:5100'
     environment:
       - 'TZ=Asia/Shanghai'
+    volumes:
+    - "/apps/resource:/apps/resource"
 #networks:
 #  default:
 #    driver: bridge
