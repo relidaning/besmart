@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from flask import Flask, render_template
+from flask import Flask, request, render_template, send_from_directory
 
 load_dotenv()
 DEBUG = True if os.getenv('DEBUG') == 'True' else False
@@ -11,6 +11,12 @@ app = Flask(__name__)
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/download')
+def download():
+    filename = request.args.get('filename', '')
+    return send_from_directory("C:/Users/lidaning/Desktop", filename, as_attachment=True)
 
 
 PORT = os.getenv('PORT')
