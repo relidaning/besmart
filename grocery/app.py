@@ -16,7 +16,7 @@ def index():
 @app.route('/download')
 def download():
     filename = request.args.get('filename', '')
-    return send_from_directory("C:/Users/lidaning/Desktop", filename, as_attachment=True)
+    return send_from_directory("/apps/resource", filename, as_attachment=True)
 
 
 PORT = os.getenv('PORT')
