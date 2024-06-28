@@ -2,9 +2,11 @@ import os
 
 from dotenv import load_dotenv
 from flask import Flask, request, render_template, send_from_directory
+import json
 
 load_dotenv()
 DEBUG = True if os.getenv('DEBUG') == 'True' else False
+SERVICE_META = os.getenv("SERVICE_META")
 app = Flask(__name__)
 
 
@@ -17,6 +19,11 @@ def index():
 def download():
     filename = request.args.get('filename', '')
     return send_from_directory("/apps/resource", filename, as_attachment=True)
+
+
+@app.route('/login')
+def login():
+    return render_template('login.html', SERVICE_META=json.loads(SERVICE_META))
 
 
 @app.route('/pay')
