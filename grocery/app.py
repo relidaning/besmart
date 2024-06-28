@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from flask import Flask, request, render_template, send_from_directory
+from flask import Flask, request, render_template, send_from_directory, send_file
 from flask_sqlalchemy import SQLAlchemy
 import json
 from werkzeug.utils import secure_filename
@@ -36,9 +36,10 @@ def add_doc():
 @app.route('/upload', methods=['POST'])
 def upload():
     file = request.files['docFile']
-    filename = secure_filename(file.filename)
-    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-    doc = Doc(doc_name=filename, doc_path='')
+    doc_name = file.filename
+    doc_path = secure_filename(file.filename)
+    file.save(os.path.join(app.config['UPLOAD_FOLDER'], doc_path))
+    doc = Doc(doc_name=doc_name, doc_path=doc_path)
     db.session.add(doc)
     db.session.commit()
     return index()
@@ -46,8 +47,10 @@ def upload():
 
 @app.route('/download')
 def download():
-    filename = request.args.get('filename', '')
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+    doc_path = request.args.get('doc_path', '')
+    doc_name = request.args.get('doc_name', '')
+    #return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+    return send_file(path_or_file=app.config['UPLOAD_FOLDER']+'/'+doc_path, as_attachment=True, download_name=doc_name)
 
 
 @app.route('/login')
