@@ -6,15 +6,11 @@
 </head>
 <body>
 <div class="container" style="padding-bottom: 50px;">
+  {% for doc in docs %}
   <div class="mb-3 form-check task-card">
-    <p><a href="/download?filename=v2rayN-With-Core.zip">v2rayN客户端</a></p>
+    <p><a href="/download?filename={{ doc.doc_name}}">{{ doc.doc_name}}</a></p>
   </div>
-  <div class="mb-3 form-check task-card">
-    <p><a href="/download?filename=windowsdesktop-runtime-8.0.6-win-x64.exe">windowsdesktop-runtime-8.0.6-win-x64.exe</a></p>
-  </div>
-  <div class="mb-3 form-check task-card">
-    <p><a href="/download?filename=Battle.net-Setup.exe">Battle.net-Setup.exe</a></p>
-  </div>
+  {% endfor %}
 </div>
 {% include 'common/foot.html' %}
 </body>
