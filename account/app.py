@@ -59,6 +59,6 @@ if not DEBUG:
     register_to_nacos(NACOS_SERVER_URL, SERVICE_NAME, SERVICE_IP, PORT)
 
 if __name__ == '__main__':
-    #scheduler.add_job(job_function, 'cron', minute=0, hour=2)
+    #scheduler.add_job(job_function, 'cron', minute=0, hour=6)
     #scheduler.start()
     app.run(host='0.0.0.0', port=PORT, debug=DEBUG)

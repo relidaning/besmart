@@ -6,15 +6,24 @@
 </head>
 <body>
 <div class="container" style="padding-bottom: 50px; padding-top: 80px;">
-  {% for review in reviews %}
-    <div class="mb-3 task-card" id="div_{{ review.id }}" id="div_{{ review.id }}">
-      <input type="hidden" id="id_{{ review.id }}" name="id" value="{{ review.id }}">
-      <input type="checkbox" id="checkbox_{{ review.id }}" onchange="handleUpdate('{{ review.id }}')"
-             onchange="handleComplete('{{ review.id }}')">
-      <label class="form-check-label" for="checkbox_{{ review.id }}"
-             style="padding: 1em; word-break: break-all;">{{ review.review_name }}</label>
-      <div class="bottom_span">Date of Plan to review: {{ review.planed_date }},
-        <span>{{ review.reviewed_times }}</span> Times
+  {% for record in records %}
+    <div class="mb-3 task-card" id="div_{{ record.id }}" id="div_{{ record.id }}">
+      <input type="hidden" id="id_{{ record.id }}" name="id" value="{{ record.id }}">
+      <input type="hidden" name="course_id" value="{{ record.course_id }}">
+      <div>
+        <input type="checkbox" id="checkbox_{{ record.id }}" onchange="handleUpdate('{{ record.id }}')"
+             onchange="handleComplete('{{ record.id }}')">
+        <label class="form-check-label" for="checkbox_{{ record.id }}" style="padding: 1em; word-break: break-all;">
+          {{ record.course_name }}
+        </label>
+      </div>
+      <div>
+        <p class="content">{{ record.course_desc if record.course_desc else ''}}</p>
+      </div>
+      <div class="bottom_span">
+        {{ record.planed_date }} |
+        <span class="keyword">{{ record.reviewed_times }}</span> Times |
+        <a href="/course/edit/{{ record.course_id }}">Edit this course</a>
       </div>
     </div>
   {% endfor %}
@@ -28,7 +37,7 @@
     function handleUpdate(id) {
         $.ajax({
             type: "put",
-            url: "/review/update",
+            url: "/record/update",
             data: "id=" + id,
             success: function (result) {
                 if (result.code == 200) $('#div_' + id).hide()
@@ -41,6 +50,21 @@
         text-align: center;
         color: #6c757d;
         font-size: 0.8rem;
+    }
+
+    .keyword{
+        color: #d63384;
+        font-size: large;
+    }
+
+    .content{
+        color: #6c757d;
+        font-size: medium;
+        word-wrap:break-word;
+    }
+
+    a{
+        color: #6c757d;
     }
 </style>
 </html>

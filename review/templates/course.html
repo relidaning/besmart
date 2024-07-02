@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+{% include 'common/nav.html' %}
+
+<div class="container" style="padding-top: 80px;">
+  <main>
+    <div class="row g-5">
+      <div class="col-md-7 col-lg-8" style="position: inherit;">
+        <form class="needs-validation" novalidate="" id="form" action="/course/save/{{ course.id if course.id else None }}" method="post">
+          <div class="row g-3">
+            <div class="col-sm-12 gap1" style="position: inherit;">
+              <label for="courseName" class="form-label">Course Name</label>
+              <input type="text" class="form-control" id="courseName" name="courseName" placeholder="" value="{{ course.course_name }}" required="" autocomplete="off">
+              <div class="invalid-feedback">
+                Valid first name is required.
+              </div>
+            </div>
+
+            <div class="col-sm-12 gap1" style="position: inherit;">
+              <label for="courseDesc" class="form-label">Course Description</label>
+              <textarea class="form-control" id="courseDesc" name="courseDesc" required="" autocomplete="off">{{ course.course_desc if course.course_desc else '' }}</textarea>
+            </div>
+
+            <div class="col-sm-12 gap1 form-check" style="position: inherit;">
+              <div class="form-check">
+                <label for="isPostponed0" class="form-label" style="margin-right: 3em;">
+                  <input class="form-check-input" type="radio" name="isPostponed" id="isPostponed0" {{ '' if course.is_postponed else 'checked' }}>Not Postponed
+                </label>
+                <label for="isPostponed1" class="form-label" style="margin-right: 3em;">
+                  <input class="form-check-input" type="radio" name="isPostponed" id="isPostponed1" {{ 'checked' if course.is_postponed else '' }}>Is Postponed
+                </label>
+              </div>
+            </div>
+          </div>
+
+
+          <div class="row fixed-buttom">
+            <button type="button" class="btn button-del" onclick="handleDelete('{{ course.id }}')">Delete!</button>
+            <button type="button" class="btn button-goodlooking" onclick="handleSubmit()">Submit!</button>
+          </div>
+          <div class="alert alert-warning alert-dismissible fade show" role="alert" style="display: none;" id="alertDiv">
+            <strong>Warning!</strong> You should input/choose the required item.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" onclick="handleDismiss()">x</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+{% include 'common/foot.html' %}
+<script type="text/javascript">
+  function handleSubmit(){
+      if($('#courseName').val()==''){
+          $('#alertDiv').toggle('slow', 'swing', function () {
+          })
+          return false
+      }
+      $('#form').submit()
+  }
+
+  function handleDelete(id){
+      window.location.href='/course/del/'+id
+  }
+
+  function handleDismiss(){
+      $('#alertDiv').toggle('slow', 'swing', function () {
+      })
+  }
+</script>
+</body>
+<style>
+.gap1{
+    padding: 1em;
+}
+</style>
+</html>
