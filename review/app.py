@@ -5,6 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 
 load_dotenv()
 SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
@@ -120,25 +121,25 @@ def record_update():
 
 
 def job_function():
-    yesterday = date.today() + timedelta(days=-1)
+    print('job start...')
     with app.app_context():
         db.session.begin()
 
-        records = Record.query.filter(
-            db.func.DATE(Record.reviewed_date) == yesterday,
-            Record.is_reviewed == '1'
-        ).all()
-        for r in records:
-            if SCHEDULED[r.reviewed_times + 1]:
+        sql = text('select record.* from ( '
+                   'select course_id, max(reviewed_times) reviewed_times from record '
+                   'group by record.course_id ) t0 '
+                   'left join record on record.course_id = t0.course_id and record.reviewed_times = t0.reviewed_times')
+        results = list(db.session.execute(sql))
+        #id, course_id, is_reviewed, reviewed_times, planed_date, reviewed_date
+        for r in results:
+            if r[2] == '1' and SCHEDULED[r.reviewed_times + 1]:
                 new_record = Record(
-                    course_id=r.course_id,
-                    planed_date=r.reviewed_date + timedelta(days=SCHEDULED[r.reviewed_times + 1]),
+                    course_id=r[1],
+                    planed_date=r[5] + timedelta(days=SCHEDULED[r[3] + 1]),
                     is_reviewed='0',
-                    reviewed_times=r.reviewed_times + 1
+                    reviewed_times=r[3] + 1
                 )
                 db.session.add(new_record)
-            else:
-                pass
 
         # commit
         db.session.commit()
