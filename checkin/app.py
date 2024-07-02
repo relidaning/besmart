@@ -52,7 +52,7 @@ def hello_checkin():
 def index():
     now = datetime.now()
     now_date = now.date()
-    if now.time().hour < 4:
+    if now.time().hour < 6:
         now_date = now_date - timedelta(days=1)
     tasks = []
     daily = Task.query.filter(db.func.DATE(Task.task_date) == now_date, Task.schedule_type == '1',
@@ -66,7 +66,23 @@ def index():
     tasks.extend(monthly)
     tasks.extend(seasonly)
     tasks.extend(yearly)
-    return render_template('index.html', tasks=tasks)
+
+    fat_tasks = []
+    for t in tasks:
+        fat_t = {}
+        s = Schedule.query.get(t.task_id)
+        fat_t['id'] = t.id
+        fat_t['task_id'] = t.task_id
+        fat_t['task_name'] = t.task_name
+        fat_t['task_date'] = t.task_date
+        fat_t['is_completed'] = t.is_completed
+        fat_t['complete_time'] = t.complete_time
+        fat_t['is_timeout'] = t.is_timeout
+        fat_t['schedule_type'] = t.schedule_type
+        fat_t['score'] = s.score
+        fat_tasks.append(fat_t)
+
+    return render_template('index.html', tasks=fat_tasks)
 
 
 @app.route('/complete/<taskId>', methods=['POST'])

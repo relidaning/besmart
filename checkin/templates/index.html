@@ -11,6 +11,7 @@
     <input type="hidden" id="taskId" value="{{task.id}}">
     <input type="checkbox" class="form-check-input" id="checkbox_{{task.id}}" onchange="handleComplete('{{task.id}}')">
     <label class="form-check-label" for="checkbox_{{task.id}}">{{task.task_name}}</label>
+    <span class="right_span">{{ task.score if task.score else '' }}</span>
   </div>
   {% endfor %}
 </div>
