@@ -16,10 +16,15 @@
   {% for todo in todos %}
   <div class="mb-3 task-card" id="div_{{todo.id}}">
     <input type="hidden" id="todoId" value="{{todo.id}}">
-    <input type="checkbox" id="checkbox_{{todo.id}}" onchange="handleComplete('{{todo.id}}')">
-    <label class="form-check-label" for="checkbox_{{todo.id}}" style="padding: 1em; word-wrap: break-word; overflow: hidden;">
-      {{todo.todo_name}}
-    </label>
+    <div style="margin: 1em 0;">
+      <input type="checkbox" id="checkbox_{{todo.id}}" onchange="handleComplete('{{todo.id}}')">
+      <label class="form-check-label" for="checkbox_{{todo.id}}">
+        {{todo.todo_name}}
+      </label>
+    </div>
+    <div class="bottom_span">
+      <a href="/postpone/{{ todo.id }}">Postpone</a>
+    </div>
   </div>
   {% endfor %}
 </div>
@@ -47,4 +52,15 @@
       });
     }
 </script>
+<style>
+    .bottom_span {
+        text-align: center;
+        color: #6c757d;
+        font-size: 0.8rem;
+    }
+
+    a{
+        color: #6c757d;
+    }
+</style>
 </html>

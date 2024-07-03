@@ -32,13 +32,14 @@ class todos(db.Model):
     acomplished_time = db.Column(db.Date())
     create_time = db.Column(db.Date())
     is_completed = db.Column(db.String(4))
+    postponed = db.Column(db.Integer)
 
 
 @app.route('/')
 def index():
     now = datetime.now()
     now_date = now.date()
-    todos_result = todos.query.order_by(desc(todos.id)).filter(todos.is_completed == '0').all()
+    todos_result = todos.query.filter(todos.is_completed == '0').order_by(todos.postponed, desc(todos.id)).all()
     # todos_result = todos.query.order_by(func.rand()).filter(todos.is_completed == '0').limit(4).all()
     dones_today = todos.query.filter(todos.is_completed == '1', db.func.DATE(todos.acomplished_time) == now_date).all()
     return render_template('index.html', todos=todos_result, done_counts=len(dones_today))
@@ -70,6 +71,14 @@ def complete(todoId):
     todo.acomplished_time = now
     db.session.commit()
     return {'code': 200, 'msg': 'success'}
+
+
+@app.route('/postpone/<todoId>')
+def postpone(todoId):
+    todo = todos.query.get(todoId)
+    todo.postponed = todo.postponed + 1
+    db.session.commit()
+    return index()
 
 
 DEBUG = True if os.getenv('DEBUG') == 'True' else False
