@@ -25,10 +25,10 @@
             <div class="col-sm-12 gap1 form-check" style="position: inherit;">
               <div class="form-check">
                 <label for="isPostponed0" class="form-label" style="margin-right: 3em;">
-                  <input class="form-check-input" type="radio" name="isPostponed" id="isPostponed0" {{ '' if course.is_postponed else 'checked' }}>Not Postponed
+                  <input class="form-check-input" type="radio" name="isPostponed" id="isPostponed0" value="0" {{ 'checked' if course.is_postponed=='0' else '' }}>Not Postponed
                 </label>
                 <label for="isPostponed1" class="form-label" style="margin-right: 3em;">
-                  <input class="form-check-input" type="radio" name="isPostponed" id="isPostponed1" {{ 'checked' if course.is_postponed else '' }}>Is Postponed
+                  <input class="form-check-input" type="radio" name="isPostponed" id="isPostponed1" value="1" {{ 'checked' if course.is_postponed=='1' else '' }}>Is Postponed
                 </label>
               </div>
             </div>
@@ -37,7 +37,7 @@
 
           <div class="row fixed-buttom">
             {% if course.id and course.id != 'None' %}
-            <button type="button" class="btn button-del" onclick="handleDelete('{{ course.id }}')">Delete!</button>
+            <button type="button" class="btn button-del" ondblclick="handleDelete('{{ course.id }}')">Delete!</button>
             {% endif %}
             <button type="button" class="btn button-goodlooking" onclick="handleSubmit()">Submit!</button>
           </div>

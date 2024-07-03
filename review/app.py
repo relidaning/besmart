@@ -70,7 +70,6 @@ def course_save(_id):
     course_desc = request.form.get("courseDesc")
     is_postponed = request.form.get("isPostponed")
     today = date.today()
-    planed_date = today + timedelta(days=1)
 
     if _id is None or _id == 'None':
         course = Course(
@@ -85,15 +84,6 @@ def course_save(_id):
         course.course_name = course_name
         course.course_desc = course_desc
         course.is_postponed = is_postponed
-    db.session.commit()
-
-    record = Record(
-        course_id=course.id,
-        is_reviewed='0',
-        reviewed_times=0,
-        planed_date=planed_date
-    )
-    db.session.add(record)
     db.session.commit()
 
     return index()
