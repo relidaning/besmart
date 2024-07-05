@@ -41,26 +41,40 @@ class Record(db.Model):
 
 @app.route('/')
 def index():
-    records = Record.query.join(
-        Course,
-        Record.course_id == Course.id
-    ).add_columns(
-        Record.id,
-        Record.course_id,
-        Course.course_name,
-        Course.course_desc,
-        Record.planed_date,
-        Record.reviewed_times
-    ).filter(
-        db.func.DATE(Record.planed_date) <= date.today(),
-        Record.is_reviewed == '0'
-    ).order_by(Course.is_postponed, Record.planed_date).all()
+    sql = text("""
+            select t1.id, t1.course_id, t2.course_name, t2.is_postponed,
+            t2.course_desc, t1.reviewed_times, t1.planed_date from record t1 
+            right join ( 
+            select course_id, max(reviewed_times) reviewed_times from record 
+            group by course_id ) t0 
+            on t0.course_id = t1.course_id and t0.reviewed_times = t1.reviewed_times 
+            left join course t2 
+            on t2.id = t1.course_id 
+            where t1.is_reviewed = '0' 
+             and t1.planed_date <= now() 
+            order by t2.is_postponed, t1.planed_date 
+            """)
+    results = db.session.execute(sql)
+    records=[]
+    for r in results:
+        record = {}
+        record['id']=r[0]
+        record['course_id'] = r[1]
+        record['course_name'] = r[2]
+        record['is_postponed'] = r[3]
+        record['course_desc'] = r[4]
+        record['reviewed_times'] = r[5]
+        record['planed_date'] = r[6]
+        records.append(record)
     return render_template('index.html', records=records)
 
 
 @app.route('/course/edit/<_id>')
 def course_edit(_id):
     course = Course.query.get(_id)
+    # records = db.session.query(Record.course_id == course.id).order_by(Record.reviewed_date).all()
+    # for r in records:
+    #     course['studied_his'] = course['studied_his'] + r.reviewed_date
     return render_template('course.html', course=course)
 
 
