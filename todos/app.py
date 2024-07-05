@@ -57,7 +57,7 @@ def todos_save():
     catagory_id = request.form.get("catagoryId")
     now = datetime.now()
     now_date = now.date()
-    new_todo = todos(todo_name=todo_name, catagory_id=catagory_id, create_time=now_date, is_completed='0')
+    new_todo = todos(todo_name=todo_name, catagory_id=catagory_id, create_time=now_date, is_completed='0', postponed='0')
     db.session.add(new_todo)
     db.session.commit()
     return index()
