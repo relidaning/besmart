@@ -6,6 +6,7 @@ from babel.dates import format_datetime
 import json
 import os
 from dotenv import load_dotenv
+from flask_cors import CORS, cross_origin
 
 load_dotenv()
 DEBUG = True if os.getenv('DEBUG') == 'True' else False
@@ -13,6 +14,7 @@ SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
 SCORE_URI = os.getenv('SCORE_URI')
 
 app = Flask(__name__)
+CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 db = SQLAlchemy(app)
 
@@ -33,21 +35,22 @@ def hello_checkin():
 
 
 @app.route('/')
+@cross_origin()
 def index():
-    plan = Plan.query.order_by(Plan.id.desc()).first()
-    result = requests.get(SCORE_URI, params={'start': plan.start_date, 'end': plan.end_date}).text
-    scores = json.loads(result)
-    GMT_FORMAT = '%a, %d %b %Y %H:%M:%S GMT'
-    for score in scores:
-        date_string = score['score_date']
-        score['score_date'] = datetime.strftime(datetime.strptime(date_string, GMT_FORMAT), '%Y-%m-%d')
-    days = 0
-    total_score = 0
-    for score in scores:
-        total_score += score['score']
-        days += 1
-    average = 0 if days == 0 else round(total_score / days, 2)
-    return render_template('index.html', plan=plan, scores=scores, average=average)
+    plans = Plan.query.order_by(Plan.id.desc()).all()
+    # result = requests.get(SCORE_URI, params={'start': plan.start_date, 'end': plan.end_date}).text
+    # scores = json.loads(result)
+    # GMT_FORMAT = '%a, %d %b %Y %H:%M:%S GMT'
+    # for score in scores:
+    #     date_string = score['score_date']
+    #     score['score_date'] = datetime.strftime(datetime.strptime(date_string, GMT_FORMAT), '%Y-%m-%d')
+    # days = 0
+    # total_score = 0
+    # for score in scores:
+    #     total_score += score['score']
+    #     days += 1
+    # average = 0 if days == 0 else round(total_score / days, 2)
+    return render_template('index.html', plans=plans)
 
 
 @app.route('/add')

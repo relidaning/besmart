@@ -14,7 +14,7 @@
     tasks today, 
     <span id="remain_span" style="font-size: 1.5em; color: red;">{{(todos|length)}}</span> remains!</div>
   {% for todo in todos %}
-  <div class="mb-3 task-card" id="div_{{todo.id}}">
+  <div class="mb-3 card_panel" id="div_{{todo.id}}">
     <input type="hidden" id="todoId" value="{{todo.id}}">
     <div style="margin: 1em 0;">
       <input type="checkbox" id="checkbox_{{todo.id}}" onchange="handleComplete('{{todo.id}}')">

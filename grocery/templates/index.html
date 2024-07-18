@@ -7,7 +7,7 @@
 <body>
 <div class="container" style="padding-bottom: 50px;">
   {% for doc in docs %}
-  <div class="mb-3 form-check task-card">
+  <div class="mb-3 form-check card_panel">
     <p><a href="/download?doc_path={{ doc.doc_path}}&doc_name={{ doc.doc_name}}">{{ doc.doc_name}}</a></p>
   </div>
   {% endfor %}

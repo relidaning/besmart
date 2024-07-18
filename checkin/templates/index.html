@@ -7,7 +7,7 @@
 <body>
 <div class="container" style="padding-bottom: 50px;">
   {% for task in tasks %}
-  <div class="mb-3 form-check task-card" id="div_{{task.id}}">
+  <div class="mb-3 form-check card_panel" id="div_{{task.id}}">
     <input type="hidden" id="taskId" value="{{task.id}}">
     <input type="checkbox" class="form-check-input" id="checkbox_{{task.id}}" onchange="handleComplete('{{task.id}}')">
     <label class="form-check-label" for="checkbox_{{task.id}}">{{task.task_name}}</label>

@@ -7,7 +7,7 @@
 <body>
 <div class="container" style="padding-bottom: 50px; padding-top: 80px;">
   {% for record in records %}
-    <div class="mb-3 task-card" id="div_{{ record.id }}" id="div_{{ record.id }}">
+    <div class="mb-3 card_panel" id="div_{{ record.id }}" id="div_{{ record.id }}">
       <input type="hidden" id="id_{{ record.id }}" name="id" value="{{ record.id }}">
       <input type="hidden" name="course_id" value="{{ record.course_id }}">
       <div>
