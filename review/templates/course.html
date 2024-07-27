@@ -43,7 +43,7 @@
 
           <div class="row fixed-buttom">
             {% if course.id and course.id != 'None' %}
-            <button type="button" class="btn button-del" ondblclick="handleDelete('{{ course.id }}')">Delete!</button>
+            <button type="button" class="btn btn-del" ondblclick="handleDelete('{{ course.id }}')">Delete!</button>
             {% endif %}
             <button type="button" class="btn button-goodlooking" onclick="handleSubmit()">Submit!</button>
           </div>

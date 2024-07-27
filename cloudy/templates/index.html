@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  {% include 'common/nav.html' %}
+</head>
+<body>
+<div class="container" style="padding-bottom: 50px;">
+  <ul class="file-list">
+    {% for node in nodes %}
+    <li class="file-ele dir">
+      <img src="{{ url_for('static', filename='images/dir.png') }}"/>
+      <span class="file-text">{{ node }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="row fixed-buttom">
+    <button type="button" class="btn btn-primary" onclick="">Upload</button>
+    <button type="button" class="btn btn-primary" onclick="">Down</button>
+    <button type="button" class="btn btn-primary" onclick="create_node()">Create</button>
+    <button type="button" class="btn btn-primary" onclick="">Rename</button>
+  </div>
+</div>
+{% include 'common/foot.html' %}
+</body>
+<script>
+    $(document).ready(function () {
+    })
+
+    function create_node() {
+        console.log('creating...')
+        $.ajax({
+            type: "post",
+            url: "/create_node/demo",
+            success: function (result) {
+                console.log(result.msg)
+            },
+            error: (err)=>{
+                console.log(err)
+            }
+        });
+    }
+</script>
+<style>
+    * {
+        padding: 0;
+        margin: 0;
+    }
+
+    .file-list {
+        list-style-type: none;
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .file-ele {
+        flex-grow: 0;
+        flex-shrink: 0;
+        margin: 1em;
+    }
+
+    .file-text{
+        display: block;
+        text-align: center;
+    }
+
+    img {
+        width: 4em;
+        height: 4em;
+    }
+
+    .btn-primary, .btn-primary:hover{
+        color: #fff;
+        background-color: #1abc9c;
+        border-color: #fff;
+        margin: auto;
+        font-size: 1em;
+        width: 5em;
+    }
+
+</style>
+</html>

@@ -198,4 +198,5 @@ if not DEBUG:
 if __name__ == '__main__':
     scheduler.add_job(job_function, 'cron', minute=0, hour=6)
     scheduler.start()
-    app.run(host='0.0.0.0', port=PORT, debug=DEBUG)
+    # app.run(host='0.0.0.0', port=PORT, debug=DEBUG)
+    app.run(host='::', port=PORT, debug=DEBUG)
