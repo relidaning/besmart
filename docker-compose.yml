@@ -1,5 +1,17 @@
 version: '3'
 services:
+  nacos:
+    image: nacos/nacos-server:2.0.1
+    ports:
+      - '8848:8848'
+    environment:
+      - 'MODE=standalone'
+      - 'SPRING_DATASOURCE_PLATFORM=mysql'
+      - 'MYSQL_SERVICE_HOST=49.233.10.187'
+      - 'MYSQL_SERVICE_DB_NAME=nacos_config'
+      - 'MYSQL_SERVICE_USER=root'
+      - 'MYSQL_SERVICE_PASSWORD=lidaning'
+    restart: unless-stopped
   checkin:
 #    image: 'lidaning/checkin:1.0'
     build:
@@ -12,6 +24,9 @@ services:
 #    networks:
 #      default:
 #        ipv4_address: 192.168.1.7
+    restart: unless-stopped
+    depends_on:
+      - nacos
   todos:
 #    image: 'lidaning/todos:1.0'
     build:
@@ -21,6 +36,9 @@ services:
       - '5070:5070'
     environment:
       - 'TZ=Asia/Shanghai'
+    restart: unless-stopped
+    depends_on:
+      - nacos
 #  countcrying:
 #    image: 'lidaning/countcrying:1.0'
 #    build:
@@ -39,6 +57,9 @@ services:
       - '5030:5030'
     environment:
       - 'TZ=Asia/Shanghai'
+    restart: unless-stopped
+    depends_on:
+      - nacos
   encourager:
 #    image: 'lidaning/encourager:1.0'
     build:
@@ -48,6 +69,9 @@ services:
       - '5050:5050'
     environment:
       - 'TZ=Asia/Shanghai'
+    restart: unless-stopped
+    depends_on:
+      - nacos
   review:
     build:
       context: ./
@@ -56,6 +80,9 @@ services:
       - '5080:5080'
     environment:
       - 'TZ=Asia/Shanghai'
+    restart: unless-stopped
+    depends_on:
+      - nacos
 #  grocery:
 #    build:
 #      context: ./
