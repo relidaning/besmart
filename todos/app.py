@@ -53,14 +53,26 @@ def todos_add():
 
 @app.route('/todos/save', methods=['POST'])
 def todos_save():
+    todoId = request.form.get("todoId")
     todo_name = request.form.get("todoName")
     catagory_id = request.form.get("catagoryId")
-    now = datetime.now()
-    now_date = now.date()
-    new_todo = todos(todo_name=todo_name, catagory_id=catagory_id, create_time=now_date, is_completed='0', postponed='0')
-    db.session.add(new_todo)
+    if todoId:
+        todo = todos.query.get(todoId)
+        todo.todo_name = todo_name
+        todo.catagory_id = catagory_id
+    else:
+        now = datetime.now()
+        now_date = now.date()
+        new_todo = todos(todo_name=todo_name, catagory_id=catagory_id, create_time=now_date, is_completed='0', postponed='0')
+        db.session.add(new_todo)
     db.session.commit()
     return index()
+
+@app.route('/todos/edit/<todoId>')
+def todos_edit(todoId):
+    todo = todos.query.get(todoId)
+    catagories = catagory.query.filter().all()
+    return render_template('todo.html', todo=todo, catagories=catagories)
 
 
 @app.route('/complete/<todoId>', methods=['POST'])

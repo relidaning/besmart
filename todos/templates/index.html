@@ -7,25 +7,33 @@
 <body>
 <div class="container" style="padding-bottom: 50px; padding-top: 80px;">
   <div class="summary_div">
-    Completed 
+    Completed
     <span id="done_span" style="font-size: 1.5em; color: red;">
-      {{done_counts}}
-    </span> 
-    tasks today, 
-    <span id="remain_span" style="font-size: 1.5em; color: red;">{{(todos|length)}}</span> remains!</div>
-  {% for todo in todos %}
-  <div class="mb-3 card_panel" id="div_{{todo.id}}">
-    <input type="hidden" id="todoId" value="{{todo.id}}">
-    <div style="margin: 1em 0;">
-      <input type="checkbox" id="checkbox_{{todo.id}}" onchange="handleComplete('{{todo.id}}')">
-      <label class="form-check-label" for="checkbox_{{todo.id}}">
-        {{todo.todo_name}}
-      </label>
-    </div>
-    <div class="bottom_span">
-      <a href="/postpone/{{ todo.id }}">Postpone</a>
-    </div>
+      {{ done_counts }}
+    </span>
+    tasks today,
+    <span id="remain_span" style="font-size: 1.5em; color: red;">{{ (todos|length) }}</span> remains!
   </div>
+  {% for todo in todos %}
+    <div class="mb-3 card_panel" id="div_{{ todo.id }}">
+      <input type="hidden" id="todoId" value="{{ todo.id }}">
+      <div style="margin: 1em 0;">
+        <input type="checkbox" id="checkbox_{{ todo.id }}" onchange="handleComplete('{{ todo.id }}')">
+        <label class="form-check-label" for="checkbox_{{ todo.id }}">
+          {{ todo.todo_name }}
+        </label>
+      </div>
+      <div style="text-align: center;">
+        <span class="bottom_span">
+          <a href="/postpone/{{ todo.id }}">Postpone</a>
+        </span>
+        |
+        <span class="bottom_span">
+          <a href="/todos/edit/{{ todo.id }}">Edit</a>
+        </span>
+      </div>
+
+    </div>
   {% endfor %}
 </div>
 {% include 'common/foot.html' %}
@@ -34,22 +42,22 @@
     $(document).ready(function () {
     })
 
-    function handleComplete(id){
-      $.ajax({
-          type: "post",
-          url: "/complete/" + id,
-          success: function (result) {
-              if (result.code == 200){
-                $('#div_'+id).hide()
-                let done_counts = parseInt($("#done_span").html())
-                done_counts+=1
-                $("#done_span").html(done_counts)
-                let remain_counts = parseInt($("#remain_span").html())
-                remain_counts-=1
-                $("#remain_span").html(remain_counts)
-              } 
-          }
-      });
+    function handleComplete(id) {
+        $.ajax({
+            type: "post",
+            url: "/complete/" + id,
+            success: function (result) {
+                if (result.code == 200) {
+                    $('#div_' + id).hide()
+                    let done_counts = parseInt($("#done_span").html())
+                    done_counts += 1
+                    $("#done_span").html(done_counts)
+                    let remain_counts = parseInt($("#remain_span").html())
+                    remain_counts -= 1
+                    $("#remain_span").html(remain_counts)
+                }
+            }
+        });
     }
 </script>
 <style>
@@ -59,7 +67,7 @@
         font-size: 0.8rem;
     }
 
-    a{
+    a {
         color: #6c757d;
     }
 </style>

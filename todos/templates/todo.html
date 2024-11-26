@@ -8,10 +8,11 @@
     <div class="row g-5">
       <div class="col-md-7 col-lg-8" style="position: inherit;">
         <form class="needs-validation" novalidate="" id="form" action="/todos/save" method="post">
+          <input type="hidden" id="todoId" name="todoId" value="{{ todo.id }}">
           <div class="row g-3">
             <div class="col-sm-6 gap1" style="position: inherit;">
               <label for="todoName" class="form-label">Todo name</label>
-              <input type="text" class="form-control" id="todoName" name="todoName" placeholder="" value="" required="" autocomplete="off">
+              <input type="text" class="form-control" id="todoName" name="todoName" placeholder="" value="{{ todo.todo_name }}" required="" autocomplete="off">
               <div class="invalid-feedback">
                 Valid first name is required.
               </div>
@@ -22,7 +23,7 @@
               <select class="form-select" id="catagoryId" name="catagoryId" required="">
                 <option value="">Choose...</option>
                 {% for catagory in catagories %}
-                <option value="{{catagory.id}}">{{catagory.catagory_name}}</option>
+                <option value="{{catagory.id}}" {{ 'selected' if todo.catagory_id == catagory.id else '' }} >{{catagory.catagory_name}}</option>
                 {% endfor %}
               </select>
               <div class="invalid-feedback">
