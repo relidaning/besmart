@@ -48,7 +48,7 @@ def index():
 @app.route('/todos/add')
 def todos_add():
     catagories = catagory.query.filter().all()
-    return render_template('todo.html', catagories=catagories)
+    return render_template('todo.html', catagories=catagories, todo=None)
 
 
 @app.route('/todos/save', methods=['POST'])
