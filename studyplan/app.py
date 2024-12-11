@@ -55,17 +55,30 @@ def index():
 
 @app.route('/add')
 def add():
-    return render_template('studyplan.html')
+    return render_template('studyplan.html', plan=None)
+
+@app.route('/edit/<id>')
+def edit(id):
+    plan = Plan.query.get(id)
+    return render_template('studyplan.html', plan=plan)
 
 
 @app.route('/save', methods=['POST'])
 def save():
+    id = request.form.get("id")
     plan_name = request.form.get("planName")
     start_date = request.form.get("startDate")
     end_date = request.form.get("endDate")
     explanation = request.form.get("explanation")
-    plan = Plan(plan_name=plan_name, start_date=start_date, end_date=end_date, explanation=explanation, is_completed='0', is_timeout='0')
-    db.session.add(plan)
+    if id:
+        plan = Plan.query.get(id)
+        plan.plan_name = plan_name
+        plan.start_date = start_date
+        plan.end_date = end_date
+        plan.explanation = explanation
+    else:
+        plan = Plan(plan_name=plan_name, start_date=start_date, end_date=end_date, explanation=explanation, is_completed='0', is_timeout='0')
+        db.session.add(plan)
     db.session.commit()
     return index()
 

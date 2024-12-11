@@ -35,6 +35,15 @@
       <div class="content">{{ plan.explanation if plan.explanation else ''}}</div>
       <span class="date_mark">{{ plan.start_date }}  ~  {{ plan.end_date }}</span>
     </div>
+    <div style="text-align: center;">
+        {#<span class="bottom_span">
+          <a href="/postpone/{{ plan.id }}">Postpone</a>
+        </span>
+        |#}
+        <span class="bottom_span">
+          <a href="/edit/{{ plan.id }}">Edit</a>
+        </span>
+      </div>
   </div>
   {% endfor %}
 </div>

@@ -8,22 +8,23 @@
     <div class="row g-5">
       <div class="col-md-7 col-lg-8" style="position: inherit;">
         <form class="needs-validation" novalidate="" id="form" action="/save" method="post">
+          <input type="hidden" value="{{ plan.id }}" name="id"/>
           <div class="row g-3">
             <div class="col-sm-12 gap1" style="position: inherit;">
               <label for="planName" class="form-label">Plan name:</label>
-              <input type="text" class="form-control" id="planName" name="planName" placeholder="" value="" required="" autocomplete="off">
+              <input type="text" class="form-control" id="planName" name="planName" placeholder="" value="{{ plan.plan_name }}" required="" autocomplete="off">
             </div>
             <div class="col-sm-6 gap1" style="position: inherit;">
               <label for="start_date" class="form-label">Start Date:</label>
-              <input type="text" class="form-control" id="start_date" name="startDate" placeholder="" value="" required="" autocomplete="off">
+              <input type="text" class="form-control" id="start_date" name="startDate" placeholder="" value="{{ plan.start_date }}" required="" autocomplete="off">
             </div>
             <div class="col-sm-6 gap1" style="position: inherit;">
               <label for="end_date" class="form-label">End Date:</label>
-              <input type="text" class="form-control" id="end_date" name="endDate" placeholder="" value="" required="" autocomplete="off">
+              <input type="text" class="form-control" id="end_date" name="endDate" placeholder="" value="{{ plan.end_date }}" required="" autocomplete="off">
             </div>
             <div class="col-sm-12 gap1" style="position: inherit;">
               <label for="explanation" class="form-label">Description:</label>
-              <textarea class="form-control" id="explanation" name="explanation" required="" autocomplete="off"></textarea>
+              <textarea class="form-control" id="explanation" name="explanation" required="" autocomplete="off">{{ plan.explanation }}</textarea>
             </div>
             <div class="col-md-24 gap1">
 
