@@ -12,7 +12,14 @@
     <input type="checkbox" class="form-check-input" id="checkbox_{{task.id}}" onchange="handleComplete('{{task.id}}')">
     <label class="form-check-label" for="checkbox_{{task.id}}">{{task.task_name}}</label>
     <span class="right_span">{{ task.score if task.score else '' }}</span>
+    <div style="text-align: center;">
+      <span class="bottom_span">
+        Completed <font color="red">{{ task.total }}</font> times in total
+        <!-- , with the longest streak being {{ task.continuous }} times in a row. -->
+      </span>
+    </div>
   </div>
+
   {% endfor %}
 </div>
 {% include 'common/foot.html' %}

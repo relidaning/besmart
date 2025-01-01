@@ -79,7 +79,9 @@ def index():
         fat_t['complete_time'] = t.complete_time
         fat_t['is_timeout'] = t.is_timeout
         fat_t['schedule_type'] = t.schedule_type
-        fat_t['score'] = s.score
+        if s.score:
+            fat_t['score'] = s.score
+            fat_t['total']  = Task.query.filter(Task.is_completed == '1', Task.task_id == t.task_id, Task.schedule_type=='1').count()
         fat_tasks.append(fat_t)
 
     return render_template('index.html', tasks=fat_tasks)

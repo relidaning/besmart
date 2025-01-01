@@ -2,7 +2,7 @@ FROM python:3.8
 
 WORKDIR /app
 
-COPY ./countcrying /app
+COPY ./counter /app
 COPY ./requirements.txt /app
 
 # 安装所需的依赖项
@@ -13,5 +13,5 @@ RUN pip install  --progress-bar off --no-cache-dir -r requirements.txt
 EXPOSE 5000
 
 # 运行应用程序
-#CMD ["flask", "--app", "countcrying", "run", "--host=0.0.0.0"]
+#CMD ["flask", "--app", "counter", "run", "--host=0.0.0.0"]
 CMD ["python", "app.py"]

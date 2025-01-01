@@ -1,21 +1,22 @@
 <!doctype html>
 <html lang="en">
 <body>
-{% include 'nav.html' %}
+{% include 'common/nav.html' %}
 <div class="container">
   <div class="row" style="margin-top: 2rem;">
     <h2 class="title">How many times of crying?</h2>
   </div>
   <div class="row content">
     <div class="col-md-6">
-      <p class="text-center">Cried <span id="_times" class="cried">{{times}}</span> times today.</p>
+      {% for item in items %}
+      <p class="text-center">
+        Item1: Checked for<span id="_times" class="cried">{{item.times}}</span> days.
+      </p>
+      {% endfor %}
     </div>
   </div>
-  <div class="row fixed-buttom">
-    <button type="button" class="btn btn-large" onclick="handleClick()">Cried!</button>
-  </div>
 </div>
-{% include 'foot.html' %}
+{% include 'common/foot.html' %}
 <script>
     $(document).ready(function () {
         window.scrollTo(0, 1)
