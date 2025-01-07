@@ -2,8 +2,10 @@ import jwt
 import os
 from datetime import datetime, timedelta
 
+load_dotenv()
+JWT_SECRET = os.getenv('JWT_SECRET')
 
-def create_jwt(username, secret, algorithm='HS256'):
+def create_jwt(username, algorithm='HS256'):
   headers = {
     "alg": algorithm,
     "typ": "JWT"
@@ -13,16 +15,15 @@ def create_jwt(username, secret, algorithm='HS256'):
     "exp": datetime.utcnow() + timedelta(days=1)
   }
   try:
-    token = jwt.encode(payload, secret, algorithm, headers=headers)
+    token = jwt.encode(payload, JWT_SECRET, algorithm, headers=headers)
     return token
   except Exception as e:
     return e
   
-def decode_jwt(token, secret, algorithm='HS256'):
+def decode_jwt(token, algorithm='HS256'):
   try:
-    decoded = jwt.decode(token, secret, algorithm)
+    decoded = jwt.decode(token, JWT_SECRET, algorithm)
     return decoded
   except:
     return 'unauthorized'
   
-print(decode_jwt('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InNoYWtlIiwiZXhwIjoxNzM2MzQ3MDI5fQ.Jr2jXt7Psvn3DBlrKuwtkXaaIKN8dGDzSb-d5q2fIlc', '^a2c4e6g8i0k1m3o5q7s9t#'))
