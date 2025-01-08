@@ -2,6 +2,7 @@ from datetime import datetime
 from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import desc
+from auth import utils.jwtutil
 
 import os
 from dotenv import load_dotenv
@@ -37,6 +38,9 @@ class todos(db.Model):
 
 @app.route('/')
 def index():
+    if jwtutil.valicate(request):
+        result = 'Unauthorized', 401
+        return render_template('login.html', result=result)
     now = datetime.now()
     now_date = now.date()
     todos_result = todos.query.filter(todos.is_completed == '0').order_by(todos.postponed, desc(todos.id)).all()

@@ -5,6 +5,9 @@ BeSmart are a series of flask apps that help you become start
 ## Auth
 Port 4090
 
+## Gateway
+Port 4080
+
 ## Countcring
 
 NVM

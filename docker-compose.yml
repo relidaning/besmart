@@ -93,6 +93,18 @@ services:
 #      - 'TZ=Asia/Shanghai'
 #    volumes:
 #    - "/apps/resource:/apps/resource"
+  auth:
+    build:
+      context: ./
+      dockerfile: ./auth/manifest/Dockerfile
+    ports:
+      - '5090:5090'
+    environment:
+      - 'TZ=Asia/Shanghai'
+    restart: unless-stopped
+    # depends_on:
+    #   - nacos
+
 #networks:
 #  default:
 #    driver: bridge
