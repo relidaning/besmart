@@ -16,9 +16,6 @@ spec:
     spec:
       containers:
       - name: auth
-        # image: nginx:1.14.2
-        # ports:
-        # - containerPort: 80
-        build:
-          context: ./
-          dockerfile: ./Dockerfile
+        image: lidaning/auth
+        ports:
+        - containerPort: 4090

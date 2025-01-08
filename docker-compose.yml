@@ -98,7 +98,7 @@ services:
       context: ./
       dockerfile: ./auth/manifest/Dockerfile
     ports:
-      - '5090:5090'
+      - '4090:4090'
     environment:
       - 'TZ=Asia/Shanghai'
     restart: unless-stopped
