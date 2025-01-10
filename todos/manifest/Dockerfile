@@ -2,7 +2,7 @@ FROM python:3.8
 
 WORKDIR /app
 
-COPY ./todos /app
+COPY ./todos/src /app
 COPY ./requirements.txt /app
 
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/

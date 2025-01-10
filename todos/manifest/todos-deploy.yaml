@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: auth
+  name: todos
   labels:
-    app: auth
+    app: todos
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: auth
+      app: todos
   template:
     metadata:
       labels:
-        app: auth
+        app: todos
     spec:
       containers:
-      - name: auth
-        image: lidaning/auth
+      - name: todos
+        image: lidaning/todos
         imagePullPolicy: Always
         ports:
-        - containerPort: 4090
+        - containerPort: 5070

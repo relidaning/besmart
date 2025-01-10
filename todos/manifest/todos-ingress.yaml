@@ -1,17 +1,17 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: auth-ingress
+  name: todos-ingress
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
   - http:
       paths:
-      - path: /auth
+      - path: /todos
         pathType: Prefix
         backend:
           service:
-            name: auth-service
+            name: todos-service
             port:
-              number: 4090
+              number: 5070

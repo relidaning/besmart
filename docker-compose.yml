@@ -31,7 +31,7 @@ services:
 #    image: 'lidaning/todos:1.0'
     build:
       context: ./
-      dockerfile: ./todos/Dockerfile
+      dockerfile: todos/manifest/Dockerfile
     ports:
       - '5070:5070'
     environment:

@@ -1,7 +1,8 @@
-from flask import Flask, request, render_template, redirect
+from flask import Flask, request, render_template, redirect, url_for
 from pyauthtools.jwtauthtool import auth, encode
 from flask_sqlalchemy import SQLAlchemy
 import os
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,18 +25,27 @@ def index():
   return render_template('index.html')
 
 
-@app.route('/login', methods=['POST'])
+@app.route('/login')
 def login():
+  url = request.args.get('url')
+  return render_template('login.html', url=url)
+
+
+@app.route('/logon', methods=['POST'])
+def logon():
   username = request.form.get('username')
   passwd = request.form.get('passwd')
+  url = request.form.get('url')
   user = Users.query.filter_by(username=username, password=passwd).first()
   if not user:
-    result = 'Unauthorized', 401
-    return render_template('login.html', result=result)
+    return render_template('login.html', url=url)
   else:
-    result = encode({'username': username}), 200
-    print(f'login success!, token: {result}')
-    return render_template('index.html', result=result)
+    token = encode({'id': user.id, 'username': user.username})
+    print(f'login success!, token: { token }')
+    if url:
+      return redirect(url+'?auth='+token)
+    else:
+      return render_template('index.html')
   
   
 PORT = os.getenv('PORT')

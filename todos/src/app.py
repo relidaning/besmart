@@ -2,7 +2,7 @@ from datetime import datetime
 from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import desc
-from auth import utils.jwtutil
+from pyauthtools.jwtauthtool import auth, decode
 
 import os
 from dotenv import load_dotenv
@@ -22,11 +22,13 @@ def hello_checkin():
 
 class catagory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer)
     catagory_name = db.Column(db.String(120))
 
 
 class todos(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer)
     catagory_id = db.Column(db.Integer)
     catagory_name = db.Column(db.String(120))
     todo_name = db.Column(db.String(120))
@@ -37,10 +39,8 @@ class todos(db.Model):
 
 
 @app.route('/')
+@auth
 def index():
-    if jwtutil.valicate(request):
-        result = 'Unauthorized', 401
-        return render_template('login.html', result=result)
     now = datetime.now()
     now_date = now.date()
     todos_result = todos.query.filter(todos.is_completed == '0').order_by(todos.postponed, desc(todos.id)).all()
