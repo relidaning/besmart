@@ -38,6 +38,11 @@ def hello_checkin():
 @cross_origin()
 def index():
     plans = Plan.query.order_by(Plan.id.desc()).all()
+    today = datetime.now().date()
+    for p in plans:
+        if str(p.end_date) < str(today): p.expired=1
+        else: p.expired=0
+    plans = sorted(plans, key=lambda p: str(p.expired)+str(p.start_date))
     # result = requests.get(SCORE_URI, params={'start': plan.start_date, 'end': plan.end_date}).text
     # scores = json.loads(result)
     # GMT_FORMAT = '%a, %d %b %Y %H:%M:%S GMT'

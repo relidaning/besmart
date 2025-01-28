@@ -7,7 +7,7 @@
 <body>
 <nav class="nav" style="position: fixed; top: 0; height: 80px; width: 100%;">
   <div style="width: 100%;">
-    <a class="navbar-brand" href="/" style="color: white; padding-left: 4%;">Todos</a>
+    <a class="navbar-brand" style="color: white; padding-left: 4%;" onclick="home()" id="a_home">Todos</a>
     <button type="button" class="dropdown-toggle text-uppercase bg-primary text-white rounded"
             style="float: right; margin-right: 1rem; padding: 0.8rem;"
             id="dropdownMenuButton" data-toggle="dropdown">
@@ -23,4 +23,17 @@
   </div>
 </nav>
 </body>
+<script>
+  function home() {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+          if (this.readyState == 4 && this.status == 200) {
+              document.getElementById('rootHtml').innerHTML = xhttp.responseText
+          }
+      };
+      xhttp.open("GET", "/", true);
+      xhttp.setRequestHeader('Authorization', 'Bearer '+localStorage.getItem('token'))
+      xhttp.send();
+  }
+</script>
 </html>

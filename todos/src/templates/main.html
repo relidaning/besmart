@@ -2,15 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  {% include 'common/nav.html' %}
+  <title>main</title>
 </head>
-<script>
-  var token = '{{ request.args['auth'] }}'
-  if(token)
-    localStorage.setItem('token', token)
-</script>
 <body>
-
 <div class="container" style="padding-bottom: 50px; padding-top: 80px;">
   <div class="summary_div">
     Completed
@@ -42,7 +36,6 @@
     </div>
   {% endfor %}
 </div>
-{% include 'common/foot.html' %}
 </body>
 <script>
     $(document).ready(function () {

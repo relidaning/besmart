@@ -30,7 +30,9 @@
   {% for plan in plans %}
   <div class="mb-3 form-check card_panel" id="div_{{plan.id}}">
     <input type="hidden" id="planId" value="{{plan.id}}">
-    <label class="form-check-label" for="checkbox_{{plan.id}}">{{plan.plan_name}}</label>
+    {% if plan.expired==1 %} <label class="form-check-label" for="checkbox_{{plan.id}}"><font color="gray">{{plan.plan_name}}</font></label>
+    {% else %} <label class="form-check-label" for="checkbox_{{plan.id}}">{{plan.plan_name}}</label>
+    {% endif %}
     <div>
       <div class="content">{{ plan.explanation if plan.explanation else ''}}</div>
       <span class="date_mark">{{ plan.start_date }}  ~  {{ plan.end_date }}</span>
