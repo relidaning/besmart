@@ -1,5 +1,25 @@
 version: '3'
 services:
+  mysql:
+    image: mysql:8.3.0
+    restart: unless-stopped
+    environment:
+      - 'TZ=Asia/Shanghai'
+      - 'MYSQL_ROOT_PASSWORD=lidaning'
+    ports:
+      - '3306:3306'
+    volumes:
+      - /data/mysql/var/lib/mysql:/var/lib/mysql
+      - /data/mysql/log:/var/log/mysql
+      - /data/mysql/etc/mysql:/etc/mysql
+  adminer:
+    image: adminer
+    restart: unless-stopped
+    ports:
+      - 8081:8080
+    depends_on:
+      - mysql
+  
   nacos:
     image: nacos/nacos-server:2.0.1
     ports:
@@ -7,11 +27,14 @@ services:
     environment:
       - 'MODE=standalone'
       - 'SPRING_DATASOURCE_PLATFORM=mysql'
-      - 'MYSQL_SERVICE_HOST=49.233.10.187'
+      - 'MYSQL_SERVICE_HOST=mysql'
+      - 'MYSQL_SERVICE_PORT=3306'
       - 'MYSQL_SERVICE_DB_NAME=nacos_config'
       - 'MYSQL_SERVICE_USER=root'
       - 'MYSQL_SERVICE_PASSWORD=lidaning'
     restart: unless-stopped
+    depends_on:
+      - mysql
   checkin:
 #    image: 'lidaning/checkin:1.0'
     build:
@@ -102,8 +125,8 @@ services:
     environment:
       - 'TZ=Asia/Shanghai'
     restart: unless-stopped
-    # depends_on:
-    #   - nacos
+    depends_on:
+      - nacos
 
 #networks:
 #  default:
