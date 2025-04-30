@@ -14,7 +14,11 @@
     <span class="right_span">{{ task.score if task.score else '' }}</span>
     <div style="text-align: center;">
       <span class="bottom_span">
-        Completed <font color="red">{{ task.total }}</font> times in total
+        Completed <font color="red">{{ task.total }}</font> times in total 
+        |
+        {{task.task_date}}
+        | 
+        <a href='/schedule/{{task.task_id}}')">Edit current task</a>   
         <!-- , with the longest streak being {{ task.continuous }} times in a row. -->
       </span>
     </div>

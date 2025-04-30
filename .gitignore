@@ -1,8 +1,13 @@
 __pycache__
-.env
+.env.prod
 
 .idea/
 
 build/
 dist/
 *.spec
+
+data/mysql/log/
+data/mysql/var/
+
+.env

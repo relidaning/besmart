@@ -6,12 +6,15 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import desc
 
 import os
+from os.path import join, dirname
 from dotenv import load_dotenv
 
-load_dotenv()
+app = Flask(__name__)
+cur_config = os.environ.get('FLASK_ENV', 'dev')
+env_file=join(dirname(__file__), f'.env.{cur_config}')
+load_dotenv(env_file)
 DEBUG = True if os.getenv('DEBUG') == 'True' else False
 SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
-app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 db = SQLAlchemy(app)
 scheduler = BackgroundScheduler()
@@ -50,13 +53,15 @@ def hello_checkin():
 
 @app.route('/')
 def index():
+    # current date
     now = datetime.now()
     now_date = now.date()
     if now.time().hour < 6:
         now_date = now_date - timedelta(days=1)
+        
+    # all tasks    
     tasks = []
-    daily = Task.query.filter(db.func.DATE(Task.task_date) == now_date, Task.schedule_type == '1',
-                              Task.is_completed == '0').all()
+    daily = Task.query.filter(db.func.DATE(Task.task_date) == now_date, Task.schedule_type == '1', Task.is_completed == '0').all()
     weekly = Task.query.filter(Task.is_completed == '0', Task.schedule_type == '2').all()
     monthly = Task.query.filter(Task.is_completed == '0', Task.schedule_type == '3').all()
     seasonly = Task.query.filter(Task.is_completed == '0', Task.schedule_type == '4').all()
@@ -67,22 +72,26 @@ def index():
     tasks.extend(seasonly)
     tasks.extend(yearly)
 
+    # format tasks
     fat_tasks = []
     for t in tasks:
         fat_t = {}
-        s = Schedule.query.get(t.task_id)
+        schedule = Schedule.query.get(t.task_id)
         fat_t['id'] = t.id
-        fat_t['task_id'] = t.task_id
-        fat_t['task_name'] = t.task_name
+        fat_t['task_id'] = schedule.id
+        fat_t['task_name'] = schedule.schedule_name
         fat_t['task_date'] = t.task_date
         fat_t['is_completed'] = t.is_completed
         fat_t['complete_time'] = t.complete_time
         fat_t['is_timeout'] = t.is_timeout
         fat_t['schedule_type'] = t.schedule_type
-        if s.score:
-            fat_t['score'] = s.score
+        if schedule.score:
+            fat_t['score'] = schedule.score
             fat_t['total']  = Task.query.filter(Task.is_completed == '1', Task.task_id == t.task_id, Task.schedule_type=='1').count()
         fat_tasks.append(fat_t)
+        
+    # sort tasks by task_date
+    fat_tasks.sort(key=lambda x: x['task_date'], reverse=False)
 
     return render_template('index.html', tasks=fat_tasks)
 
@@ -97,17 +106,27 @@ def complete(taskId):
     return {'code': 200, 'msg': 'success'}
 
 
-@app.route('/schedule/add')
-def schedule_add():
-    return render_template('schedule.html')
+@app.route('/schedule/<schedule_id>', methods=['GET'])
+def schedule(schedule_id):
+    if schedule_id:
+        schedule = Schedule.query.get(schedule_id)
+    return render_template('schedule.html', schedule=schedule)
 
 
 @app.route('/schedule/save', methods=['POST'])
 def schedule_save():
+    id = request.form.get("id")
     schedule_name = request.form.get("scheduleName")
     schedule_type = request.form.get("scheduleType")
-    schedule = Schedule(schedule_name=schedule_name, schedule_type=schedule_type)
-    db.session.add(schedule)
+    score = request.form.get("score")
+    if not id:
+        schedule = Schedule(schedule_name=schedule_name, schedule_type=schedule_type, score=score, is_valid='1')
+        db.session.add(schedule)
+    else:
+        schedule0 = Schedule.query.get(id)
+        schedule0.is_valid = '0'
+        schedule1 = Schedule(schedule_name=schedule_name, schedule_type=schedule_type, score=score, is_valid='1')
+        db.session.add(schedule1)
     db.session.commit()
     return index()
 

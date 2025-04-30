@@ -11,21 +11,30 @@
           <div class="row g-3">
             <div class="col-sm-6 gap1">
               <label for="scheduleName" class="form-label">Schedule name</label>
-              <input type="text" class="form-control" id="scheduleName" name="scheduleName" placeholder="" value="" required="" autocomplete="off">
+              <input type="hidden" name="id" value="{{schedule.id}}">
+              <input type="text" class="form-control" id="scheduleName" name="scheduleName" placeholder="" value="{{schedule.schedule_name}}" required="" autocomplete="off">
               <div class="invalid-feedback">
                 Valid first name is required.
               </div>
             </div>
 
+            <div class="col-sm-6 gap1">
+              <label for="score" class="form-label">Score</label>
+              <input type="text" class="form-control" id="score" name="score" placeholder="" value="{{schedule.score}}" required="" autocomplete="off">
+              <div class="invalid-feedback">
+                Input a score for this task.
+              </div>
+            </div
+
             <div class="col-md-5 gap1">
               <label for="scheduleType" class="form-label">Schedule Type</label>
               <select class="form-select" id="scheduleType" name="scheduleType" required="">
                 <option value="">Choose...</option>
-                <option value="1">Daily</option>
-                <option value="2">Weekly</option>
-                <option value="3">Monthly</option>
-                <option value="4">Seasonly</option>
-                <option value="5">Yearly</option>
+                <option value="1" {% if schedule.schedule_type == '1' %} selected {% endif %} >Daily</option>
+                <option value="2" {% if schedule.schedule_type == '2' %} selected {% endif %} >Weekly</option>
+                <option value="3" {% if schedule.schedule_type == '3' %} selected {% endif %} >Monthly</option>
+                <option value="4" {% if schedule.schedule_type == '4' %} selected {% endif %} >Seasonly</option>
+                <option value="5" {% if schedule.schedule_type == '5' %} selected {% endif %} >Yearly</option>
               </select>
               <div class="invalid-feedback">
                 Please select a valid country.

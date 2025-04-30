@@ -1,4 +1,3 @@
-version: '3'
 services:
   mysql:
     image: mysql:8.3.0
@@ -9,9 +8,9 @@ services:
     ports:
       - '3306:3306'
     volumes:
-      - /data/mysql/var/lib/mysql:/var/lib/mysql
-      - /data/mysql/log:/var/log/mysql
-      - /data/mysql/etc/mysql:/etc/mysql
+      - ./data/mysql/var/lib/mysql:/var/lib/mysql
+      - ./data/mysql/log:/var/log/mysql
+      - ./data/mysql/etc/mysql:/etc/mysql
   adminer:
     image: adminer
     restart: unless-stopped
@@ -35,6 +34,19 @@ services:
     restart: unless-stopped
     depends_on:
       - mysql
+
+  auth:
+    build:
+      context: ./
+      dockerfile: ./auth/manifest/Dockerfile
+    ports:
+      - '4090:4090'
+    environment:
+      - 'TZ=Asia/Shanghai'
+    restart: unless-stopped
+    depends_on:
+      - nacos
+
   checkin:
 #    image: 'lidaning/checkin:1.0'
     build:
@@ -116,17 +128,9 @@ services:
 #      - 'TZ=Asia/Shanghai'
 #    volumes:
 #    - "/apps/resource:/apps/resource"
-  auth:
-    build:
-      context: ./
-      dockerfile: ./auth/manifest/Dockerfile
-    ports:
-      - '4090:4090'
-    environment:
-      - 'TZ=Asia/Shanghai'
-    restart: unless-stopped
-    depends_on:
-      - nacos
+
+
+      
 
 #networks:
 #  default:
