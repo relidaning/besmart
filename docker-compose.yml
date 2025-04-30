@@ -8,7 +8,7 @@ services:
     ports:
       - '3306:3306'
     volumes:
-      - ./data/mysql/var/lib/mysql:/var/lib/mysql
+#      - ./data/mysql/var/lib/mysql:/var/lib/mysql
       - ./data/mysql/log:/var/log/mysql
       - ./data/mysql/etc/mysql:/etc/mysql
   adminer:
@@ -56,6 +56,7 @@ services:
       - '5020:5020'
     environment:
       - 'TZ=Asia/Shanghai'
+      - 'FLASK_ENV=dev'
 #    networks:
 #      default:
 #        ipv4_address: 192.168.1.7
