@@ -130,6 +130,18 @@ services:
 #    volumes:
 #    - "/apps/resource:/apps/resource"
 
+  flow:
+    build:
+      context: ./
+      dockerfile: ./flow/Dockerfile
+    ports:
+      - '5082:5082'
+    environment:
+      - 'TZ=Asia/Shanghai'
+    restart: unless-stopped
+    depends_on:
+      - nacos
+
 
       
 

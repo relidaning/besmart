@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  {% include 'common/nav.html' %}
+  <link rel="stylesheet" href="static/flow.css">
+</head>
+<body>
+<div class="container" style="padding-bottom: 50px;">
+  <div class="mb-3 form-check card_panel">
+    <span class="text-center"><h3>心流生成器</h3></span>
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+    <div id="progressBar"></div>
+    <p>当前周期剩余时间：<span id="currentCycleRemaining">00:00</span></p>
+    <div id="progress">
+    </div>
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+    <div class="text-center" style="color: #666;">
+        <p>这是一个帮您每快速进入惊状态，并提高工作效率的助手。</p>
+        <p>每3~5min闭眼10s,大脑自动整理思绪,持续90min,然后休息20min,循环往复.</p>
+        <p>期间会有提示和对应的音效来提醒您进行对应的事项.</p>
+        <p>每个工作周期 <span class="highlight">90 分钟</span>，结束后有 <span class="highlight">20 分钟</span> 自由活动。</p>
+        <p>每次闭眼休息 <span class="highlight">10 秒</span>。</p>
+    
+        <p>下次休息时间：<span id="nextRestTime">等待开始...</span></p>
+        <p id="completedCycles">已完成周期：0</p>
+        <button id="startButton">开始</button>
+        <button id="stopButton" disabled>停止</button>
+        <p id="message"></p>
+    </div>
+
+
+    <p id="countdown"></p>
+  </div>
+</div>
+<div class="overlay" id="overlay">
+    <span id="overlayText">闭眼休息 10 秒</span>
+    <span id="overlayCountdown"></span>
+</div>
+
+<audio id="dingSound" src="{{ url_for('static', filename='sounds/ding.mp3') }}" preload="auto"></audio>
+<!--<audio id="tickSound" src="tick.mp3" preload="auto" loop></audio>-->
+<audio id="focusMusic" src="{{ url_for('static', filename='sounds/focus.mp3') }}" preload="auto" loop></audio>
+<audio id="restMusic" src="{{ url_for('static', filename='sounds/focus.mp3') }}" preload="auto" loop></audio>
+
+{% include 'common/foot.html' %}
+</body>
+<script>
+    $(document).ready(function () {
+        const MIN_INTERVAL = 3 * 60 * 1000; // 3分钟 (毫秒)
+        const MAX_INTERVAL = 5 * 60 * 1000; // 5分钟 (毫秒)
+        const REST_DURATION = 10 * 1000;   // 10秒 (毫秒)
+        const WORK_CYCLE_DURATION = 90 * 60 * 1000; // 90分钟工作周期 (毫秒)
+        const BREAK_DURATION = 20 * 60 * 1000; // 20分钟自由活动 (毫秒)
+
+        let timerId;               // 用于随机休息计时
+        let cycleProgressTimerId;  // 用于当前工作周期进度计时
+        let breakTimerId;          // 用于自由活动计时
+        let nextRestTimeoutId;     // 用于下一次休息的 setTimeout ID
+
+        let currentCycleStartTime; // 当前90分钟工作周期开始时间
+        let completedCycles = 0;   // 已完成的90分钟周期数
+
+        // 获取DOM元素
+        const nextRestTimeSpan = document.getElementById('nextRestTime');
+        const currentCycleRemainingSpan = document.getElementById('currentCycleRemaining');
+        const completedCyclesSpan = document.getElementById('completedCycles');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const messagePara = document.getElementById('message');
+        const countdownPara = document.getElementById('countdown');
+        const overlayDiv = document.getElementById('overlay');
+        const overlayTextSpan = document.getElementById('overlayText');
+        const overlayCountdownSpan = document.getElementById('overlayCountdown');
+        const progressBar = document.getElementById('progressBar');
+
+        // 音频元素
+        const dingSound = document.getElementById('dingSound');
+        //const tickSound = document.getElementById('tickSound');
+        const focusMusic = document.getElementById('focusMusic');
+        const restMusic = document.getElementById('restMusic');
+
+        // 确保音频预加载，并处理自动播放限制
+        function playAudio(audioElement) {
+            audioElement.currentTime = 0; // 从头播放
+            const playPromise = audioElement.play();
+            if (playPromise !== undefined) {
+                playPromise.then(_ => {
+                    // 播放成功
+                }).catch(error => {
+                    // 自动播放被阻止，通常是用户没有与文档交互
+                    console.warn("Audio playback blocked:", error);
+                    messagePara.textContent = "请点击页面任意位置以允许音频播放。";
+                });
+            }
+        }
+
+        function stopAudio(audioElement) {
+            audioElement.pause();
+            audioElement.currentTime = 0;
+        }
+
+        function formatTime(ms) {
+            if (ms < 0) ms = 0; // 避免显示负数时间
+            const minutes = Math.floor(ms / (60 * 1000));
+            const seconds = Math.floor((ms % (60 * 1000)) / 1000);
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function showOverlay(text, countdownVisible = false) {
+            overlayTextSpan.textContent = text;
+            overlayCountdownSpan.style.display = countdownVisible ? 'block' : 'none';
+            overlayDiv.classList.add('active');
+        }
+
+        function hideOverlay() {
+            overlayDiv.classList.remove('active');
+        }
+
+        function startRestCountdown() {
+            //stopAudio(tickSound); // 确保没有其他音效在响
+            stopAudio(focusMusic); // 确保没有其他音效在响
+            playAudio(dingSound); // 播放提示音
+
+            showOverlay('闭眼休息 10 秒', true); // 显示倒计时
+            //playAudio(tickSound); // 播放倒计时音效
+
+            let remaining = REST_DURATION / 1000;
+            overlayCountdownSpan.textContent = `(${remaining} 秒)`;
+
+            const restInterval = setInterval(() => {
+                remaining--;
+                if (remaining >= 0) {
+                    overlayCountdownSpan.textContent = `(${remaining} 秒)`;
+                } else {
+                    clearInterval(restInterval);
+                    //stopAudio(tickSound); // 停止倒计时音效
+                    hideOverlay();
+                    messagePara.textContent = "休息结束，继续工作。";
+                    countdownPara.textContent = "";
+                    scheduleNextRest(); // 休息结束后，安排下一次提醒
+                }
+            }, 1000);
+        }
+
+        function scheduleNextRest() {
+            const timeInCycle = Date.now() - currentCycleStartTime;
+            if (timeInCycle >= WORK_CYCLE_DURATION) {
+                // 当前工作周期已结束，进入自由活动时间
+                completedCycles++;
+                completedCyclesSpan.textContent = `已完成周期：${completedCycles}`;
+                enterBreakTime();
+                return;
+            }
+
+            const randomInterval = Math.floor(Math.random() * (MAX_INTERVAL - MIN_INTERVAL + 1)) + MIN_INTERVAL;
+            const nextRestRelativeTime = timeInCycle + randomInterval; // 相对于周期开始的绝对时间点
+
+            // 如果随机的下次休息时间超出了当前工作周期，则直接安排到周期结束触发
+            const actualNextRestTime = Math.min(nextRestRelativeTime, WORK_CYCLE_DURATION);
+            const delay = actualNextRestTime - timeInCycle; // 从现在开始的延迟
+
+            // 更新显示下一次休息时间（相对时间）
+            nextRestTimeSpan.textContent = `约 ${formatTime(delay)} 后`;
+
+            messagePara.textContent = `下一次闭眼休息提醒将在 ${formatTime(delay)} 后。`;
+            countdownPara.textContent = ""; // 清除倒计时信息
+
+            clearTimeout(nextRestTimeoutId); // 清除可能存在的旧计时器
+            nextRestTimeoutId = setTimeout(() => {
+                messagePara.textContent = "时间到！请闭眼休息10秒。";
+                startRestCountdown();
+            }, delay);
+        }
+
+        function updateCycleProgress() {
+            const elapsedTimeInCycle = Date.now() - currentCycleStartTime;
+            const remainingInCycle = WORK_CYCLE_DURATION - elapsedTimeInCycle;
+            currentCycleRemainingSpan.textContent = formatTime(remainingInCycle);
+
+            const progressPercentage = (elapsedTimeInCycle / WORK_CYCLE_DURATION) * 100;
+            progressBar.style.width = `${progressPercentage}%`;
+
+            if (remainingInCycle <= 0) {
+                // 周期结束，停止计时，进入自由活动
+                clearInterval(cycleProgressTimerId);
+                clearTimeout(nextRestTimeoutId); // 确保没有未触发的休息提醒
+                messagePara.textContent = "一个工作周期完成！";
+                enterBreakTime();
+            }
+        }
+
+        function enterBreakTime() {
+            stopAudio(dingSound);
+            //stopAudio(tickSound);
+            playAudio(focusMusic); // 播放轻快音乐
+
+            showOverlay('请离开座位，自由活动 20 分钟！', true);
+            let remaining = BREAK_DURATION / 1000;
+            overlayCountdownSpan.textContent = `(${remaining} 秒)`;
+
+            messagePara.textContent = "自由活动时间开始！";
+            countdownPara.textContent = "";
+            nextRestTimeSpan.textContent = "自由活动中...";
+
+            breakTimerId = setInterval(() => {
+                remaining--;
+                if (remaining >= 0) {
+                    overlayCountdownSpan.textContent = `(${remaining} 秒)`;
+                } else {
+                    clearInterval(breakTimerId);
+                    stopAudio(focusMusic); // 停止音乐
+                    hideOverlay();
+                    messagePara.textContent = "自由活动结束，准备进入下一个工作周期。";
+                    countdownPara.textContent = "";
+                    startNextWorkCycle(); // 自由活动结束，进入下一个工作周期
+                }
+            }, 1000);
+        }
+
+        function startNextWorkCycle() {
+            currentCycleStartTime = Date.now(); // 重置工作周期开始时间
+            messagePara.textContent = "新一个工作周期开始！";
+            countdownPara.textContent = "";
+
+            clearInterval(cycleProgressTimerId); // 确保旧的计时器已清除
+            cycleProgressTimerId = setInterval(updateCycleProgress, 1000);
+            scheduleNextRest(); // 安排新周期内的第一次休息
+        }
+
+        function startProgram() {
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            completedCycles = 0;
+            completedCyclesSpan.textContent = `已完成周期：${completedCycles}`;
+
+            startNextWorkCycle(); // 启动第一个工作周期
+            messagePara.textContent = "程序已启动。";
+
+            // 首次用户交互，尝试播放静音，以绕过浏览器自动播放限制
+            // 确保在用户点击按钮时就尝试播放，让后续音频播放顺畅
+            const dummyAudio = new Audio();
+            dummyAudio.play().catch(e => console.log("Dummy audio play failed:", e));
+            playAudio(focusMusic); // 播放背景音乐
+        }
+
+        function endProgram() {
+            clearTimeout(nextRestTimeoutId);
+            clearInterval(cycleProgressTimerId);
+            clearInterval(breakTimerId);
+            stopAudio(dingSound);
+            //stopAudio(tickSound);
+            stopAudio(focusMusic);
+            hideOverlay();
+            messagePara.textContent = "程序已停止。";
+            countdownPara.textContent = "";
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            progressBar.style.width = '0%'; // 停止时进度条清零
+            currentCycleRemainingSpan.textContent = "00:00";
+            nextRestTimeSpan.textContent = "等待开始...";
+        }
+
+        startButton.addEventListener('click', startProgram);
+        stopButton.addEventListener('click', endProgram);
+
+        // 初始化显示
+        currentCycleRemainingSpan.textContent = formatTime(WORK_CYCLE_DURATION);
+        nextRestTimeSpan.textContent = "等待开始...";
+    })
+</script>
+</html>

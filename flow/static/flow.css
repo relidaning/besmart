@@ -1,0 +1,98 @@
+h1 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    font-size: 1.8em;
+}
+p {
+    font-size: 1.1em;
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+.highlight {
+    color: #e74c3c;
+    font-weight: bold;
+    font-size: 1.2em;
+}
+button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 8px;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    margin: 10px; /* 调整按钮间距 */
+}
+button:hover {
+    background-color: #2980b9;
+    transform: translateY(-2px);
+}
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    transform: none;
+}
+#message {
+    font-size: 1.5em;
+    color: #27ae60;
+    margin-top: 20px;
+    font-weight: bold;
+}
+#countdown {
+    font-size: 2em;
+    color: #f39c12;
+    font-weight: bold;
+    margin-top: 10px;
+}
+#progress {
+    margin-top: 25px;
+    width: 100%;
+    height: 10px;
+    background-color: #e0e0e0;
+    border-radius: 5px;
+    overflow: hidden;
+}
+#progressBar {
+    height: 100%;
+    width: 0%;
+    background-color: #2ecc71;
+    border-radius: 5px;
+    transition: width 0.1s linear; /* 更平滑的过渡 */
+}
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 3em;
+    font-weight: bold;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    text-align: center;
+    flex-direction: column;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+.overlay p {
+    font-size: 0.5em;
+    margin-top: 20px;
+}
+#completedCycles {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #3498db;
+    margin-top: 15px;
+}
