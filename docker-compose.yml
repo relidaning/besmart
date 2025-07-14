@@ -35,17 +35,17 @@ services:
     depends_on:
       - mysql
 
-  auth:
-    build:
-      context: ./
-      dockerfile: ./auth/manifest/Dockerfile
-    ports:
-      - '4090:4090'
-    environment:
-      - 'TZ=Asia/Shanghai'
-    restart: unless-stopped
-    depends_on:
-      - nacos
+  # auth:
+  #   build:
+  #     context: ./
+  #     dockerfile: ./auth/manifest/Dockerfile
+  #   ports:
+  #     - '4090:4090'
+  #   environment:
+  #     - 'TZ=Asia/Shanghai'
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - nacos
 
   checkin:
 #    image: 'lidaning/checkin:1.0'
@@ -96,18 +96,18 @@ services:
     restart: unless-stopped
     depends_on:
       - nacos
-  encourager:
-#    image: 'lidaning/encourager:1.0'
-    build:
-      context: ./
-      dockerfile: ./encourager/Dockerfile
-    ports:
-      - '5050:5050'
-    environment:
-      - 'TZ=Asia/Shanghai'
-    restart: unless-stopped
-    depends_on:
-      - nacos
+#   encourager:
+# #    image: 'lidaning/encourager:1.0'
+#     build:
+#       context: ./
+#       dockerfile: ./encourager/Dockerfile
+#     ports:
+#       - '5050:5050'
+#     environment:
+#       - 'TZ=Asia/Shanghai'
+#     restart: unless-stopped
+#     depends_on:
+#       - nacos
   review:
     build:
       context: ./
@@ -130,17 +130,17 @@ services:
 #    volumes:
 #    - "/apps/resource:/apps/resource"
 
-  flow:
-    build:
-      context: ./
-      dockerfile: ./flow/Dockerfile
-    ports:
-      - '5082:5082'
-    environment:
-      - 'TZ=Asia/Shanghai'
-    restart: unless-stopped
-    depends_on:
-      - nacos
+  # flow:
+  #   build:
+  #     context: ./
+  #     dockerfile: ./flow/Dockerfile
+  #   ports:
+  #     - '5082:5082'
+  #   environment:
+  #     - 'TZ=Asia/Shanghai'
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - nacos
 
 
       

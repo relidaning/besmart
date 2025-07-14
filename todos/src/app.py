@@ -39,7 +39,7 @@ class todos(db.Model):
 
 
 @app.route('/')
-@auth
+# @auth
 def index():
     now = datetime.now()
     now_date = now.date()
