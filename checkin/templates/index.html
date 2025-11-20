@@ -4,13 +4,22 @@
   <meta charset="UTF-8">
   {% include 'common/nav.html' %}
 </head>
+<style>
+  .accomplished {
+    background-color: #45877a;
+  }
+</style>
 <body>
 <div class="container" style="padding-bottom: 50px;">
   {% for task in tasks %}
-  <div class="mb-3 form-check card_panel" id="div_{{task.id}}">
-    <input type="hidden" id="taskId" value="{{task.id}}">
+  <div class="mb-3 form-check card_panel {{'accomplished' if task.is_completed == '1' else ''}}" id="div_{{task.id}}">
+    <input type="hidden" id="taskId" value="{{task.id}}" />
+    {% if task.is_completed == '0' %}
     <input type="checkbox" class="form-check-input" id="checkbox_{{task.id}}" onchange="handleComplete('{{task.id}}')">
-    <label class="form-check-label" for="checkbox_{{task.id}}">{{task.task_name}}</label>
+    {% endif %}
+    <label class="form-check-label" for="checkbox_{{task.id}}"> 
+      {{('<del>' + task.task_name + '</del>')|safe if task.is_completed == '1' else task.task_name}}
+    </label>
     <span class="right_span">{{ task.score if task.score else '' }}</span>
     <div style="text-align: center;">
       <span class="bottom_span">

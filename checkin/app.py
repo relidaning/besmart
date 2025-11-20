@@ -61,7 +61,7 @@ def index():
         
     # all tasks    
     tasks = []
-    daily = Task.query.filter(db.func.DATE(Task.task_date) == now_date, Task.schedule_type == '1', Task.is_completed == '0').all()
+    daily = Task.query.filter(db.func.DATE(Task.task_date) == now_date, Task.schedule_type == '1').all()
     weekly = Task.query.filter(Task.is_completed == '0', Task.schedule_type == '2').all()
     monthly = Task.query.filter(Task.is_completed == '0', Task.schedule_type == '3').all()
     seasonly = Task.query.filter(Task.is_completed == '0', Task.schedule_type == '4').all()
