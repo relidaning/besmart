@@ -28,7 +28,7 @@
   </div>#}
 
   {% for plan in plans %}
-  <div class="mb-3 form-check card_panel" id="div_{{plan.id}}">
+  <div class="mb-3 form-check card_panel" id="div_{{plan.id}}" onclick="fnViewPlan('{{plan.id}}')">
     <input type="hidden" id="planId" value="{{plan.id}}">
     {% if plan.expired==1 %} <label class="form-check-label" for="checkbox_{{plan.id}}"><font color="gray">{{plan.plan_name}}</font></label>
     {% else %} <label class="form-check-label" for="checkbox_{{plan.id}}">{{plan.plan_name}}</label>
@@ -42,9 +42,9 @@
           <a href="/postpone/{{ plan.id }}">Postpone</a>
         </span>
         |#}
-        <span class="bottom_span">
+        <!-- <span class="bottom_span">
           <a href="/edit/{{ plan.id }}">Edit</a>
-        </span>
+        </span> -->
       </div>
   </div>
   {% endfor %}
@@ -54,5 +54,9 @@
 <script>
     $(document).ready(() => {
     })
+
+    function fnViewPlan(planId) {
+        location.href = '/view/' + planId;
+    }
 </script>
 </html>

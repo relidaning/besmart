@@ -27,6 +27,18 @@ class Plan(db.Model):
     end_date = db.Column(db.Date())
     is_completed = db.Column(db.String(2))
     is_timeout = db.Column(db.String(2))
+    
+class Tasks(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    p_id = db.Column(db.Integer)
+    task_name = db.Column(db.String(120))
+    task_description = db.Column(db.String(256))
+    task_plan_start = db.Column(db.Date())
+    task_plan_end = db.Column(db.Date())
+    task_actual_start = db.Column(db.Date())
+    task_actual_end = db.Column(db.Date())
+    is_completed = db.Column(db.String(2))
+    is_timeout = db.Column(db.String(2))
 
 
 @app.route('/hello_studyplan')
@@ -61,6 +73,12 @@ def index():
 @app.route('/add')
 def add():
     return render_template('studyplan.html', plan=None)
+
+
+@app.route('/view/<id>')
+def view(id):
+    plan = Plan.query.get(id)
+    return render_template('view.html', plan=plan)
 
 @app.route('/edit/<id>')
 def edit(id):

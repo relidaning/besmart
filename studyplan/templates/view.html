@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+{% include 'common/nav.html' %}
+
+<div class="container">
+  <main>
+    <div class="row g-5">
+      <div class="col-md-7 col-lg-8" style="position: inherit;">
+        <div class="row g-3">
+          <div class="col-sm-12" style="position: inherit;">
+            <label for="planName" class="form-label">Plan name:</label>
+            <p>{{ plan.plan_name }}</p>
+          </div>
+          <div class="col-sm-6" style="position: inherit;">
+            <label for="start_date" class="form-label">Start Date:</label>
+            <p>{{ plan.start_date }}</p> 
+          </div>
+          <div class="col-sm-6" style="position: inherit;">
+            <label for="end_date" class="form-label">End Date:</label>
+            <p>{{ plan.end_date }}</p>
+          </div>
+          <div class="col-sm-12" style="position: inherit;">
+            <label for="explanation" class="form-label">Description:</label>
+            <p>{{ plan.explanation }}</p>
+          </div>
+          <div class="col-md-24">
+
+          </div>
+
+        </div>
+
+        <div class="alert alert-warning alert-dismissible fade show" role="alert" style="display: none;" id="alertDiv">
+          <strong>Warning!</strong> You should input/choose the required item.
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" onclick="handleDismiss()">x</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+{% include 'common/foot.html' %}
+<script type="text/javascript">
+  function handleSubmit(){
+      if($('#planName').val()==''){
+          $('#alertDiv').toggle('slow', 'swing', function () {
+          })
+          return false
+      }
+      $('#form').submit()
+  }
+
+  function handleDismiss(){
+      $('#alertDiv').toggle('slow', 'swing', function () {
+      })
+  }
+</script>
+</body>
+<style>
+</style>
+</html>
