@@ -11,7 +11,7 @@
           <input type="hidden" id="todoId" name="todoId" value="{{ todo.id }}">
           <div class="row g-3">
             <div class="col-sm-6 gap1" style="position: inherit;">
-              <label for="todoName" class="form-label">Todo name</label>
+              <label for="todoName" class="form-label">Item:</label>
               <input type="text" class="form-control" id="todoName" name="todoName" placeholder="" value="{{ todo.todo_name }}" required="" autocomplete="off">
               <div class="invalid-feedback">
                 Valid first name is required.
@@ -19,13 +19,12 @@
             </div>
 
             <div class="col-md-5 gap1">
-              <label for="catagoryId" class="form-label">Catagory</label>
-              <select class="form-select" id="catagoryId" name="catagoryId" required="">
-                <option value="">Choose...</option>
-                {% for catagory in catagories %}
-                <option value="{{catagory.id}}" {{ 'selected' if todo.catagory_id == catagory.id else '' }} >{{catagory.catagory_name}}</option>
-                {% endfor %}
-              </select>
+              <div>Catagory</div>
+              {% for catagory in catagories %}
+              <input type="radio" name="catagoryId" id="catagoryId-{{catagory.id}}" 
+                  value="{{catagory.id}}" {{ 'checked' if todo.catagory_id == catagory.id or ((todo==None or todo.catagory_id==None) and catagory.id==1) else '' }} />
+                  <label for="catagoryId-{{catagory.id}}" class="form-label">{{catagory.catagory_name}}</label>
+              {% endfor %}
               <div class="invalid-feedback">
                 Please select a valid country.
               </div>

@@ -5,6 +5,18 @@
 </head>
 <body>
 <style>
+  .toEndBtn {
+      position: fixed;
+      right: 20px;
+      bottom: 60px;
+      font-size: 16px;
+      border: solid 1px #ffffff;
+      border-radius: 5px;
+      background: #1abc9c;
+      color: white;
+      cursor: pointer;
+    }
+
   .footer{
       position: fixed;
       bottom: 0;
@@ -18,8 +30,22 @@
       line-height: 6em;
   }
 </style>
+<!-- Scroll-to-bottom button -->
+<button id="toEndBtn" class="toEndBtn">Go to End</button>
 <footer class="footer">
   <p>Copyright © Shakeit Baby</p>
 </footer>
 </body>
+<script type="text/javascript">
+  $(document).ready(function(){
+    // Scroll to the bottom when button is clicked
+    document.getElementById("toEndBtn").addEventListener("click", () => {
+      window.scrollTo({
+        top: document.body.scrollHeight,
+        behavior: "smooth"   // smooth animation
+      });
+    });
+  });
+</script>
+        
 </html>
