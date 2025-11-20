@@ -25,6 +25,7 @@
       <input type="hidden" id="todoId" value="{{ todo.id }}">
       <div style="margin: 1em 0;">
         <input type="checkbox" id="checkbox_{{ todo.id }}" onchange="handleComplete('{{ todo.id }}')">
+        <span class="tag">[{{'TODO' if todo.catagory_id==1 else 'PLAN'}}]</span>
         <label class="form-check-label" for="checkbox_{{ todo.id }}">
           {{ todo.todo_name }}
         </label>
@@ -75,6 +76,11 @@
 
     a {
         color: #6c757d;
+    }
+
+    .tag{
+      color: gray;
+      font-size: 1em;
     }
 </style>
 </html>
