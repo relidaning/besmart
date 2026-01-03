@@ -7,6 +7,8 @@ from flask_sqlalchemy import SQLAlchemy
 from app import app
 
 
+SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
+app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 db = SQLAlchemy(app)
 
 class Task(db.Model):

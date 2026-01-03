@@ -12,8 +12,6 @@ cur_config = os.environ.get('FLASK_ENV', 'dev')
 env_file=join(dirname(__file__), f'.env.{cur_config}')
 load_dotenv(env_file)
 DEBUG = True if os.getenv('DEBUG') == 'True' else False
-SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
-app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 scheduler = BackgroundScheduler()
 
 
