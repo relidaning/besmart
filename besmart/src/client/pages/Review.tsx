@@ -248,7 +248,13 @@ export default function Review() {
                           {isOverdue && <span className="badge badge-high">Overdue</span>}
                         </div>
                       </div>
-                      <ChevronRight size={16} className="text-gray-300 flex-shrink-0 mt-1" />
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(record.course_id); }}
+                          className="text-xs text-red-400 hover:text-red-600 px-2 py-1"
+                        >Del</button>
+                        <ChevronRight size={16} className="text-gray-300 mt-1" />
+                      </div>
                     </div>
                   </motion.div>
                 );
