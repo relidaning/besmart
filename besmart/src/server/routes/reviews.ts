@@ -236,6 +236,12 @@ reviewRoutes.get('/due', (req, res) => {
     FROM review_records r
     JOIN review_courses c ON c.id = r.course_id
     WHERE c.user_id = ? AND r.is_reviewed = 0 AND r.planned_date <= ?
+      AND r.id = (
+        SELECT rr.id FROM review_records rr
+        WHERE rr.course_id = r.course_id AND rr.is_reviewed = 0
+        ORDER BY rr.planned_date ASC, rr.id ASC
+        LIMIT 1
+      )
     ORDER BY r.planned_date ASC
   `).all(userId, today) as any[];
 
