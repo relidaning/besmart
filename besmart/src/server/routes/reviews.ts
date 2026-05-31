@@ -188,8 +188,17 @@ export function syncVaultForUser(userId: number): { missing: number; restored: n
   for (const row of exactRows) {
     const exists = fileSet.has(row.vault_path);
     if (!exists && row.vault_match_status !== 'missing') {
-      db.prepare("UPDATE review_courses SET vault_match_status = 'missing' WHERE id = ?").run(row.id);
-      missing++;
+      // Try to find the file at a new location (same filename, different folder = moved)
+      const basename = path.basename(row.vault_path);
+      const movedTo = [...fileSet].find((p) => path.basename(p) === basename && p !== row.vault_path);
+      if (movedTo) {
+        db.prepare("UPDATE review_courses SET vault_path = ?, vault_match_status = 'matched' WHERE id = ?").run(movedTo, row.id);
+        fileSet.delete(movedTo); // don't treat this as a brand-new file
+        restored++;
+      } else {
+        db.prepare("UPDATE review_courses SET vault_match_status = 'missing' WHERE id = ?").run(row.id);
+        missing++;
+      }
     } else if (exists && row.vault_match_status === 'missing') {
       db.prepare("UPDATE review_courses SET vault_match_status = 'matched' WHERE id = ?").run(row.id);
       restored++;

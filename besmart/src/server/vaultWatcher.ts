@@ -47,6 +47,23 @@ function startWatcherForUser(userId: number, vaultRoot: string) {
     .on('add', (filePath: string) => {
       if (!filePath.endsWith('.md')) return;
       const rel = path.relative(vaultRoot, filePath);
+      // Check if this looks like a move: a missing course shares the same filename
+      const newBasename = path.basename(rel);
+      const missingCourse = db.prepare(
+        "SELECT id, vault_path FROM review_courses WHERE user_id = ? AND vault_match_status = 'missing' AND vault_path LIKE ?"
+      ).get(userId, `%/${newBasename}`) as any
+        ?? db.prepare(
+          "SELECT id, vault_path FROM review_courses WHERE user_id = ? AND vault_match_status = 'missing' AND vault_path = ?"
+        ).get(userId, newBasename) as any;
+
+      if (missingCourse) {
+        db.prepare(
+          "UPDATE review_courses SET vault_path = ?, vault_match_status = 'matched' WHERE id = ?"
+        ).run(rel, missingCourse.id);
+        console.log(`[vault-watch] moved: ${missingCourse.vault_path} → ${rel}`);
+        return;
+      }
+
       if (scheduleVaultNote(userId, vaultRoot, rel)) {
         console.log(`[vault-watch] scheduled: ${rel}`);
       }
