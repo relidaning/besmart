@@ -6,7 +6,8 @@ import { fileURLToPath } from 'url';
 import { initializeDatabase } from './database.js';
 import { studyPlanRoutes } from './routes/studyplans.js';
 import { checkinRoutes } from './routes/checkins.js';
-import { reviewRoutes } from './routes/reviews.js';
+import { reviewRoutes, syncVaultForAllConfiguredUsers } from './routes/reviews.js';
+import { startVaultWatchers } from './vaultWatcher.js';
 import { todoRoutes } from './routes/todos.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { authRoutes } from './routes/auth.js';
@@ -22,6 +23,8 @@ app.use(cors());
 app.use(express.json());
 
 initializeDatabase();
+syncVaultForAllConfiguredUsers();
+startVaultWatchers();
 
 scheduleJob();
 setInterval(scheduleJob, 60 * 60 * 1000);

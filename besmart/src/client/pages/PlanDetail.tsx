@@ -104,29 +104,37 @@ export default function PlanDetail() {
   };
 
   const handleComplete = async () => {
-    await api.completePlan(plan!.id);
-    toast.success('Plan completed! 🎉');
-    fetchPlan();
+    try {
+      await api.completePlan(plan!.id);
+      toast.success('Plan completed! 🎉');
+      navigate('/plans');
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const handleDelete = async () => {
     if (!confirm('Delete this plan and all its tasks?')) return;
-    await api.deletePlan(plan!.id);
-    toast.success('Plan deleted');
-    navigate('/plans');
+    try {
+      await api.deletePlan(plan!.id);
+      toast.success('Plan deleted');
+      navigate('/plans');
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const handleToggleTask = async (task: PlanTask) => {
-    await api.updatePlanTask(plan!.id, task.id, { is_completed: !task.is_completed });
-    toast.success(task.is_completed ? 'Task reopened' : 'Task completed! ✓');
-    fetchPlan();
+    try {
+      await api.updatePlanTask(plan!.id, task.id, { is_completed: !task.is_completed });
+      toast.success(task.is_completed ? 'Task reopened' : 'Task completed! ✓');
+      fetchPlan();
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const handleDeleteTask = async (taskId: number) => {
     if (!confirm('Delete this task?')) return;
-    await api.deletePlanTask(plan!.id, taskId);
-    toast.success('Task deleted');
-    fetchPlan();
+    try {
+      await api.deletePlanTask(plan!.id, taskId);
+      toast.success('Task deleted');
+      fetchPlan();
+    } catch (err: any) { toast.error(err.message); }
   };
 
   if (loading) {

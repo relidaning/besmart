@@ -161,20 +161,20 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           {
-            to: '/plans',
-            icon: <FolderOpen size={24} className="text-blue-400" />,
-            title: 'Study Plans',
-            stat: `${stats.studyplans.active} active`,
-            sub: `${stats.studyplans.completed} completed`,
-            color: 'border-l-blue-400',
-          },
-          {
             to: '/checkin',
             icon: <ClipboardCheck size={24} className="text-green-400" />,
             title: 'Check In',
             stat: `${stats.checkins.today_completed}/${stats.checkins.today_total}`,
             sub: 'today',
             color: 'border-l-green-400',
+          },
+          {
+            to: '/todos',
+            icon: <ListTodo size={24} className={stats.todos.overdue > 0 ? 'text-red-400' : 'text-yellow-400'} />,
+            title: 'Todos',
+            stat: `${stats.todos.active} active`,
+            sub: stats.todos.overdue > 0 ? `${stats.todos.overdue} overdue` : `${stats.todos.completed} done`,
+            color: stats.todos.overdue > 0 ? 'border-l-red-400' : 'border-l-yellow-400',
           },
           {
             to: '/review',
@@ -185,12 +185,12 @@ export default function Dashboard() {
             color: 'border-l-purple-400',
           },
           {
-            to: '/todos',
-            icon: <ListTodo size={24} className={stats.todos.overdue > 0 ? 'text-red-400' : 'text-yellow-400'} />,
-            title: 'Todos',
-            stat: `${stats.todos.active} active`,
-            sub: stats.todos.overdue > 0 ? `${stats.todos.overdue} overdue` : `${stats.todos.completed} done`,
-            color: stats.todos.overdue > 0 ? 'border-l-red-400' : 'border-l-yellow-400',
+            to: '/plans',
+            icon: <FolderOpen size={24} className="text-blue-400" />,
+            title: 'Study Plans',
+            stat: `${stats.studyplans.active} active`,
+            sub: `${stats.studyplans.completed} completed`,
+            color: 'border-l-blue-400',
           },
         ].map((card) => (
           <motion.div key={card.to} variants={item}>

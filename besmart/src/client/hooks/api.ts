@@ -102,6 +102,10 @@ export const api = {
   importVaultNotes: (paths: string[]) =>
     request<any>('/reviews/vault/import', { method: 'POST', body: JSON.stringify({ paths }) }),
   rematchVault: () => request<any>('/reviews/courses/rematch', { method: 'POST' }),
+  syncVault: () => request<any>('/reviews/vault/sync', { method: 'POST' }),
+  getVaultConfig: () => request<any>('/reviews/vault/config'),
+  setVaultConfig: (data: { vault_root?: string; vault_name?: string }) =>
+    request<any>('/reviews/vault/config', { method: 'PUT', body: JSON.stringify(data) }),
 
   // Todos
   getTodos: (params?: any) => {

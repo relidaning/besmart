@@ -136,6 +136,8 @@ services:
       - 'JWT_SECRET=change-this-to-a-long-random-secret'
       - 'VAULT_PATH=/vault'
       - 'VAULT_NAME=lidaning'
+      # Hours before this are treated as the previous day (default: 6)
+      # - 'DAY_START_HOUR=6'
       # Email verification (optional — omit to skip email verification)
       # - 'SMTP_HOST=smtp.example.com'
       # - 'SMTP_PORT=587'

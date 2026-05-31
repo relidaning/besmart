@@ -1,9 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { ListTodo, Trophy, Check, AlertTriangle } from 'lucide-react';
 import { api } from '../hooks/api';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 interface Todo {
   id: number;
@@ -16,6 +15,8 @@ interface Todo {
   plan_id: number | null;
 }
 
+const PAGE_SIZE = 20;
+
 const container = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.04 } },
@@ -26,14 +27,17 @@ const listItem = {
 };
 
 const priorityConfig = {
-  high: { badge: 'badge-high', border: 'border-l-red-400', label: 'High' },
-  medium: { badge: 'badge-medium', border: 'border-l-yellow-400', label: 'Med' },
-  low: { badge: 'badge-low', border: 'border-l-green-400', label: 'Low' },
+  high: { border: 'border-l-red-400' },
+  medium: { border: 'border-l-yellow-400' },
+  low: { border: 'border-l-green-400' },
 };
 
 export default function Todos() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
   const [tab, setTab] = useState<'active' | 'completed'>('active');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [search, setSearch] = useState('');
@@ -42,16 +46,37 @@ export default function Todos() {
   const [form, setForm] = useState({ title: '', description: '', priority: 'medium', due_date: '' });
   const [completingId, setCompletingId] = useState<number | null>(null);
   const [completedToday, setCompletedToday] = useState<number>(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
-  const fetchTodos = useCallback(() => {
-    const params: any = {};
+  const buildParams = useCallback((pageNum: number) => {
+    const params: any = { page: pageNum, limit: PAGE_SIZE };
     if (tab === 'active') params.completed = 'false';
     else if (tab === 'completed') params.completed = 'true';
     if (priorityFilter) params.priority = priorityFilter;
     if (search) params.search = search;
-
-    api.getTodos(params).then((r) => setTodos(r.data)).finally(() => setLoading(false));
+    return params;
   }, [tab, priorityFilter, search]);
+
+  const fetchTodos = useCallback(() => {
+    setLoading(true);
+    setPage(1);
+    api.getTodos(buildParams(1)).then((r) => {
+      setTodos(r.data);
+      setHasMore(r.pagination.page < r.pagination.totalPages);
+    }).finally(() => setLoading(false));
+  }, [buildParams]);
+
+  const fetchMore = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    api.getTodos(buildParams(nextPage)).then((r) => {
+      setTodos((prev) => [...prev, ...r.data]);
+      setPage(nextPage);
+      setHasMore(r.pagination.page < r.pagination.totalPages);
+    }).finally(() => setLoadingMore(false));
+  }, [loadingMore, hasMore, page, buildParams]);
 
   const fetchStats = useCallback(() => {
     api.getTodoStats().then((r) => setCompletedToday(r.data.completedToday));
@@ -60,7 +85,22 @@ export default function Todos() {
   useEffect(() => { fetchTodos(); }, [fetchTodos]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
+  // Sentinel observer — rewire whenever hasMore/loadingMore changes
+  useEffect(() => {
+    if (observerRef.current) observerRef.current.disconnect();
+    if (!sentinelRef.current || !hasMore) return;
+    observerRef.current = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) fetchMore(); },
+      { threshold: 0.1 }
+    );
+    observerRef.current.observe(sentinelRef.current);
+    return () => observerRef.current?.disconnect();
+  }, [hasMore, fetchMore]);
+
   const handleToggle = async (todo: Todo) => {
+    // Remove from current tab immediately — it belongs to the other tab now
+    setTodos((prev) => prev.filter((t) => t.id !== todo.id));
+    setCompletedToday((n) => todo.completed ? n - 1 : n + 1);
     setCompletingId(todo.id);
     try {
       if (todo.completed) {
@@ -70,19 +110,25 @@ export default function Todos() {
         await api.completeTodo(todo.id);
         toast.success('Done! 🎉');
       }
-      fetchTodos();
-      fetchStats();
     } catch (err: any) {
       toast.error(err.message);
+      // Revert on failure
+      setTodos((prev) => [todo, ...prev]);
+      setCompletedToday((n) => todo.completed ? n + 1 : n - 1);
     }
     setCompletingId(null);
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this todo?')) return;
-    await api.deleteTodo(id);
-    toast.success('Deleted');
-    fetchTodos();
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+    try {
+      await api.deleteTodo(id);
+      toast.success('Deleted');
+    } catch (err: any) {
+      toast.error(err.message);
+      fetchTodos(); // revert
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,14 +137,17 @@ export default function Todos() {
     try {
       if (editing) {
         await api.updateTodo(editing.id, form);
+        setTodos((prev) => prev.map((t) =>
+          t.id === editing.id ? { ...t, ...form, priority: form.priority as Todo['priority'] } : t
+        ));
         toast.success('Updated');
       } else {
-        await api.createTodo(form);
+        const r = await api.createTodo(form);
+        if (tab === 'active') setTodos((prev) => [r.data, ...prev]);
         toast.success('Created');
       }
       setShowForm(false);
       setEditing(null);
-      fetchTodos();
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -114,8 +163,6 @@ export default function Todos() {
     }
     setShowForm(true);
   };
-
-  const { visible, sentinelRef } = useInfiniteScroll(todos.length, `${tab}-${priorityFilter}-${search}`);
 
   if (loading) {
     return (
@@ -201,7 +248,7 @@ export default function Todos() {
         </motion.div>
       ) : (
         <>
-          {todos.slice(0, visible).map((todo) => {
+          {todos.map((todo) => {
             const config = priorityConfig[todo.priority];
             const isOverdue = !todo.completed && todo.due_date && todo.due_date < new Date().toISOString().split('T')[0];
 
@@ -228,12 +275,9 @@ export default function Todos() {
                       )}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className={`font-medium ${todo.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                          {todo.title}
-                        </h3>
-                        <span className={`badge ${config.badge}`}>{config.label}</span>
-                      </div>
+                      <h3 className={`font-medium ${todo.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                        {todo.title}
+                      </h3>
                       {todo.description && (
                         <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{todo.description}</p>
                       )}
@@ -249,16 +293,18 @@ export default function Todos() {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      <button onClick={() => openForm(todo)} className="btn-ghost text-xs">Edit</button>
-                      <button onClick={() => handleDelete(todo.id)} className="btn-ghost text-xs text-red-400">Del</button>
-                    </div>
+                  </div>
+                  <div className="flex gap-1 mt-3 pt-3 border-t border-gray-100 justify-center">
+                    <button onClick={() => openForm(todo)} className="btn-ghost text-xs">Edit</button>
+                    <button onClick={() => handleDelete(todo.id)} className="btn-ghost text-xs text-red-400">Delete</button>
                   </div>
                 </div>
               </motion.div>
             );
           })}
-          <div ref={sentinelRef} className="h-1" />
+          <div ref={sentinelRef} className="h-4 flex items-center justify-center">
+            {loadingMore && <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />}
+          </div>
         </>
       )}
 

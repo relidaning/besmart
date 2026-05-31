@@ -67,6 +67,7 @@ export default function Review() {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [importingVault, setImportingVault] = useState(false);
   const [rematching, setRematching] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchAll = () => {
     setLoading(true);
@@ -118,6 +119,19 @@ export default function Review() {
       fetchAll();
     } catch (err: any) { toast.error(err.message); }
     setRematching(false);
+  };
+
+  const handleSyncVault = async () => {
+    setSyncing(true);
+    try {
+      const r = await api.syncVault();
+      const parts = [];
+      if (r.missing > 0) parts.push(`${r.missing} missing`);
+      if (r.restored > 0) parts.push(`${r.restored} restored`);
+      toast.success(parts.length ? parts.join(', ') : 'All notes accounted for');
+      if (r.missing > 0 || r.restored > 0) fetchAll();
+    } catch (err: any) { toast.error(err.message); }
+    setSyncing(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -196,6 +210,7 @@ export default function Review() {
               {dueRecords.slice(0, dueVisible).map((record) => {
                 const pp = primaryPath(record.vault_path, record.vault_paths);
                 const noMatch = record.vault_match_status === 'none';
+                const isMissing = record.vault_match_status === 'missing';
                 const isOverdue = record.planned_date < new Date().toISOString().slice(0, 10);
 
                 return (
@@ -206,7 +221,7 @@ export default function Review() {
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className={`font-semibold break-words leading-snug ${noMatch ? 'text-red-500' : 'text-gray-900'}`}>
+                          <h3 className={`font-semibold break-words leading-snug ${noMatch ? 'text-red-500' : isMissing ? 'text-amber-600' : 'text-gray-900'}`}>
                             {record.course_name}
                           </h3>
                           {pp && vaultName && (
@@ -225,9 +240,8 @@ export default function Review() {
                             )}
                           </p>
                         )}
-                        {noMatch && (
-                          <p className="text-xs text-red-400 mt-0.5">No matching note in vault</p>
-                        )}
+                        {noMatch && <p className="text-xs text-red-400 mt-0.5">No matching note in vault</p>}
+                        {isMissing && <p className="text-xs text-amber-500 mt-0.5">Note moved or deleted</p>}
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                           <span className="badge bg-purple-100 text-purple-700">Review #{record.reviewed_times + 1}</span>
                           <span className="text-xs text-gray-400">{record.interval_days}d interval</span>
@@ -248,12 +262,18 @@ export default function Review() {
       {/* ── Notes tab ── */}
       {tab === 'courses' && (
         <>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-3">
+            <button onClick={handleSyncVault} disabled={syncing}
+              className="flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-700 disabled:opacity-40 transition-colors font-medium"
+              title="Import all unscheduled vault notes and detect moved/deleted ones">
+              <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Syncing...' : 'Sync vault'}
+            </button>
             <button onClick={handleRematch} disabled={rematching}
               className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors"
-              title="Re-scan vault and update matches for all courses">
+              title="Re-scan vault and update fuzzy matches for manually added courses">
               <RefreshCw size={13} className={rematching ? 'animate-spin' : ''} />
-              {rematching ? 'Matching...' : 'Sync vault'}
+              {rematching ? 'Matching...' : 'Re-match'}
             </button>
           </div>
           {courses.length === 0 ? (
@@ -267,6 +287,7 @@ export default function Review() {
               {courses.slice(0, coursesVisible).map((course) => {
                 const pp = primaryPath(course.vault_path, course.vault_paths);
                 const noMatch = course.vault_match_status === 'none';
+                const isMissing = course.vault_match_status === 'missing';
 
                 return (
                   <motion.div key={course.id} variants={listItem}
@@ -276,7 +297,7 @@ export default function Review() {
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className={`font-semibold break-words ${noMatch ? 'text-red-500' : 'text-gray-900'}`}>
+                          <h3 className={`font-semibold break-words ${noMatch ? 'text-red-500' : isMissing ? 'text-amber-600' : 'text-gray-900'}`}>
                             {course.name}
                           </h3>
                           {pp && vaultName && (
@@ -293,6 +314,7 @@ export default function Review() {
                           </p>
                         )}
                         {noMatch && <p className="text-xs text-red-400 mt-0.5">No matching note in vault</p>}
+                        {isMissing && <p className="text-xs text-amber-500 mt-0.5">Note moved or deleted</p>}
                         {course.description && (
                           <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{course.description}</p>
                         )}

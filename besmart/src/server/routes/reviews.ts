@@ -6,8 +6,8 @@ import { localDate } from '../date.js';
 
 export const reviewRoutes = Router();
 
-const VAULT_PATH = process.env.VAULT_PATH ?? '/data/nextcloud_client/obsidian/lidaning';
-const VAULT_NAME = process.env.VAULT_NAME ?? path.basename(VAULT_PATH);
+const DEFAULT_VAULT_PATH = process.env.VAULT_PATH ?? '';
+const VAULT_SYNC_EXCLUDE = ['0_lidaning']; // top-level dirs excluded from bulk sync
 
 // ── SM-2 ──────────────────────────────────────────────────────────────────────
 
@@ -28,6 +28,14 @@ function sm2(rating: 'hard' | 'ok' | 'easy', intervalDays: number, ef: number) {
 
 // ── Vault helpers ─────────────────────────────────────────────────────────────
 
+function getUserVaultConfig(userId: number): { vaultRoot: string; vaultName: string } | null {
+  const user = db.prepare('SELECT vault_root, vault_name FROM users WHERE id = ?').get(userId) as any;
+  const vaultRoot = user?.vault_root || DEFAULT_VAULT_PATH;
+  if (!vaultRoot) return null;
+  const vaultName = user?.vault_name || path.basename(vaultRoot);
+  return { vaultRoot, vaultName };
+}
+
 function scanVault(base: string, rel: string): string[] {
   const results: string[] = [];
   const dir = rel ? path.join(base, rel) : base;
@@ -43,13 +51,11 @@ function scanVault(base: string, rel: string): string[] {
 }
 
 function extractTitle(content: string, fallback: string): string {
-  // frontmatter title: field
   const fm = content.match(/^---\s*\n([\s\S]*?)\n---/);
   if (fm) {
     const t = fm[1].match(/^title:\s*(.+)$/m);
     if (t) return t[1].trim().replace(/^["']|["']$/g, '');
   }
-  // first H1
   const h1 = content.match(/^#\s+(.+)$/m);
   if (h1) return h1[1].trim();
   return fallback;
@@ -72,20 +78,19 @@ function matchVaultNotes(courseName: string, allNotes: string[]): string[] {
   });
 }
 
-function autoMatch(courses: Array<{ id: number; name: string }>) {
+function autoMatch(courses: Array<{ id: number; name: string }>, vaultRoot: string) {
   if (courses.length === 0) return;
   try {
-    const allNotes = scanVault(VAULT_PATH, '');
+    const allNotes = scanVault(vaultRoot, '');
     for (const { id, name } of courses) {
       const paths = matchVaultNotes(name, allNotes);
       const status = paths.length === 0 ? 'none' : paths.length === 1 ? 'matched' : 'multiple';
       const vaultPaths = paths.length > 0 ? JSON.stringify(paths) : null;
 
-      // Extract true title from first matched file (vault is the truth source)
       let trueTitle: string | null = null;
       if (paths.length > 0) {
         try {
-          const content = fs.readFileSync(path.join(VAULT_PATH, paths[0]), 'utf-8');
+          const content = fs.readFileSync(path.join(vaultRoot, paths[0]), 'utf-8');
           trueTitle = extractTitle(content, path.basename(paths[0], '.md'));
         } catch {}
       }
@@ -103,13 +108,13 @@ function autoMatch(courses: Array<{ id: number; name: string }>) {
   } catch {}
 }
 
-function buildObsidianUris(paths: string[]): string[] {
+function buildObsidianUris(paths: string[], vaultName: string): string[] {
   return paths.map(
-    (p) => `obsidian://open?vault=${encodeURIComponent(VAULT_NAME)}&file=${encodeURIComponent(p.replace(/\.md$/, ''))}`
+    (p) => `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(p.replace(/\.md$/, ''))}`
   );
 }
 
-function getCourseContent(course: any): { content: string; paths: string[] } {
+function getCourseContent(course: any, vaultRoot: string): { content: string; paths: string[] } {
   const paths: string[] = [];
   if (course.vault_path) {
     paths.push(course.vault_path);
@@ -121,7 +126,7 @@ function getCourseContent(course: any): { content: string; paths: string[] } {
 
   const parts = paths.map((p) => {
     try {
-      const raw = fs.readFileSync(path.join(VAULT_PATH, p), 'utf-8');
+      const raw = fs.readFileSync(path.join(vaultRoot, p), 'utf-8');
       return paths.length > 1 ? `# ${path.basename(p, '.md')}\n\n${raw}` : raw;
     } catch {
       return `*(file not found: ${p})*`;
@@ -136,6 +141,76 @@ function serializeCourse(c: any) {
     is_postponed: Boolean(c.is_postponed),
     vault_paths: c.vault_paths ? JSON.parse(c.vault_paths) : null,
   };
+}
+
+// ── Vault sync ────────────────────────────────────────────────────────────────
+
+export function scheduleVaultNote(userId: number, vaultRoot: string, relPath: string): boolean {
+  const existing = db.prepare(
+    'SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?'
+  ).get(userId, relPath);
+  if (existing) return false;
+
+  const fallback = path.basename(relPath, '.md');
+  let name = fallback;
+  try {
+    const content = fs.readFileSync(path.join(vaultRoot, relPath), 'utf-8');
+    name = extractTitle(content, fallback);
+  } catch {}
+
+  const today = localDate(new Date());
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const result = db.prepare(
+    'INSERT INTO review_courses (name, description, studied_date, vault_path, vault_match_status, user_id) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(name, '', today, relPath, 'matched', userId);
+  db.prepare(
+    'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date, ease_factor, interval_days) VALUES (?, 0, 0, ?, 2.5, 1)'
+  ).run(result.lastInsertRowid, localDate(tomorrow));
+  return true;
+}
+
+export function syncVaultForUser(userId: number): { missing: number; restored: number } {
+  const config = getUserVaultConfig(userId);
+  if (!config) return { missing: 0, restored: 0 };
+  const { vaultRoot } = config;
+
+  const fileSet = new Set(
+    scanVault(vaultRoot, '').filter((p) => !VAULT_SYNC_EXCLUDE.includes(p.split('/')[0]))
+  );
+
+  // Detect missing (file gone) and restored (file came back) for exact-path courses
+  const exactRows = db.prepare(
+    'SELECT id, vault_path, vault_match_status FROM review_courses WHERE user_id = ? AND vault_path IS NOT NULL'
+  ).all(userId) as any[];
+
+  let missing = 0, restored = 0;
+  for (const row of exactRows) {
+    const exists = fileSet.has(row.vault_path);
+    if (!exists && row.vault_match_status !== 'missing') {
+      db.prepare("UPDATE review_courses SET vault_match_status = 'missing' WHERE id = ?").run(row.id);
+      missing++;
+    } else if (exists && row.vault_match_status === 'missing') {
+      db.prepare("UPDATE review_courses SET vault_match_status = 'matched' WHERE id = ?").run(row.id);
+      restored++;
+    }
+  }
+
+  return { missing, restored };
+}
+
+export function syncVaultForAllConfiguredUsers() {
+  const users = db.prepare('SELECT id FROM users WHERE vault_root IS NOT NULL').all() as any[];
+  for (const { id } of users) {
+    try {
+      const result = syncVaultForUser(id);
+      if (result.missing > 0 || result.restored > 0) {
+        console.log(`[vault-sync] user ${id}: ${result.missing} missing, ${result.restored} restored`);
+      }
+    } catch (e) {
+      console.error(`[vault-sync] user ${id} failed:`, e);
+    }
+  }
 }
 
 // ── Due records ───────────────────────────────────────────────────────────────
@@ -155,24 +230,27 @@ reviewRoutes.get('/due', (req, res) => {
     ORDER BY r.planned_date ASC
   `).all(userId, today) as any[];
 
+  const cfg = getUserVaultConfig(userId);
+
   // Auto-match courses that have never been scanned
-  const toMatch = records
-    .filter((r) => !r.vault_path && r.vault_match_status === null)
-    .reduce((acc: Array<{ id: number; name: string }>, r) => {
-      if (!acc.find((x) => x.id === r.course_id)) acc.push({ id: r.course_id, name: r.course_name });
-      return acc;
-    }, []);
-  if (toMatch.length) {
-    autoMatch(toMatch);
-    // Re-read updated values
-    toMatch.forEach(({ id }) => {
-      const updated = db.prepare('SELECT name, vault_paths, vault_match_status FROM review_courses WHERE id = ?').get(id) as any;
-      records.filter((r) => r.course_id === id).forEach((r) => {
-        r.course_name = updated.name;
-        r.vault_paths = updated.vault_paths;
-        r.vault_match_status = updated.vault_match_status;
+  if (cfg) {
+    const toMatch = records
+      .filter((r) => !r.vault_path && r.vault_match_status === null)
+      .reduce((acc: Array<{ id: number; name: string }>, r) => {
+        if (!acc.find((x) => x.id === r.course_id)) acc.push({ id: r.course_id, name: r.course_name });
+        return acc;
+      }, []);
+    if (toMatch.length) {
+      autoMatch(toMatch, cfg.vaultRoot);
+      toMatch.forEach(({ id }) => {
+        const updated = db.prepare('SELECT name, vault_paths, vault_match_status FROM review_courses WHERE id = ?').get(id) as any;
+        records.filter((r) => r.course_id === id).forEach((r) => {
+          r.course_name = updated.name;
+          r.vault_paths = updated.vault_paths;
+          r.vault_match_status = updated.vault_match_status;
+        });
       });
-    });
+    }
   }
 
   res.json({
@@ -212,7 +290,7 @@ reviewRoutes.post('/records/:id/complete', (req, res) => {
   res.json({ success: true });
 });
 
-// ── Record detail (content page) ──────────────────────────────────────────────
+// ── Record detail ─────────────────────────────────────────────────────────────
 
 reviewRoutes.get('/records/:id/detail', (req, res) => {
   const userId = req.user!.id;
@@ -225,17 +303,19 @@ reviewRoutes.get('/records/:id/detail', (req, res) => {
   `).get(req.params.id, userId) as any;
   if (!record) return res.status(404).json({ error: 'Not found' });
 
-  const { content, paths } = getCourseContent(record);
-  const liveTitle = paths[0]
-    ? (() => { try { return extractTitle(fs.readFileSync(path.join(VAULT_PATH, paths[0]), 'utf-8'), record.course_name); } catch { return record.course_name; } })()
+  const cfg = getUserVaultConfig(userId);
+  const { content, paths } = cfg ? getCourseContent(record, cfg.vaultRoot) : { content: '', paths: [] };
+  const liveTitle = cfg && paths[0]
+    ? (() => { try { return extractTitle(fs.readFileSync(path.join(cfg.vaultRoot, paths[0]), 'utf-8'), record.course_name); } catch { return record.course_name; } })()
     : record.course_name;
+
   res.json({
     record,
     content,
     paths,
     title: liveTitle,
-    vault_name: VAULT_NAME,
-    obsidian_uris: buildObsidianUris(paths),
+    vault_name: cfg?.vaultName ?? '',
+    obsidian_uris: cfg ? buildObsidianUris(paths, cfg.vaultName) : [],
   });
 });
 
@@ -252,15 +332,18 @@ reviewRoutes.get('/courses', (req, res) => {
     ORDER BY c.studied_date DESC
   `).all(userId) as any[];
 
-  const toMatch = courses.filter((c) => !c.vault_path && c.vault_match_status === null);
-  if (toMatch.length) {
-    autoMatch(toMatch.map((c) => ({ id: c.id, name: c.name })));
-    toMatch.forEach((c) => {
-      const updated = db.prepare('SELECT name, vault_paths, vault_match_status FROM review_courses WHERE id = ?').get(c.id) as any;
-      c.name = updated.name;
-      c.vault_paths = updated.vault_paths;
-      c.vault_match_status = updated.vault_match_status;
-    });
+  const cfg = getUserVaultConfig(userId);
+  if (cfg) {
+    const toMatch = courses.filter((c) => !c.vault_path && c.vault_match_status === null);
+    if (toMatch.length) {
+      autoMatch(toMatch.map((c) => ({ id: c.id, name: c.name })), cfg.vaultRoot);
+      toMatch.forEach((c) => {
+        const updated = db.prepare('SELECT name, vault_paths, vault_match_status FROM review_courses WHERE id = ?').get(c.id) as any;
+        c.name = updated.name;
+        c.vault_paths = updated.vault_paths;
+        c.vault_match_status = updated.vault_match_status;
+      });
+    }
   }
 
   res.json({ data: courses.map(serializeCourse) });
@@ -315,24 +398,26 @@ reviewRoutes.delete('/courses/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// ── Course detail (content page) ──────────────────────────────────────────────
+// ── Course detail ─────────────────────────────────────────────────────────────
 
 reviewRoutes.get('/courses/:id/detail', (req, res) => {
   const userId = req.user!.id;
   const course = db.prepare('SELECT * FROM review_courses WHERE id = ? AND user_id = ?').get(req.params.id, userId) as any;
   if (!course) return res.status(404).json({ error: 'Not found' });
 
-  const { content, paths } = getCourseContent(course);
-  const liveTitle = paths[0]
-    ? (() => { try { return extractTitle(fs.readFileSync(path.join(VAULT_PATH, paths[0]), 'utf-8'), course.name); } catch { return course.name; } })()
+  const cfg = getUserVaultConfig(userId);
+  const { content, paths } = cfg ? getCourseContent(course, cfg.vaultRoot) : { content: '', paths: [] };
+  const liveTitle = cfg && paths[0]
+    ? (() => { try { return extractTitle(fs.readFileSync(path.join(cfg.vaultRoot, paths[0]), 'utf-8'), course.name); } catch { return course.name; } })()
     : course.name;
+
   res.json({
     course: serializeCourse(course),
     content,
     paths,
     title: liveTitle,
-    vault_name: VAULT_NAME,
-    obsidian_uris: buildObsidianUris(paths),
+    vault_name: cfg?.vaultName ?? '',
+    obsidian_uris: cfg ? buildObsidianUris(paths, cfg.vaultName) : [],
   });
 });
 
@@ -340,32 +425,71 @@ reviewRoutes.get('/courses/:id/detail', (req, res) => {
 
 reviewRoutes.post('/courses/rematch', (req, res) => {
   const userId = req.user!.id;
-  // Only rematch auto-matched courses (vault_path IS NULL means no explicit single link)
+  const cfg = getUserVaultConfig(userId);
+  if (!cfg) return res.json({ updated: 0 });
+
   const courses = db.prepare('SELECT id, name FROM review_courses WHERE user_id = ? AND vault_path IS NULL').all(userId) as any[];
   if (!courses.length) return res.json({ updated: 0 });
-  autoMatch(courses);
+  autoMatch(courses, cfg.vaultRoot);
   res.json({ updated: courses.length });
 });
 
 // ── Vault ─────────────────────────────────────────────────────────────────────
 
-reviewRoutes.get('/vault/info', (_req, res) => {
-  res.json({ vault_name: VAULT_NAME });
+reviewRoutes.get('/vault/info', (req, res) => {
+  const userId = req.user!.id;
+  const cfg = getUserVaultConfig(userId);
+  res.json({ vault_name: cfg?.vaultName ?? '' });
+});
+
+reviewRoutes.get('/vault/config', (req, res) => {
+  const userId = req.user!.id;
+  const user = db.prepare('SELECT vault_root, vault_name FROM users WHERE id = ?').get(userId) as any;
+  const cfg = getUserVaultConfig(userId);
+  res.json({
+    vault_root: user?.vault_root ?? null,
+    vault_name: user?.vault_name ?? null,
+    effective_vault_root: cfg?.vaultRoot ?? null,
+    effective_vault_name: cfg?.vaultName ?? null,
+  });
+});
+
+reviewRoutes.put('/vault/config', (req, res) => {
+  const userId = req.user!.id;
+  const { vault_root, vault_name } = req.body as { vault_root?: string; vault_name?: string };
+  if (vault_root && !fs.existsSync(vault_root)) {
+    return res.status(400).json({ error: 'vault_root path does not exist on server' });
+  }
+  db.prepare('UPDATE users SET vault_root = ?, vault_name = ? WHERE id = ?').run(
+    vault_root || null,
+    vault_name || null,
+    userId
+  );
+  res.json({ success: true });
+});
+
+reviewRoutes.post('/vault/sync', (req, res) => {
+  const userId = req.user!.id;
+  const result = syncVaultForUser(userId);
+  res.json({ success: true, ...result });
 });
 
 reviewRoutes.get('/vault/suggestions', (req, res) => {
   const userId = req.user!.id;
+  const cfg = getUserVaultConfig(userId);
+  if (!cfg) return res.json({ data: [] });
+
   const scheduled = db.prepare(
     'SELECT vault_path FROM review_courses WHERE user_id = ? AND vault_path IS NOT NULL'
   ).all(userId) as any[];
   const scheduledPaths = new Set(scheduled.map((r: any) => r.vault_path));
 
   try {
-    const notes = scanVault(VAULT_PATH, '').filter((p) => !scheduledPaths.has(p));
+    const notes = scanVault(cfg.vaultRoot, '').filter((p) => !scheduledPaths.has(p));
     const suggestions = notes
       .map((relPath) => {
         try {
-          const stat = fs.statSync(path.join(VAULT_PATH, relPath));
+          const stat = fs.statSync(path.join(cfg.vaultRoot, relPath));
           return { path: relPath, title: path.basename(relPath, '.md'), mtime: stat.mtime.toISOString() };
         } catch { return null; }
       })
@@ -379,10 +503,14 @@ reviewRoutes.get('/vault/suggestions', (req, res) => {
 });
 
 reviewRoutes.get('/vault/content', (req, res) => {
+  const userId = req.user!.id;
+  const cfg = getUserVaultConfig(userId);
+  if (!cfg) return res.status(404).json({ error: 'No vault configured' });
+
   const notePath = req.query.path as string;
   if (!notePath || notePath.includes('..')) return res.status(400).json({ error: 'Invalid path' });
   try {
-    const content = fs.readFileSync(path.join(VAULT_PATH, notePath), 'utf-8');
+    const content = fs.readFileSync(path.join(cfg.vaultRoot, notePath), 'utf-8');
     res.json({ data: content.slice(0, 2000) });
   } catch {
     res.status(404).json({ error: 'Note not found' });
@@ -391,6 +519,9 @@ reviewRoutes.get('/vault/content', (req, res) => {
 
 reviewRoutes.post('/vault/import', (req, res) => {
   const userId = req.user!.id;
+  const cfg = getUserVaultConfig(userId);
+  if (!cfg) return res.status(400).json({ error: 'No vault configured' });
+
   const { paths } = req.body as { paths: string[] };
   if (!paths?.length) return res.status(400).json({ error: 'paths required' });
 
@@ -403,7 +534,7 @@ reviewRoutes.post('/vault/import', (req, res) => {
       const fallback = path.basename(vaultPath, '.md');
       let name = fallback;
       try {
-        const content = fs.readFileSync(path.join(VAULT_PATH, vaultPath), 'utf-8');
+        const content = fs.readFileSync(path.join(cfg.vaultRoot, vaultPath), 'utf-8');
         name = extractTitle(content, fallback);
       } catch {}
       const result = db.prepare(

@@ -89,10 +89,11 @@ studyPlanRoutes.post('/:id/complete', (req, res) => {
   const existing = db.prepare('SELECT id FROM study_plans WHERE id = ? AND user_id = ?').get(req.params.id, userId);
   if (!existing) return res.status(404).json({ error: 'Plan not found' });
 
+  const today = localDate(new Date());
   db.prepare('UPDATE study_plans SET is_completed = 1 WHERE id = ?').run(req.params.id);
   db.prepare(
-    'UPDATE plan_tasks SET is_completed = 1, actual_end = date("now") WHERE plan_id = ? AND is_completed = 0'
-  ).run(req.params.id);
+    'UPDATE plan_tasks SET is_completed = 1, actual_end = ? WHERE plan_id = ? AND is_completed = 0'
+  ).run(today, req.params.id);
   res.json({ success: true });
 });
 

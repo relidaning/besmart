@@ -158,22 +158,28 @@ export default function CheckIn() {
       {/* ── Today tab ── */}
       {tab === 'today' && (<>
       {/* Progress bar */}
-      {data && (
-        <motion.div variants={listItem} className="card">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-500">Today's Progress</span>
-            <span className="text-sm font-bold text-brand-600">{data.completed}/{data.total}</span>
-          </div>
-          <div className="w-full bg-gray-100 rounded-full h-3">
-            <motion.div
-              className="h-3 rounded-full bg-gradient-to-r from-brand-400 to-brand-500"
-              initial={{ width: 0 }}
-              animate={{ width: `${data.progress}%` }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
-            />
-          </div>
-        </motion.div>
-      )}
+      {data && (() => {
+        const dailyTasks = data.tasks.filter((t) => t.schedule_type === 'daily');
+        const dailyTotal = dailyTasks.length;
+        const dailyDone = dailyTasks.filter((t) => t.is_completed).length;
+        const dailyProgress = dailyTotal > 0 ? Math.round((dailyDone / dailyTotal) * 100) : 0;
+        return (
+          <motion.div variants={listItem} className="card">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500">Today's Progress</span>
+              <span className="text-sm font-bold text-brand-600">{dailyDone}/{dailyTotal}</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-3">
+              <motion.div
+                className="h-3 rounded-full bg-gradient-to-r from-brand-400 to-brand-500"
+                initial={{ width: 0 }}
+                animate={{ width: `${dailyProgress}%` }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+              />
+            </div>
+          </motion.div>
+        );
+      })()}
 
       {/* Tasks */}
       {!data || data.tasks.length === 0 ? (

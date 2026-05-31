@@ -163,6 +163,22 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 5: per-user vault config
+  if (version < 5) {
+    db.transaction(() => {
+      addColIfMissing('users', 'vault_root', 'TEXT');
+      addColIfMissing('users', 'vault_name', 'TEXT');
+      // Pre-configure the main user (id=2) with the server vault if env var is set
+      const envVaultPath = process.env.VAULT_PATH;
+      const envVaultName = process.env.VAULT_NAME;
+      if (envVaultPath) {
+        db.prepare('UPDATE users SET vault_root = ?, vault_name = ? WHERE id = 2 AND vault_root IS NULL')
+          .run(envVaultPath, envVaultName || path.basename(envVaultPath));
+      }
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (5)').run();
+    })();
+  }
+
   // Migration 3: vault path on courses, SM-2 fields on records
   if (version < 3) {
     db.transaction(() => {

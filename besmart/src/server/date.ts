@@ -7,10 +7,12 @@ export function localDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-// Before 6am, treat as the previous day — matches old checkin app behavior.
+// Hours before DAY_START_HOUR (default 6) are treated as the previous day.
+const DAY_START_HOUR = parseInt(process.env.DAY_START_HOUR ?? '6', 10);
+
 export function effectiveDate(): string {
   const now = new Date();
-  if (now.getHours() < 6) {
+  if (now.getHours() < DAY_START_HOUR) {
     const prev = new Date(now);
     prev.setDate(prev.getDate() - 1);
     return localDate(prev);

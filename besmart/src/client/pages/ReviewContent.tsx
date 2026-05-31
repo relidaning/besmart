@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import toast from 'react-hot-toast';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { api } from '../hooks/api';
@@ -176,7 +177,7 @@ export default function ReviewContent() {
               prose-pre:bg-gray-100 prose-pre:text-gray-800
               prose-blockquote:border-brand-300 prose-blockquote:text-gray-500
               prose-li:text-gray-600 prose-strong:text-gray-800 prose-hr:border-gray-200">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={mdComponents}>
                 {content}
               </ReactMarkdown>
             </div>
