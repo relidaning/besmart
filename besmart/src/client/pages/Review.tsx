@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { Trophy, BookOpen, FileText, ExternalLink, ChevronRight, RefreshCw } from 'lucide-react';
+import { Trophy, FileText, ExternalLink, ChevronRight, RefreshCw } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
@@ -14,24 +14,12 @@ interface ReviewRecord {
   reviewed_times: number;
   planned_date: string;
   is_reviewed: boolean;
+  is_postponed: boolean;
   vault_path: string | null;
   vault_paths: string[] | null;
   vault_match_status: string | null;
   ease_factor: number;
   interval_days: number;
-}
-
-interface Course {
-  id: number;
-  name: string;
-  description: string;
-  studied_date: string;
-  is_postponed: boolean;
-  vault_path: string | null;
-  vault_paths: string[] | null;
-  vault_match_status: string | null;
-  total_reviews: number | null;
-  due_reviews: number | null;
 }
 
 interface VaultNote {
@@ -54,11 +42,9 @@ function obsidianUri(vaultName: string, p: string) {
 export default function Review() {
   const navigate = useNavigate();
   const [dueRecords, setDueRecords] = useState<ReviewRecord[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'due' | 'courses'>('due');
   const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<Course | null>(null);
+  const [editing, setEditing] = useState<ReviewRecord | null>(null);
   const [form, setForm] = useState({ name: '', description: '', is_postponed: false });
 
   const [vaultName, setVaultName] = useState('');
@@ -71,11 +57,8 @@ export default function Review() {
 
   const fetchAll = () => {
     setLoading(true);
-    Promise.all([api.getDueReviews(), api.getCourses()])
-      .then(([dueR, coursesR]) => {
-        setDueRecords(dueR.data);
-        setCourses(coursesR.data);
-      })
+    api.getDueReviews()
+      .then((dueR) => setDueRecords(dueR.data))
       .finally(() => setLoading(false));
   };
 
@@ -85,10 +68,10 @@ export default function Review() {
   }, []);
 
   useEffect(() => {
-    if (!loading && dueRecords.length === 0 && tab === 'due' && vaultSuggestions.length === 0) {
+    if (!loading && dueRecords.length === 0 && vaultSuggestions.length === 0) {
       loadVaultSuggestions();
     }
-  }, [loading, dueRecords.length, tab]);
+  }, [loading, dueRecords.length]);
 
   const loadVaultSuggestions = async () => {
     if (loadingSuggestions) return;
@@ -103,7 +86,7 @@ export default function Review() {
     try {
       await api.importVaultNotes(Array.from(selectedVault));
       const n = selectedVault.size;
-      toast.success(`Added ${n} note${n > 1 ? 's' : ''} to review queue`);
+      toast.success(`Added ${n} note${n > 1 ? 's' : ''} to review queue. First review tomorrow.`);
       setSelectedVault(new Set());
       setVaultSuggestions([]);
       fetchAll();
@@ -137,25 +120,26 @@ export default function Review() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editing) { await api.updateCourse(editing.id, form); toast.success('Updated'); }
+      if (editing) { await api.updateCourse(editing.course_id, form); toast.success('Updated'); }
       else { await api.createCourse(form); toast.success('Course created! First review tomorrow.'); }
       setShowForm(false); setEditing(null); fetchAll();
     } catch (err: any) { toast.error(err.message); }
   };
 
-  const openForm = (course?: Course) => {
-    setEditing(course ?? null);
-    setForm(course ? { name: course.name, description: course.description, is_postponed: course.is_postponed } : { name: '', description: '', is_postponed: false });
+  const openForm = (record?: ReviewRecord) => {
+    setEditing(record ?? null);
+    setForm(record
+      ? { name: record.course_name, description: record.course_description, is_postponed: record.is_postponed }
+      : { name: '', description: '', is_postponed: false });
     setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (courseId: number) => {
     if (!confirm('Delete this course and all its review records?')) return;
-    await api.deleteCourse(id); toast.success('Deleted'); fetchAll();
+    await api.deleteCourse(courseId); toast.success('Deleted'); fetchAll();
   };
 
-  const { visible: dueVisible,     sentinelRef: dueSentinelRef }     = useInfiniteScroll(dueRecords.length, tab);
-  const { visible: coursesVisible, sentinelRef: coursesSentinelRef } = useInfiniteScroll(courses.length, tab);
+  const { visible: dueVisible, sentinelRef: dueSentinelRef } = useInfiniteScroll(dueRecords.length);
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -168,186 +152,106 @@ export default function Review() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Review</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Spaced repetition for lasting memory</p>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {dueRecords.length > 0
+              ? `${dueRecords.length} due for review`
+              : 'Spaced repetition for lasting memory'}
+          </p>
         </div>
         <button onClick={() => openForm()} className="btn-primary text-sm">+ New Course</button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-        {(['due', 'courses'] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-              tab === t ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {t === 'due' ? `Due (${dueRecords.length})` : `Notes (${courses.length})`}
-          </button>
-        ))}
+      {/* Vault tools */}
+      <div className="flex justify-end gap-3">
+        <button onClick={handleSyncVault} disabled={syncing}
+          className="flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-700 disabled:opacity-40 transition-colors font-medium"
+          title="Import all unscheduled vault notes and detect moved/deleted ones">
+          <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing...' : 'Sync vault'}
+        </button>
+        <button onClick={handleRematch} disabled={rematching}
+          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors"
+          title="Re-scan vault and update fuzzy matches for manually added courses">
+          <RefreshCw size={13} className={rematching ? 'animate-spin' : ''} />
+          {rematching ? 'Matching...' : 'Re-match'}
+        </button>
       </div>
 
-      {/* ── Due tab ── */}
-      {tab === 'due' && (
-        <>
-          {dueRecords.length === 0 ? (
-            <motion.div variants={listItem} className="space-y-4">
-              <div className="card text-center py-10">
-                <div className="flex justify-center mb-3 text-green-400"><Trophy size={40} /></div>
-                <h3 className="text-lg font-semibold text-gray-900">All caught up!</h3>
-                <p className="text-gray-500 text-sm mt-1">No reviews due. Pick notes from your vault to schedule.</p>
-              </div>
-              <VaultSuggestionPanel
-                loading={loadingSuggestions} suggestions={vaultSuggestions}
-                selected={selectedVault} importing={importingVault}
-                onToggle={(p) => setSelectedVault((prev) => { const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n; })}
-                onSelectAll={() => setSelectedVault(new Set(vaultSuggestions.map((n) => n.path)))}
-                onClear={() => setSelectedVault(new Set())}
-                onImport={handleImportVault}
-              />
-            </motion.div>
-          ) : (
-            <>
-              {dueRecords.slice(0, dueVisible).map((record) => {
-                const pp = primaryPath(record.vault_path, record.vault_paths);
-                const noMatch = record.vault_match_status === 'none';
-                const isMissing = record.vault_match_status === 'missing';
-                const isOverdue = record.planned_date < new Date().toISOString().slice(0, 10);
-
-                return (
-                  <motion.div key={record.id} variants={listItem}
-                    className="card cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                    onClick={() => navigate(`/review/record/${record.id}`)}
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className={`font-semibold break-words leading-snug ${noMatch ? 'text-red-500' : isMissing ? 'text-amber-600' : 'text-gray-900'}`}>
-                            {record.course_name}
-                          </h3>
-                          {pp && vaultName && (
-                            <a href={obsidianUri(vaultName, pp)} onClick={(e) => e.stopPropagation()}
-                              title="Open in Obsidian"
-                              className="text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0">
-                              <ExternalLink size={13} />
-                            </a>
-                          )}
-                        </div>
-                        {pp && (
-                          <p className="text-xs text-gray-400 mt-0.5 truncate flex items-center gap-1">
-                            <FileText size={10} />{pp}
-                            {(record.vault_paths?.length ?? 0) > 1 && (
-                              <span className="ml-1 text-blue-400">+{record.vault_paths!.length - 1} more</span>
-                            )}
-                          </p>
-                        )}
-                        {noMatch && <p className="text-xs text-red-400 mt-0.5">No matching note in vault</p>}
-                        {isMissing && <p className="text-xs text-amber-500 mt-0.5">Note moved or deleted</p>}
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          <span className="badge bg-purple-100 text-purple-700">Review #{record.reviewed_times + 1}</span>
-                          <span className="text-xs text-gray-400">{record.interval_days}d interval</span>
-                          {isOverdue && <span className="badge badge-high">Overdue</span>}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(record.course_id); }}
-                          className="text-xs text-red-400 hover:text-red-600 px-2 py-1"
-                        >Del</button>
-                        <ChevronRight size={16} className="text-gray-300 mt-1" />
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-              <div ref={dueSentinelRef} className="h-1" />
-            </>
-          )}
-        </>
-      )}
-
-      {/* ── Notes tab ── */}
-      {tab === 'courses' && (
-        <>
-          <div className="flex justify-end gap-3">
-            <button onClick={handleSyncVault} disabled={syncing}
-              className="flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-700 disabled:opacity-40 transition-colors font-medium"
-              title="Import all unscheduled vault notes and detect moved/deleted ones">
-              <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
-              {syncing ? 'Syncing...' : 'Sync vault'}
-            </button>
-            <button onClick={handleRematch} disabled={rematching}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors"
-              title="Re-scan vault and update fuzzy matches for manually added courses">
-              <RefreshCw size={13} className={rematching ? 'animate-spin' : ''} />
-              {rematching ? 'Matching...' : 'Re-match'}
-            </button>
+      {dueRecords.length === 0 ? (
+        <motion.div variants={listItem} className="space-y-4">
+          <div className="card text-center py-10">
+            <div className="flex justify-center mb-3 text-green-400"><Trophy size={40} /></div>
+            <h3 className="text-lg font-semibold text-gray-900">All caught up!</h3>
+            <p className="text-gray-500 text-sm mt-1">No reviews due. Pick notes from your vault to schedule.</p>
           </div>
-          {courses.length === 0 ? (
-            <motion.div variants={listItem} className="card text-center py-12">
-              <div className="flex justify-center mb-3 text-gray-300"><BookOpen size={40} /></div>
-              <p className="text-gray-500 text-sm">No notes yet.</p>
-              <button onClick={() => openForm()} className="btn-primary mt-4 text-sm">Add Course</button>
-            </motion.div>
-          ) : (
-            <>
-              {courses.slice(0, coursesVisible).map((course) => {
-                const pp = primaryPath(course.vault_path, course.vault_paths);
-                const noMatch = course.vault_match_status === 'none';
-                const isMissing = course.vault_match_status === 'missing';
+          <VaultSuggestionPanel
+            loading={loadingSuggestions} suggestions={vaultSuggestions}
+            selected={selectedVault} importing={importingVault}
+            onToggle={(p) => setSelectedVault((prev) => { const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n; })}
+            onSelectAll={() => setSelectedVault(new Set(vaultSuggestions.map((n) => n.path)))}
+            onClear={() => setSelectedVault(new Set())}
+            onImport={handleImportVault}
+          />
+        </motion.div>
+      ) : (
+        <>
+          {dueRecords.slice(0, dueVisible).map((record) => {
+            const pp = primaryPath(record.vault_path, record.vault_paths);
+            const noMatch = record.vault_match_status === 'none';
+            const isMissing = record.vault_match_status === 'missing';
+            const isOverdue = record.planned_date < new Date().toISOString().slice(0, 10);
 
-                return (
-                  <motion.div key={course.id} variants={listItem}
-                    className="card cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                    onClick={() => navigate(`/review/course/${course.id}`)}
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className={`font-semibold break-words ${noMatch ? 'text-red-500' : isMissing ? 'text-amber-600' : 'text-gray-900'}`}>
-                            {course.name}
-                          </h3>
-                          {pp && vaultName && (
-                            <a href={obsidianUri(vaultName, pp)} onClick={(e) => e.stopPropagation()}
-                              title="Open in Obsidian"
-                              className="text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0">
-                              <ExternalLink size={13} />
-                            </a>
-                          )}
-                        </div>
-                        {pp && (
-                          <p className="text-xs text-gray-400 mt-0.5 truncate flex items-center gap-1">
-                            <FileText size={10} />{pp}
-                          </p>
-                        )}
-                        {noMatch && <p className="text-xs text-red-400 mt-0.5">No matching note in vault</p>}
-                        {isMissing && <p className="text-xs text-amber-500 mt-0.5">Note moved or deleted</p>}
-                        {course.description && (
-                          <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{course.description}</p>
-                        )}
-                        <div className="flex items-center gap-3 mt-2 flex-wrap">
-                          <span className="text-xs text-gray-400">Added {course.studied_date}</span>
-                          <span className="badge bg-purple-100 text-purple-700">{course.total_reviews ?? 0} reviews</span>
-                          {(course.due_reviews ?? 0) > 0 && (
-                            <span className="badge badge-high">{course.due_reviews} due</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {!course.vault_path && !pp && (
-                          <button onClick={(e) => { e.stopPropagation(); openForm(course); }}
-                            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Edit</button>
-                        )}
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(course.id); }}
-                          className="text-xs text-red-400 hover:text-red-600 px-2 py-1">Del</button>
-                        <ChevronRight size={16} className="text-gray-300" />
-                      </div>
+            return (
+              <motion.div key={record.id} variants={listItem}
+                className="card cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                onClick={() => navigate(`/review/record/${record.id}`)}
+              >
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className={`font-semibold break-words leading-snug ${noMatch ? 'text-red-500' : isMissing ? 'text-amber-600' : 'text-gray-900'}`}>
+                        {record.course_name}
+                      </h3>
+                      {pp && vaultName && (
+                        <a href={obsidianUri(vaultName, pp)} onClick={(e) => e.stopPropagation()}
+                          title="Open in Obsidian"
+                          className="text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0">
+                          <ExternalLink size={13} />
+                        </a>
+                      )}
                     </div>
-                  </motion.div>
-                );
-              })}
-              <div ref={coursesSentinelRef} className="h-1" />
-            </>
-          )}
+                    {pp && (
+                      <p className="text-xs text-gray-400 mt-0.5 truncate flex items-center gap-1">
+                        <FileText size={10} />{pp}
+                        {(record.vault_paths?.length ?? 0) > 1 && (
+                          <span className="ml-1 text-blue-400">+{record.vault_paths!.length - 1} more</span>
+                        )}
+                      </p>
+                    )}
+                    {noMatch && <p className="text-xs text-red-400 mt-0.5">No matching note in vault</p>}
+                    {isMissing && <p className="text-xs text-amber-500 mt-0.5">Note moved or deleted</p>}
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <span className="badge bg-purple-100 text-purple-700">Review #{record.reviewed_times + 1}</span>
+                      <span className="text-xs text-gray-400">{record.interval_days}d interval</span>
+                      {isOverdue && <span className="badge badge-high">Overdue</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {!record.vault_path && !pp && (
+                      <button onClick={(e) => { e.stopPropagation(); openForm(record); }}
+                        className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Edit</button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(record.course_id); }}
+                      className="text-xs text-red-400 hover:text-red-600 px-2 py-1"
+                    >Del</button>
+                    <ChevronRight size={16} className="text-gray-300 mt-1" />
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+          <div ref={dueSentinelRef} className="h-1" />
         </>
       )}
 
