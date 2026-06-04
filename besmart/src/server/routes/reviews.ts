@@ -170,6 +170,63 @@ export function scheduleVaultNote(userId: number, vaultRoot: string, relPath: st
   return true;
 }
 
+// Find the course tracking a given note, by exact vault_path or fuzzy vault_paths.
+function findCourseForNote(userId: number, relPath: string): { id: number } | null {
+  const exact = db.prepare(
+    'SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?'
+  ).get(userId, relPath) as any;
+  if (exact) return exact;
+
+  const fuzzyRows = db.prepare(
+    'SELECT id, vault_paths FROM review_courses WHERE user_id = ? AND vault_paths IS NOT NULL'
+  ).all(userId) as any[];
+  for (const row of fuzzyRows) {
+    try {
+      if ((JSON.parse(row.vault_paths) as string[]).includes(relPath)) return { id: row.id };
+    } catch {}
+  }
+  return null;
+}
+
+// Called when a vault note is updated: if the note isn't tracked yet, schedule it;
+// if it's tracked but has no pending (unreviewed) record, queue a fresh review for tomorrow.
+export function ensureScheduleForNote(
+  userId: number,
+  vaultRoot: string,
+  relPath: string
+): 'created' | 'rescheduled' | 'noop' {
+  const course = findCourseForNote(userId, relPath);
+  if (!course) {
+    return scheduleVaultNote(userId, vaultRoot, relPath) ? 'created' : 'noop';
+  }
+
+  const pending = db.prepare(
+    'SELECT id FROM review_records WHERE course_id = ? AND is_reviewed = 0 LIMIT 1'
+  ).get(course.id);
+  if (pending) return 'noop';
+
+  const last = db.prepare(
+    'SELECT MAX(reviewed_times) as t FROM review_records WHERE course_id = ?'
+  ).get(course.id) as any;
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  db.prepare(
+    'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date, ease_factor, interval_days) VALUES (?, 0, ?, ?, 2.5, 1)'
+  ).run(course.id, (last?.t ?? 0) + 1, localDate(tomorrow));
+  return 'rescheduled';
+}
+
+// Delete a course and all its review records when its note is removed from the vault.
+export function deleteCourseForNote(userId: number, relPath: string): boolean {
+  const course = db.prepare(
+    'SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?'
+  ).get(userId, relPath) as any;
+  if (!course) return false;
+  db.prepare('DELETE FROM review_records WHERE course_id = ?').run(course.id);
+  db.prepare('DELETE FROM review_courses WHERE id = ?').run(course.id);
+  return true;
+}
+
 export function syncVaultForUser(userId: number): { missing: number; restored: number } {
   const config = getUserVaultConfig(userId);
   if (!config) return { missing: 0, restored: 0 };

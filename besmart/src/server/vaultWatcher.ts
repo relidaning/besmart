@@ -1,9 +1,14 @@
 import chokidar from 'chokidar';
+import fs from 'fs';
 import path from 'path';
 import db from './database.js';
-import { scheduleVaultNote } from './routes/reviews.js';
+import { scheduleVaultNote, ensureScheduleForNote, deleteCourseForNote } from './routes/reviews.js';
 
 const VAULT_SYNC_EXCLUDE = ['0_lidaning'];
+
+// Grace window after a note disappears before we delete its review schedule.
+// A move fires unlink(old) + add(new); the add handler re-links within this window.
+const DELETE_GRACE_MS = 5000;
 
 function isExcluded(rel: string): boolean {
   return VAULT_SYNC_EXCLUDE.includes(rel.split('/')[0]);
@@ -47,20 +52,17 @@ function startWatcherForUser(userId: number, vaultRoot: string) {
     .on('add', (filePath: string) => {
       if (!filePath.endsWith('.md')) return;
       const rel = path.relative(vaultRoot, filePath);
-      // Check if this looks like a move: a missing course shares the same filename
+      // A note with this filename whose old path no longer exists = a move → re-link it.
       const newBasename = path.basename(rel);
-      const missingCourse = db.prepare(
-        "SELECT id, vault_path FROM review_courses WHERE user_id = ? AND vault_match_status = 'missing' AND vault_path LIKE ?"
-      ).get(userId, `%/${newBasename}`) as any
-        ?? db.prepare(
-          "SELECT id, vault_path FROM review_courses WHERE user_id = ? AND vault_match_status = 'missing' AND vault_path = ?"
-        ).get(userId, newBasename) as any;
-
-      if (missingCourse) {
+      const candidates = db.prepare(
+        'SELECT id, vault_path FROM review_courses WHERE user_id = ? AND vault_path IS NOT NULL AND vault_path != ? AND (vault_path = ? OR vault_path LIKE ?)'
+      ).all(userId, rel, newBasename, `%/${newBasename}`) as any[];
+      const moved = candidates.find((c) => !fs.existsSync(path.join(vaultRoot, c.vault_path)));
+      if (moved) {
         db.prepare(
           "UPDATE review_courses SET vault_path = ?, vault_match_status = 'matched' WHERE id = ?"
-        ).run(rel, missingCourse.id);
-        console.log(`[vault-watch] moved: ${missingCourse.vault_path} → ${rel}`);
+        ).run(rel, moved.id);
+        console.log(`[vault-watch] moved: ${moved.vault_path} → ${rel}`);
         return;
       }
 
@@ -71,8 +73,9 @@ function startWatcherForUser(userId: number, vaultRoot: string) {
     .on('change', (filePath: string) => {
       if (!filePath.endsWith('.md')) return;
       const rel = path.relative(vaultRoot, filePath);
-      if (scheduleVaultNote(userId, vaultRoot, rel)) {
-        console.log(`[vault-watch] scheduled (on update): ${rel}`);
+      const result = ensureScheduleForNote(userId, vaultRoot, rel);
+      if (result !== 'noop') {
+        console.log(`[vault-watch] ${result} (on update): ${rel}`);
       }
       markRestored(userId, rel);
     })
@@ -80,6 +83,21 @@ function startWatcherForUser(userId: number, vaultRoot: string) {
       if (!filePath.endsWith('.md')) return;
       const rel = path.relative(vaultRoot, filePath);
       markMissing(userId, rel);
+      // Defer deletion: a move re-links the course (to a path that exists) within the grace
+      // window, so only delete notes that are still gone afterwards.
+      setTimeout(() => {
+        const course = db.prepare(
+          'SELECT vault_path FROM review_courses WHERE user_id = ? AND vault_path = ?'
+        ).get(userId, rel) as any;
+        if (!course) return; // already re-linked elsewhere (moved)
+        if (fs.existsSync(path.join(vaultRoot, rel))) {
+          markRestored(userId, rel);
+          return;
+        }
+        if (deleteCourseForNote(userId, rel)) {
+          console.log(`[vault-watch] deleted schedule (note removed): ${rel}`);
+        }
+      }, DELETE_GRACE_MS);
     });
 
   console.log(`[vault-watch] watching ${vaultRoot} (user ${userId})`);
