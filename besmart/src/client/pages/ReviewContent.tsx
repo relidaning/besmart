@@ -4,9 +4,12 @@ import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import toast from 'react-hot-toast';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { api } from '../hooks/api';
+import { useAuth } from '../store/auth';
 
 // ── Heading helpers ───────────────────────────────────────────────────────────
 
@@ -31,12 +34,16 @@ export default function ReviewContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const isRecord = location.pathname.includes('/record/');
+  const { user } = useAuth();
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [ratingLoading, setRatingLoading] = useState(false);
   const [activeId, setActiveId] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Per-user, per-record reading position key
+  const posKey = user && id ? `rpos-${user.id}-${id}` : null;
 
   useEffect(() => {
     const req = isRecord ? api.getRecordDetail(Number(id)) : api.getCourseDetail(Number(id));
@@ -45,6 +52,35 @@ export default function ReviewContent() {
       .catch((err: any) => { toast.error(err.message); navigate('/review'); })
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Save scroll position as a 0–1 fraction while reading (debounced, per user per record)
+  useEffect(() => {
+    if (!posKey) return;
+    let t: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        if (max > 0) localStorage.setItem(posKey, String(window.scrollY / max));
+      }, 400);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', onScroll); clearTimeout(t); };
+  }, [posKey]);
+
+  // Restore scroll position after content renders
+  useEffect(() => {
+    if (!posKey || !data) return;
+    const saved = localStorage.getItem(posKey);
+    if (!saved) return;
+    const fraction = parseFloat(saved);
+    if (isNaN(fraction) || fraction < 0.01) return;
+    // Double rAF: first ensures React commit, second ensures layout
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (max > 0) window.scrollTo({ top: fraction * max, behavior: 'instant' });
+    }));
+  }, [data, posKey]);
 
   // Track active heading via IntersectionObserver
   useEffect(() => {
@@ -68,13 +104,21 @@ export default function ReviewContent() {
     setRatingLoading(true);
     try {
       await api.completeReview(data.record.id, rating);
+      if (posKey) localStorage.removeItem(posKey);
       toast.success({ hard: 'Keep at it!', ok: 'Good job!', easy: 'Nailed it!' }[rating]);
       navigate('/review');
     } catch (err: any) { toast.error(err.message); }
     setRatingLoading(false);
   };
 
-  const content = (data?.content ?? '') as string;
+  const rawContent = (data?.content ?? '') as string;
+  // Strip frontmatter, then convert ==highlight== → <mark> outside code fences
+  const content = useMemo(() => {
+    const stripped = rawContent.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
+    // Split on fenced code blocks; only transform even-indexed segments (non-code)
+    const parts = stripped.split(/(^```[\s\S]*?^```)/m);
+    return parts.map((p, i) => i % 2 === 0 ? p.replace(/==([^=\n]+)==/g, '<mark>$1</mark>') : p).join('');
+  }, [rawContent]);
 
   const headings = useMemo(() => extractHeadings(content), [content]);
 
@@ -85,6 +129,23 @@ export default function ReviewContent() {
     h1: ({ children, ...p }: any) => <h1 id={`h-${hCountRef.current++}`} {...p}>{children}</h1>,
     h2: ({ children, ...p }: any) => <h2 id={`h-${hCountRef.current++}`} {...p}>{children}</h2>,
     h3: ({ children, ...p }: any) => <h3 id={`h-${hCountRef.current++}`} {...p}>{children}</h3>,
+    code({ className, children, ...rest }: any) {
+      const match = /language-(\w+)/.exec(className ?? '');
+      if (match) {
+        return (
+          <SyntaxHighlighter
+            style={oneLight}
+            language={match[1]}
+            PreTag="div"
+            className="rounded-lg text-sm my-4"
+            customStyle={{ background: '#f6f8fa', borderRadius: '0.5rem', padding: '1rem', margin: '1rem 0', maxWidth: '100%', overflowX: 'auto' }}
+          >
+            {String(children).replace(/\n$/, '')}
+          </SyntaxHighlighter>
+        );
+      }
+      return <code className={className} {...rest}>{children}</code>;
+    },
   };
 
   if (loading) return (
@@ -93,10 +154,10 @@ export default function ReviewContent() {
     </div>
   );
 
-  const title        = data?.title ?? data?.record?.course_name ?? data?.course?.name ?? 'Note';
-  const matchStatus  = data?.record?.vault_match_status ?? data?.course?.vault_match_status;
+  const title = data?.title ?? data?.record?.course_name ?? data?.course?.name ?? 'Note';
+  const matchStatus = data?.record?.vault_match_status ?? data?.course?.vault_match_status;
   const obsidianUris = (data?.obsidian_uris ?? []) as string[];
-  const paths        = (data?.paths ?? []) as string[];
+  const paths = (data?.paths ?? []) as string[];
   const reviewedTimes = data?.record?.reviewed_times as number | undefined;
 
   return (
@@ -153,11 +214,10 @@ export default function ReviewContent() {
                     setActiveId(h.id);
                   }}
                   style={{ paddingLeft: `${(h.level - 1) * 10}px` }}
-                  className={`block text-xs py-1 rounded truncate transition-colors leading-snug ${
-                    activeId === h.id
-                      ? 'text-brand-600 font-semibold'
-                      : 'text-gray-400 hover:text-gray-700'
-                  }`}
+                  className={`block text-xs py-1 rounded truncate transition-colors leading-snug ${activeId === h.id
+                    ? 'text-brand-600 font-semibold'
+                    : 'text-gray-400 hover:text-gray-700'
+                    }`}
                 >
                   {h.text}
                 </a>
@@ -167,14 +227,15 @@ export default function ReviewContent() {
         )}
 
         {/* Main content */}
-        <div ref={contentRef} className="flex-1 min-w-0">
+        <div ref={contentRef} className="flex-1 min-w-0 overflow-x-hidden">
           {content ? (
-            <div className="prose prose-sm max-w-none
+            <div className="prose prose-sm max-w-none 
               prose-headings:font-semibold prose-headings:text-gray-800
               prose-p:text-gray-600 prose-p:leading-relaxed
               prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline
               prose-code:bg-gray-100 prose-code:px-1 prose-code:rounded prose-code:text-sm prose-code:text-purple-700 prose-code:before:content-none prose-code:after:content-none
-              prose-pre:bg-gray-100 prose-pre:text-gray-800
+              prose-pre:bg-gray-100 prose-pre:text-gray-800 prose-pre:overflow-x-auto prose-pre:max-w-full
+              prose-table:block prose-table:overflow-x-auto
               prose-blockquote:border-brand-300 prose-blockquote:text-gray-500
               prose-li:text-gray-600 prose-strong:text-gray-800 prose-hr:border-gray-200">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={mdComponents}>
@@ -197,11 +258,10 @@ export default function ReviewContent() {
               <div className="flex gap-2">
                 {(['hard', 'ok', 'easy'] as const).map((r) => (
                   <button key={r} onClick={() => handleRating(r)} disabled={ratingLoading}
-                    className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-colors disabled:opacity-40 ${
-                      r === 'hard' ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' :
-                      r === 'ok'   ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' :
-                                     'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                    }`}>
+                    className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-colors disabled:opacity-40 ${r === 'hard' ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' :
+                      r === 'ok' ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' :
+                        'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                      }`}>
                     {r === 'hard' ? 'Hard' : r === 'ok' ? 'OK' : 'Easy'}
                   </button>
                 ))}

@@ -51,8 +51,8 @@ studyPlanRoutes.post('/', (req, res) => {
     'INSERT INTO study_plans (name, description, start_date, end_date, user_id) VALUES (?, ?, ?, ?, ?)'
   ).run(name, description || '', start_date, end_date, userId);
 
-  const plan = db.prepare('SELECT * FROM study_plans WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json({ data: plan });
+  const plan = db.prepare('SELECT * FROM study_plans WHERE id = ?').get(result.lastInsertRowid) as any;
+  res.status(201).json({ data: { ...plan, is_completed: Boolean(plan.is_completed) } });
 });
 
 studyPlanRoutes.put('/:id', (req, res) => {
@@ -74,8 +74,8 @@ studyPlanRoutes.put('/:id', (req, res) => {
     req.params.id
   );
 
-  const updated = db.prepare('SELECT * FROM study_plans WHERE id = ?').get(req.params.id);
-  res.json({ data: updated });
+  const updated = db.prepare('SELECT * FROM study_plans WHERE id = ?').get(req.params.id) as any;
+  res.json({ data: { ...updated, is_completed: Boolean(updated.is_completed) } });
 });
 
 studyPlanRoutes.delete('/:id', (req, res) => {
@@ -107,7 +107,7 @@ studyPlanRoutes.get('/:planId/tasks', (req, res) => {
   const tasks = db.prepare(
     'SELECT * FROM plan_tasks WHERE plan_id = ? ORDER BY planned_start ASC'
   ).all(req.params.planId);
-  res.json({ data: tasks });
+  res.json({ data: (tasks as any[]).map((t) => ({ ...t, is_completed: Boolean(t.is_completed) })) });
 });
 
 studyPlanRoutes.post('/:planId/tasks', (req, res) => {
@@ -124,8 +124,8 @@ studyPlanRoutes.post('/:planId/tasks', (req, res) => {
     'INSERT INTO plan_tasks (plan_id, name, description, planned_start, planned_end) VALUES (?, ?, ?, ?, ?)'
   ).run(req.params.planId, name, description || '', planned_start, planned_end);
 
-  const task = db.prepare('SELECT * FROM plan_tasks WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json({ data: task });
+  const task = db.prepare('SELECT * FROM plan_tasks WHERE id = ?').get(result.lastInsertRowid) as any;
+  res.status(201).json({ data: { ...task, is_completed: Boolean(task.is_completed) } });
 });
 
 studyPlanRoutes.put('/:planId/tasks/:taskId', (req, res) => {
@@ -151,8 +151,8 @@ studyPlanRoutes.put('/:planId/tasks/:taskId', (req, res) => {
     req.params.taskId
   );
 
-  const updated = db.prepare('SELECT * FROM plan_tasks WHERE id = ?').get(req.params.taskId);
-  res.json({ data: updated });
+  const updated = db.prepare('SELECT * FROM plan_tasks WHERE id = ?').get(req.params.taskId) as any;
+  res.json({ data: { ...updated, is_completed: Boolean(updated.is_completed) } });
 });
 
 studyPlanRoutes.delete('/:planId/tasks/:taskId', (req, res) => {

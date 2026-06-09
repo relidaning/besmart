@@ -299,8 +299,17 @@ reviewRoutes.get('/due', (req, res) => {
         ORDER BY rr.planned_date ASC, rr.id ASC
         LIMIT 1
       )
+      AND r.id = (
+        SELECT rr2.id
+        FROM review_records rr2
+        JOIN review_courses cc ON cc.id = rr2.course_id
+        WHERE cc.user_id = c.user_id AND cc.name = c.name
+          AND rr2.is_reviewed = 0 AND rr2.planned_date <= ?
+        ORDER BY rr2.planned_date ASC, rr2.id ASC
+        LIMIT 1
+      )
     ORDER BY r.planned_date ASC
-  `).all(userId, today) as any[];
+  `).all(userId, today, today) as any[];
 
   const cfg = getUserVaultConfig(userId);
 

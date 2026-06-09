@@ -82,7 +82,7 @@ export default function Layout() {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6 pb-24 md:pb-6">
+      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6 pb-24 md:pb-6 overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}

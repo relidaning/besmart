@@ -1,27 +1,16 @@
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-RUN apk add --no-cache python3 make g++
-
-COPY package*.json ./
-RUN npm ci
-
-COPY tsconfig*.json ./
-COPY vite.config.ts ./
-COPY postcss.config.js ./
-COPY tailwind.config.js ./
-COPY index.html ./
-COPY src ./src
-
-RUN npm run build
-
 FROM node:20-alpine
 
 WORKDIR /app
 
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
+# Need build tools only for rebuilding native modules (better-sqlite3)
+RUN apk add --no-cache python3 make g++
+
+COPY package*.json ./
+COPY node_modules ./node_modules
+# Pre-built on host; rebuild only the server-side native module for Alpine/musl
+RUN npm rebuild better-sqlite3 --build-from-source
+
+COPY dist ./dist
 
 RUN mkdir -p data
 

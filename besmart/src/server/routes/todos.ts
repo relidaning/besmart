@@ -53,8 +53,8 @@ todoRoutes.post('/', (req, res) => {
     'INSERT INTO todos (title, description, priority, due_date, plan_id, user_id) VALUES (?, ?, ?, ?, ?, ?)'
   ).run(title, description || '', priority || 'medium', due_date || null, plan_id || null, userId);
 
-  const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json({ data: todo });
+  const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(result.lastInsertRowid) as any;
+  res.status(201).json({ data: { ...todo, completed: Boolean(todo.completed) } });
 });
 
 todoRoutes.put('/:id', (req, res) => {
@@ -76,8 +76,8 @@ todoRoutes.put('/:id', (req, res) => {
     req.params.id
   );
 
-  const updated = db.prepare('SELECT * FROM todos WHERE id = ?').get(req.params.id);
-  res.json({ data: updated });
+  const updated = db.prepare('SELECT * FROM todos WHERE id = ?').get(req.params.id) as any;
+  res.json({ data: { ...updated, completed: Boolean(updated.completed) } });
 });
 
 todoRoutes.post('/:id/complete', (req, res) => {

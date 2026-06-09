@@ -23,5 +23,5 @@ export function useInfiniteScroll(total: number, resetKey: any = null, pageSize 
     return () => observer.disconnect();
   }, [sentinel, visible, total, pageSize]);
 
-  return { visible, sentinelRef };
+  return { visible, setVisible, sentinelRef };
 }

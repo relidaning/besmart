@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { Trophy, FileText, ExternalLink, ChevronRight, RefreshCw } from 'lucide-react';
+import { Trophy, FileText, ExternalLink, ChevronRight, RefreshCw, Search } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
@@ -42,6 +42,7 @@ function obsidianUri(vaultName: string, p: string) {
 export default function Review() {
   const navigate = useNavigate();
   const [dueRecords, setDueRecords] = useState<ReviewRecord[]>([]);
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ReviewRecord | null>(null);
@@ -66,6 +67,27 @@ export default function Review() {
     fetchAll();
     api.getVaultInfo().then((r: any) => setVaultName(r.vault_name)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const saved = sessionStorage.getItem('review-anchor');
+    if (!saved) return;
+    sessionStorage.removeItem('review-anchor');
+
+    const [savedId, savedIdx] = saved.split(':').map(Number);
+    // Prefer exact match (user went back); fall back to same position (item was completed)
+    const target = dueRecords.find((r) => r.id === savedId)
+      ?? dueRecords[Math.min(savedIdx, dueRecords.length - 1)];
+    if (!target) return;
+
+    const targetIdx = dueRecords.indexOf(target);
+    const needsExpand = targetIdx + 1 > dueVisible;
+    if (needsExpand) setDueVisible(targetIdx + 5);
+
+    setTimeout(() => {
+      document.getElementById(`review-item-${target.id}`)?.scrollIntoView({ block: 'center', behavior: 'instant' });
+    }, needsExpand ? 50 : 0);
+  }, [loading]);
 
   useEffect(() => {
     if (!loading && dueRecords.length === 0 && vaultSuggestions.length === 0) {
@@ -139,7 +161,11 @@ export default function Review() {
     await api.deleteCourse(courseId); toast.success('Deleted'); fetchAll();
   };
 
-  const { visible: dueVisible, sentinelRef: dueSentinelRef } = useInfiniteScroll(dueRecords.length);
+  const filteredRecords = query.trim()
+    ? dueRecords.filter((r) => r.course_name.toLowerCase().includes(query.toLowerCase()))
+    : dueRecords;
+
+  const { visible: dueVisible, setVisible: setDueVisible, sentinelRef: dueSentinelRef } = useInfiniteScroll(filteredRecords.length);
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -154,11 +180,24 @@ export default function Review() {
           <h1 className="text-2xl font-bold text-gray-900">Review</h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {dueRecords.length > 0
-              ? `${dueRecords.length} due for review`
+              ? query.trim()
+                ? `${filteredRecords.length} of ${dueRecords.length} due`
+                : `${dueRecords.length} due for review`
               : 'Spaced repetition for lasting memory'}
           </p>
         </div>
         <button onClick={() => openForm()} className="btn-primary text-sm">+ New Course</button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          className="input pl-9 text-sm"
+          placeholder="Search courses…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
       </div>
 
       {/* Vault tools */}
@@ -177,12 +216,12 @@ export default function Review() {
         </button>
       </div>
 
-      {dueRecords.length === 0 ? (
+      {filteredRecords.length === 0 ? (
         <motion.div variants={listItem} className="space-y-4">
           <div className="card text-center py-10">
             <div className="flex justify-center mb-3 text-green-400"><Trophy size={40} /></div>
-            <h3 className="text-lg font-semibold text-gray-900">All caught up!</h3>
-            <p className="text-gray-500 text-sm mt-1">No reviews due. Pick notes from your vault to schedule.</p>
+            <h3 className="text-lg font-semibold text-gray-900">{query.trim() ? 'No matches' : 'All caught up!'}</h3>
+            <p className="text-gray-500 text-sm mt-1">{query.trim() ? 'Try a different search term.' : 'No reviews due. Pick notes from your vault to schedule.'}</p>
           </div>
           <VaultSuggestionPanel
             loading={loadingSuggestions} suggestions={vaultSuggestions}
@@ -195,16 +234,20 @@ export default function Review() {
         </motion.div>
       ) : (
         <>
-          {dueRecords.slice(0, dueVisible).map((record) => {
+          {filteredRecords.slice(0, dueVisible).map((record) => {
             const pp = primaryPath(record.vault_path, record.vault_paths);
             const noMatch = record.vault_match_status === 'none';
             const isMissing = record.vault_match_status === 'missing';
             const isOverdue = record.planned_date < new Date().toISOString().slice(0, 10);
 
             return (
-              <motion.div key={record.id} variants={listItem}
+              <motion.div key={record.id} id={`review-item-${record.id}`} variants={listItem}
                 className="card cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                onClick={() => navigate(`/review/record/${record.id}`)}
+                onClick={() => {
+                  const idx = filteredRecords.indexOf(record);
+                  sessionStorage.setItem('review-anchor', `${record.id}:${idx}`);
+                  navigate(`/review/record/${record.id}`);
+                }}
               >
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
@@ -212,35 +255,37 @@ export default function Review() {
                       <h3 className={`font-semibold break-words leading-snug ${noMatch ? 'text-red-500' : isMissing ? 'text-amber-600' : 'text-gray-900'}`}>
                         {record.course_name}
                       </h3>
-                      {pp && vaultName && (
-                        <a href={obsidianUri(vaultName, pp)} onClick={(e) => e.stopPropagation()}
-                          title="Open in Obsidian"
-                          className="text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0">
-                          <ExternalLink size={13} />
-                        </a>
-                      )}
                     </div>
-                    {pp && (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate flex items-center gap-1">
-                        <FileText size={10} />{pp}
-                        {(record.vault_paths?.length ?? 0) > 1 && (
-                          <span className="ml-1 text-blue-400">+{record.vault_paths!.length - 1} more</span>
+                    {(record.vault_paths && record.vault_paths.length > 0
+                      ? record.vault_paths
+                      : pp ? [pp] : []
+                    ).map((path) => (
+                      <p key={path} className="text-xs text-gray-400 mt-0.5 truncate flex items-center gap-1">
+                        <FileText size={10} />
+                        <span className="truncate">{path}</span>
+                        {vaultName && (
+                          <a href={obsidianUri(vaultName, path)} onClick={(e) => e.stopPropagation()}
+                            title="Open in Obsidian"
+                            className="text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0 ml-0.5">
+                            <ExternalLink size={11} />
+                          </a>
                         )}
                       </p>
-                    )}
+                    ))}
                     {noMatch && <p className="text-xs text-red-400 mt-0.5">No matching note in vault</p>}
                     {isMissing && <p className="text-xs text-amber-500 mt-0.5">Note moved or deleted</p>}
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <span className="badge bg-purple-100 text-purple-700">Review #{record.reviewed_times + 1}</span>
                       <span className="text-xs text-gray-400">{record.interval_days}d interval</span>
+                      <span className={`text-xs ${isOverdue ? 'text-red-400' : 'text-gray-400'}`}>
+                        Due {record.planned_date}
+                      </span>
                       {isOverdue && <span className="badge badge-high">Overdue</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    {!record.vault_path && !pp && (
-                      <button onClick={(e) => { e.stopPropagation(); openForm(record); }}
-                        className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Edit</button>
-                    )}
+                    <button onClick={(e) => { e.stopPropagation(); openForm(record); }}
+                      className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Edit</button>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDelete(record.course_id); }}
                       className="text-xs text-red-400 hover:text-red-600 px-2 py-1"
