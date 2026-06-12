@@ -44,7 +44,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   } else {
     const resource = url.split('/')[1];
     for (const k of _cache.keys()) {
-      if (k.split('/')[1] === resource) _cache.delete(k);
+      if (k.split('?')[0].split('/')[1] === resource) _cache.delete(k);
     }
   }
 

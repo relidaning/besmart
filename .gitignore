@@ -11,3 +11,5 @@ data/mysql/log/
 data/mysql/var/
 
 .env
+data/
+.claude/
