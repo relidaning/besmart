@@ -1,77 +1,55 @@
 # BeSmart
-BeSmart are a series of flask apps that help you become start
 
+A personal productivity app built with Node.js, TypeScript, React, and SQLite. Runs on port **5090**.
 
-## Auth
-Port 4090
+## Features
 
-## Gateway
-Port 4080
+- **Dashboard** — streak and overview
+- **Todos** — task management with priority, due dates, and study plan links
+- **Check-in** — daily schedule tracking
+- **Study Plans** — structured learning plans
+- **Review** — SM-2 spaced repetition, with Obsidian vault integration
 
-## Countcring
+## Structure
 
-NVM
+```
+src/
+  client/       React frontend (Vite + Tailwind)
+  server/       Express backend (SQLite via better-sqlite3)
+  shared/       Shared TypeScript types
+Dockerfile
+docker-compose.yml
+deprecated/     Archived old Flask micro-apps
+```
 
-Port 5000
+## Development
 
-## Checkin
+```bash
+npm install
+npm run dev        # starts both client (Vite) and server (tsx watch) concurrently
+```
 
-The completion status of your schedule
+## Deployment
 
-Port 5020
+Build the client and server, then rebuild the Docker image:
 
-## StudyPlan
+```bash
+npm run build
+docker compose build besmart && docker compose up -d besmart
+```
 
-Records of your studing plan and basic datas for the Review app
+Data is persisted at `./data/besmart/`.
 
-Port 5030
+## Environment Variables
 
-## Account
-
-TBD
-
-Port 5040
-
-## Encourager
-
-To generate a powerful and uplifting sentence to encourage yourself
-
-Port 5050
-
-## Timer
-
-Port 5060
-
-## Totos
-
-A todo app
-
-Port 5070
-
-## Review
-
-TBD
-
-Port 5080
-
-## LanguageReactorController
-
-TBD
-
-Port 5090
-
-## Grocery
-A software downloading web page.
-
-Port 5100
-
-TBD:
-- Alipay
-- Wechat Pay
-
-## Cloudy
-A cloud server.
-
-Port 5110
-
-
+| Variable | Required | Description |
+|---|---|---|
+| `JWT_SECRET` | Yes | Secret for signing JWTs |
+| `APP_URL` | Yes | Public base URL (e.g. `http://localhost:5090`) |
+| `VAULT_PATH` | No | Path to Obsidian vault (mounted as `/vault` in Docker) |
+| `VAULT_NAME` | No | Vault name shown in UI |
+| `DAY_START_HOUR` | No | Hour at which the new day starts (default: 6) |
+| `SMTP_*` | No | Email verification (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`) |
+| `GOOGLE_CLIENT_ID/SECRET` | No | Google OAuth |
+| `GITHUB_CLIENT_ID/SECRET` | No | GitHub OAuth |
+| `WECHAT_APP_ID/SECRET` | No | WeChat OAuth |
