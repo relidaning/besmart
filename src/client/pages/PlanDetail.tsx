@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { FileText, Check } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import DatePicker from '../components/ui/DatePicker';
 
 interface Plan {
   id: number;
@@ -234,29 +235,31 @@ export default function PlanDetail() {
         <>
           {plan.tasks.slice(0, visible).map((task) => (
             <motion.div key={task.id} variants={listItem}>
-              <div className={`card flex items-start gap-4 ${task.is_completed ? 'opacity-60 bg-gray-50' : ''}`}>
-                <button
-                  onClick={() => handleToggleTask(task)}
-                  className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                    task.is_completed
-                      ? 'bg-green-500 border-green-500 text-white'
-                      : 'border-gray-300 hover:border-brand-400'
-                  }`}
-                >
-                  {task.is_completed && (
-                    <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex items-center"><Check size={12} /></motion.span>
-                  )}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <h3 className={`font-medium ${task.is_completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                    {task.name}
-                  </h3>
-                  {task.description && (
-                    <p className="text-sm text-gray-500 mt-0.5 break-words">{task.description}</p>
-                  )}
-                  <p className="text-xs text-gray-400 mt-1">{task.planned_start} → {task.planned_end}</p>
+              <div className={`card ${task.is_completed ? 'opacity-60 bg-gray-50' : ''}`}>
+                <div className="flex items-start gap-4">
+                  <button
+                    onClick={() => handleToggleTask(task)}
+                    className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                      task.is_completed
+                        ? 'bg-green-500 border-green-500 text-white'
+                        : 'border-gray-300 hover:border-brand-400'
+                    }`}
+                  >
+                    {task.is_completed && (
+                      <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex items-center"><Check size={12} /></motion.span>
+                    )}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <h3 className={`font-medium ${task.is_completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                      {task.name}
+                    </h3>
+                    {task.description && (
+                      <p className="text-sm text-gray-500 mt-0.5 break-words">{task.description}</p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-1">{task.planned_start} → {task.planned_end}</p>
+                  </div>
                 </div>
-                <div className="flex gap-1 flex-shrink-0">
+                <div className="flex justify-end gap-1 mt-3 pt-3 border-t border-gray-100">
                   <button onClick={() => openTaskForm(task)} className="btn-ghost text-xs text-brand-600 hover:text-brand-700">Edit</button>
                   <button onClick={() => handleDeleteTask(task.id)} className="btn-ghost text-xs text-red-400">Del</button>
                 </div>
@@ -288,19 +291,19 @@ export default function PlanDetail() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <input className="input" value={taskForm.description}
+                <textarea className="input" rows={4} value={taskForm.description}
                   onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
                   placeholder="Optional notes" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Planned Start</label>
-                <input type="date" className="input" value={taskForm.planned_start}
-                  onChange={(e) => setTaskForm({ ...taskForm, planned_start: e.target.value })} required />
+                <DatePicker value={taskForm.planned_start}
+                  onChange={(v) => setTaskForm({ ...taskForm, planned_start: v })} required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Planned End</label>
-                <input type="date" className="input" value={taskForm.planned_end}
-                  onChange={(e) => setTaskForm({ ...taskForm, planned_end: e.target.value })} required />
+                <DatePicker value={taskForm.planned_end}
+                  onChange={(v) => setTaskForm({ ...taskForm, planned_end: v })} required />
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" className="btn-primary flex-1">
@@ -334,18 +337,18 @@ export default function PlanDetail() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea className="input" rows={2} value={planForm.description}
+                <textarea className="input" rows={4} value={planForm.description}
                   onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                <input type="date" className="input" value={planForm.start_date}
-                  onChange={(e) => setPlanForm({ ...planForm, start_date: e.target.value })} required />
+                <DatePicker value={planForm.start_date}
+                  onChange={(v) => setPlanForm({ ...planForm, start_date: v })} required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                <input type="date" className="input" value={planForm.end_date}
-                  onChange={(e) => setPlanForm({ ...planForm, end_date: e.target.value })} required />
+                <DatePicker value={planForm.end_date}
+                  onChange={(v) => setPlanForm({ ...planForm, end_date: v })} required />
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" className="btn-primary flex-1">Save Changes</button>

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { FolderOpen } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import DatePicker from '../components/ui/DatePicker';
 
 interface Plan {
   id: number;
@@ -66,12 +67,12 @@ export default function Plans() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900">Study Plans</h1>
           <p className="text-gray-500 text-sm mt-0.5">{activePlans.length} active, {completedPlans.length} completed</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary text-sm">+ New Plan</button>
+        <button onClick={() => setShowForm(true)} className="btn-primary text-sm flex-shrink-0 whitespace-nowrap">+ New Plan</button>
       </div>
 
       {/* Tabs */}
@@ -116,23 +117,21 @@ export default function Plans() {
                 to={`/plans/${plan.id}`}
                 className={`card block ${plan.is_completed ? 'opacity-70' : ''}`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className={`font-semibold text-gray-900 truncate ${plan.is_completed ? 'line-through' : ''}`}>
-                      {plan.name}
-                    </h3>
-                    {plan.description && (
-                      <p className="text-sm text-gray-500 mt-1 line-clamp-2">{plan.description}</p>
+                <h3 className={`font-semibold text-gray-900 truncate ${plan.is_completed ? 'line-through' : ''}`}>
+                  {plan.name}
+                </h3>
+                {plan.description && (
+                  <p className="text-sm text-gray-500 mt-1 line-clamp-2">{plan.description}</p>
+                )}
+                <div className="flex items-center justify-between gap-3 mt-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+                    <span className="text-xs text-gray-400 whitespace-nowrap">{plan.start_date} → {plan.end_date}</span>
+                    {plan.expired && !plan.is_completed && (
+                      <span className="badge badge-high">Overdue</span>
                     )}
-                    <div className="flex items-center gap-3 mt-2">
-                      <span className="text-xs text-gray-400">{plan.start_date} → {plan.end_date}</span>
-                      {plan.expired && !plan.is_completed && (
-                        <span className="badge badge-high">Overdue</span>
-                      )}
-                      {plan.is_completed && (
-                        <span className="badge bg-green-100 text-green-700">Done</span>
-                      )}
-                    </div>
+                    {plan.is_completed && (
+                      <span className="badge bg-green-100 text-green-700">Done</span>
+                    )}
                   </div>
                   <span className="text-gray-300 text-lg flex-shrink-0">›</span>
                 </div>
@@ -163,19 +162,19 @@ export default function Plans() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea className="input" rows={2} value={form.description}
+                <textarea className="input" rows={4} value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="What's the goal?" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                <input type="date" className="input" value={form.start_date}
-                  onChange={(e) => setForm({ ...form, start_date: e.target.value })} required />
+                <DatePicker value={form.start_date}
+                  onChange={(v) => setForm({ ...form, start_date: v })} required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                <input type="date" className="input" value={form.end_date}
-                  onChange={(e) => setForm({ ...form, end_date: e.target.value })} required />
+                <DatePicker value={form.end_date}
+                  onChange={(v) => setForm({ ...form, end_date: v })} required />
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" className="btn-primary flex-1">Create Plan</button>
