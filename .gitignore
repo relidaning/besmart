@@ -19,3 +19,4 @@ data/
 *.db-shm
 .env
 .env.local
+mkcert/

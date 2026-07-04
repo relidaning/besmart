@@ -1,0 +1,17 @@
+{
+  "name": "BeSmart",
+  "short_name": "BeSmart",
+  "description": "Your self-improvement companion",
+  "display": "standalone",
+  "start_url": "/",
+  "background_color": "#f9fafb",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -42,6 +42,7 @@ function obsidianUri(vaultName: string, p: string) {
 export default function Review() {
   const navigate = useNavigate();
   const [dueRecords, setDueRecords] = useState<ReviewRecord[]>([]);
+  const [dueTotal, setDueTotal] = useState(0);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -62,7 +63,7 @@ export default function Review() {
   const fetchAll = (search = debouncedQuery) => {
     if (!initialLoadDone.current) setLoading(true);
     api.getDueReviews(search || undefined)
-      .then((dueR) => { setDueRecords(dueR.data); initialLoadDone.current = true; })
+      .then((dueR) => { setDueRecords(dueR.data); setDueTotal(dueR.total ?? dueR.data.length); initialLoadDone.current = true; })
       .finally(() => setLoading(false));
   };
 
@@ -187,7 +188,9 @@ export default function Review() {
           <h1 className="text-2xl font-bold text-gray-900">Review</h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {dueRecords.length > 0
-              ? `${dueRecords.length} due for review`
+              ? dueTotal > dueRecords.length
+                ? `Showing ${dueRecords.length} of ${dueTotal} due`
+                : `${dueRecords.length} due for review`
               : 'Spaced repetition for lasting memory'}
           </p>
         </div>

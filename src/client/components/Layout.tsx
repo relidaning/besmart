@@ -1,9 +1,18 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect, useState } from 'react';
-import { Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw, FolderOpen, LogOut } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Bell, BellOff, Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw, FolderOpen, LogOut } from 'lucide-react';
 import { api, clearApiCache } from '../hooks/api';
 import { useAuth } from '../store/auth';
+
+type PushStatus = 'idle' | 'subscribed' | 'denied' | 'unsupported';
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
 
 const navItems = [
   { path: '/', icon: <Home size={20} />, label: 'Home' },
@@ -19,6 +28,9 @@ export default function Layout() {
   const { user, clearAuth } = useAuth();
   const [streak, setStreak] = useState(0);
   const [scoreToday, setScoreToday] = useState<number | null>(null);
+  const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported');
+  const [pushLoading, setPushLoading] = useState(false);
+  const swRegRef = useRef<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
     api.getStats().then((r) => {
@@ -26,6 +38,58 @@ export default function Layout() {
       setScoreToday(r.data.checkins.score_today);
     }).catch(() => {});
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (Notification.permission === 'denied') { setPushStatus('denied'); return; }
+    navigator.serviceWorker.ready.then((reg) => {
+      swRegRef.current = reg;
+      return reg.pushManager.getSubscription();
+    }).then((sub) => {
+      setPushStatus(sub ? 'subscribed' : 'idle');
+    }).catch(() => {});
+  }, []);
+
+  async function toggleNotifications() {
+    if (pushLoading) return;
+    const reg = swRegRef.current ?? await navigator.serviceWorker.ready;
+    swRegRef.current = reg;
+
+    if (pushStatus === 'subscribed') {
+      setPushLoading(true);
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await sub.unsubscribe();
+        await fetch('/api/notifications/unsubscribe', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${useAuth.getState().token}` },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+      }
+      setPushStatus('idle');
+      setPushLoading(false);
+      return;
+    }
+
+    setPushLoading(true);
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { setPushStatus('denied'); setPushLoading(false); return; }
+
+    try {
+      const { publicKey } = await fetch('/api/notifications/vapid-public-key').then((r) => r.json());
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+      await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${useAuth.getState().token}` },
+        body: JSON.stringify(sub),
+      });
+      setPushStatus('subscribed');
+    } catch {
+      setPushStatus('idle');
+    } finally {
+      setPushLoading(false);
+    }
+  }
 
   function handleLogout() {
     clearAuth();
@@ -59,6 +123,25 @@ export default function Layout() {
                 {scoreToday} pts
               </div>
             )}
+
+            {/* Push notifications toggle */}
+            <button
+              onClick={toggleNotifications}
+              disabled={pushLoading || pushStatus === 'denied' || pushStatus === 'unsupported'}
+              className={`transition-colors ${
+                pushStatus === 'subscribed' ? 'text-brand-500 hover:text-brand-700' :
+                pushStatus === 'unsupported' || pushStatus === 'denied' ? 'text-gray-300 cursor-not-allowed' :
+                'text-gray-400 hover:text-gray-600'
+              }`}
+              title={
+                pushStatus === 'subscribed' ? 'Notifications on — click to disable' :
+                pushStatus === 'unsupported' ? 'Push requires HTTPS or open from home screen PWA' :
+                pushStatus === 'denied' ? 'Notifications blocked in browser settings' :
+                'Enable notifications'
+              }
+            >
+              {pushStatus === 'subscribed' ? <Bell size={16} /> : <BellOff size={16} />}
+            </button>
 
             {/* User avatar + logout */}
             <div className="flex items-center gap-2">

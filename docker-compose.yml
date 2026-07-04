@@ -123,19 +123,37 @@ services:
     depends_on:
       - nacos
 
+  besmart-https:
+    image: nginx:alpine
+    ports:
+      - '5443:443'
+    volumes:
+      - ./config/nginx/besmart.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./config/mkcert/cert.pem:/etc/nginx/certs/cert.pem:ro
+      - ./config/mkcert/key.pem:/etc/nginx/certs/key.pem:ro
+      - ./config/mkcert/rootCA.pem:/etc/nginx/certs/rootCA.pem:ro
+    depends_on:
+      - besmart
+    restart: unless-stopped
+
   besmart:
     build:
-      context: ./besmart
+      context: .
       dockerfile: Dockerfile
     ports:
       - '5090:3001'
     environment:
       - 'TZ=Asia/Shanghai'
       - 'NODE_ENV=production'
-      - 'APP_URL=http://localhost:5090'
+      - 'APP_URL=https://192.168.255.6:5443'
       - 'JWT_SECRET=change-this-to-a-long-random-secret'
       - 'VAULT_PATH=/vault'
       - 'VAULT_NAME=lidaning'
+      - 'VAPID_PUBLIC_KEY=BLjDrfKp3-tHd15IWKnPMFiGu6psOpErfypJPLsfa5g5FTvvfDiaVi0ywJAmMfegAOlsMxaTxHD6yx6PRadroEE'
+      - 'VAPID_PRIVATE_KEY=4AC6BxxFtqbTQ0SmtYFtymiP8DgjjQxRrDDnGeVDqaE'
+      - 'VAPID_EMAIL=re453882101@gmail.com'
+      - 'PUSH_NOTIFY_TIME=11:30'
+      - 'CA_CERT_PATH=/certs/rootCA.pem'
       # Hours before this are treated as the previous day (default: 6)
       # - 'DAY_START_HOUR=6'
       # Email verification (optional — omit to skip email verification)
@@ -156,6 +174,7 @@ services:
     volumes:
       - ./data/besmart:/app/data
       - /data/nextcloud_client/obsidian/lidaning:/vault
+      - ./config/mkcert:/certs:ro
     restart: unless-stopped
 #  grocery:
 #    build:

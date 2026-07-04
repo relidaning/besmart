@@ -281,16 +281,14 @@ export function syncVaultForAllConfiguredUsers() {
 
 // ── Due records ───────────────────────────────────────────────────────────────
 
+const DUE_DAILY_LIMIT = 20;
+
 reviewRoutes.get('/due', (req, res) => {
   const userId = req.user!.id;
   const today = localDate(new Date());
   const search = (req.query.search as string || '').trim();
 
-  const records = db.prepare(`
-    SELECT r.id, r.course_id, c.name as course_name, c.description as course_description,
-           r.is_reviewed, r.reviewed_times, r.planned_date, r.reviewed_date,
-           r.ease_factor, r.interval_days,
-           c.vault_path, c.vault_paths, c.vault_match_status, c.is_postponed
+  const dueWhere = `
     FROM review_records r
     JOIN review_courses c ON c.id = r.course_id
     WHERE c.user_id = ? AND r.is_reviewed = 0 AND r.planned_date <= ?
@@ -310,8 +308,20 @@ reviewRoutes.get('/due', (req, res) => {
         ORDER BY rr2.planned_date ASC, rr2.id ASC
         LIMIT 1
       )
+  `;
+
+  const { total } = db.prepare(`SELECT COUNT(*) as total ${dueWhere}`)
+    .get(userId, today, search, search, today) as any;
+
+  const records = db.prepare(`
+    SELECT r.id, r.course_id, c.name as course_name, c.description as course_description,
+           r.is_reviewed, r.reviewed_times, r.planned_date, r.reviewed_date,
+           r.ease_factor, r.interval_days,
+           c.vault_path, c.vault_paths, c.vault_match_status, c.is_postponed
+    ${dueWhere}
     ORDER BY r.planned_date ASC
-  `).all(userId, today, search, search, today) as any[];
+    LIMIT ?
+  `).all(userId, today, search, search, today, DUE_DAILY_LIMIT) as any[];
 
   const cfg = getUserVaultConfig(userId);
 
@@ -345,6 +355,8 @@ reviewRoutes.get('/due', (req, res) => {
       interval_days: r.interval_days ?? 1,
       vault_paths: r.vault_paths ? JSON.parse(r.vault_paths) : null,
     })),
+    total,
+    limit: DUE_DAILY_LIMIT,
   });
 });
 
