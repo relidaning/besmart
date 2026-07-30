@@ -61,20 +61,20 @@ export default function WeChatLoginModal({ onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl p-6 relative w-80"
+        className="bg-white dark:bg-gray-900 rounded-2xl p-6 relative w-80"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+          className="absolute top-3 right-3 p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
         >
           <X size={16} />
         </button>
 
-        <h3 className="text-center font-semibold text-gray-800 mb-4">Sign in with WeChat</h3>
+        <h3 className="text-center font-semibold text-gray-800 dark:text-gray-100 mb-4">Sign in with WeChat</h3>
 
         {loading && (
-          <div className="h-48 flex items-center justify-center text-sm text-gray-400">
+          <div className="h-48 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500">
             Loading QR code…
           </div>
         )}
@@ -87,7 +87,7 @@ export default function WeChatLoginModal({ onClose }: Props) {
 
         {!error && <div id="wechat-qr-container" className="flex justify-center" />}
 
-        <p className="text-center text-xs text-gray-400 mt-3">
+        <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-3">
           Open WeChat → Scan QR code to sign in
         </p>
       </div>

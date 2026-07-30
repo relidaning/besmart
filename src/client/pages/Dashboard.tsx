@@ -12,7 +12,7 @@ interface ScoreRecord {
 
 function ScoreChart({ scores }: { scores: ScoreRecord[] }) {
   if (scores.length === 0) {
-    return <p className="text-sm text-gray-400 text-center py-4">No score data yet.</p>;
+    return <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">No score data yet.</p>;
   }
 
   const max = Math.max(...scores.map((s) => s.score), 1);
@@ -33,9 +33,9 @@ function ScoreChart({ scores }: { scores: ScoreRecord[] }) {
             <g key={s.score_date}>
               <title>{s.score_date}: {s.score} pts</title>
               <rect x={x} y={y} width={barW} height={barH} rx={3} className="fill-brand-400 hover:fill-brand-500 transition-colors cursor-default" />
-              <text x={x + barW / 2} y={chartH + 14} textAnchor="middle" fontSize={9} className="fill-gray-400">{label}</text>
+              <text x={x + barW / 2} y={chartH + 14} textAnchor="middle" fontSize={9} className="fill-gray-400 dark:fill-gray-500">{label}</text>
               {s.score > 0 && (
-                <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize={9} className="fill-gray-500">{s.score}</text>
+                <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize={9} className="fill-gray-500 dark:fill-gray-400">{s.score}</text>
               )}
             </g>
           );
@@ -110,11 +110,11 @@ export default function Dashboard() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       {/* Greeting */}
       <motion.div variants={item}>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <GreetingIcon size={24} className="text-gray-500" />
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <GreetingIcon size={24} className="text-gray-500 dark:text-gray-400" />
           {greetingText}
         </h1>
-        <p className="text-gray-500 text-sm mt-0.5">
+        <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
       </motion.div>
@@ -124,7 +124,7 @@ export default function Dashboard() {
         <Link to="/checkin" className="card flex items-center gap-5 block">
           <div className="relative w-20 h-20 flex-shrink-0">
             <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="34" fill="none" stroke="#e5e7eb" strokeWidth="6" />
+              <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" strokeWidth="6" className="text-gray-200 dark:text-gray-800" />
               <circle
                 cx="40" cy="40" r="34" fill="none" stroke="#0c8ee9"
                 strokeWidth="6" strokeLinecap="round"
@@ -134,12 +134,12 @@ export default function Dashboard() {
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-lg font-bold text-brand-600">{checkinProgress}%</span>
+              <span className="text-lg font-bold text-brand-600 dark:text-brand-400">{checkinProgress}%</span>
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-gray-900">Today's Check-in</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Today's Check-in</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               {stats.checkins.today_completed}/{stats.checkins.today_total} tasks completed
             </p>
             <div className="flex items-center gap-3 mt-2">
@@ -150,7 +150,7 @@ export default function Dashboard() {
                 </span>
               )}
               {stats.checkins.score_today !== null && (
-                <span className="text-sm font-medium text-green-600">{stats.checkins.score_today} points today</span>
+                <span className="text-sm font-medium text-green-600 dark:text-green-400">{stats.checkins.score_today} points today</span>
               )}
             </div>
           </div>
@@ -196,9 +196,9 @@ export default function Dashboard() {
           <motion.div key={card.to} variants={item}>
             <Link to={card.to} className={`card border-l-4 ${card.color} block p-4`}>
               {card.icon}
-              <h3 className="font-semibold text-sm mt-2">{card.title}</h3>
-              <p className="text-lg font-bold mt-1">{card.stat}</p>
-              <p className="text-xs text-gray-400">{card.sub}</p>
+              <h3 className="font-semibold text-sm mt-2 text-gray-900 dark:text-gray-100">{card.title}</h3>
+              <p className="text-lg font-bold mt-1 text-gray-900 dark:text-gray-100">{card.stat}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">{card.sub}</p>
             </Link>
           </motion.div>
         ))}
@@ -206,19 +206,19 @@ export default function Dashboard() {
 
       {/* Quick stats */}
       <motion.div variants={item} className="card">
-        <h2 className="font-semibold text-gray-900 mb-4">At a Glance</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">At a Glance</h2>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
             <div className="text-2xl font-bold text-orange-500">{stats.checkins.streak}</div>
-            <div className="text-xs text-gray-500 mt-1">Day Streak</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Day Streak</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-purple-500">{stats.reviews.due_today}</div>
-            <div className="text-xs text-gray-500 mt-1">Reviews Due</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Reviews Due</div>
           </div>
           <div>
             <div className="text-2xl font-bold text-red-500">{stats.todos.high_priority}</div>
-            <div className="text-xs text-gray-500 mt-1">High Priority</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">High Priority</div>
           </div>
         </div>
       </motion.div>
@@ -226,9 +226,9 @@ export default function Dashboard() {
       {/* Score history chart */}
       <motion.div variants={item} className="card">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-gray-900">Daily Scores (last 14 days)</h2>
+          <h2 className="font-semibold text-gray-900 dark:text-gray-100">Daily Scores (last 14 days)</h2>
           {scores.length > 0 && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-400 dark:text-gray-500">
               Total: {scores.reduce((sum, s) => sum + s.score, 0)} pts
             </span>
           )}
@@ -240,19 +240,19 @@ export default function Dashboard() {
       {checkinProgress === 100 && stats.checkins.today_total > 0 && (
         <motion.div
           variants={item}
-          className="card bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 text-center"
+          className="card bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 text-center dark:from-green-950 dark:to-emerald-950 dark:border-green-900"
         >
-          <div className="flex justify-center mb-2 text-green-600"><PartyPopper size={40} /></div>
-          <h3 className="font-semibold text-green-800">All caught up for today!</h3>
-          <p className="text-sm text-green-600 mt-1">Great job completing all your check-ins.</p>
+          <div className="flex justify-center mb-2 text-green-600 dark:text-green-400"><PartyPopper size={40} /></div>
+          <h3 className="font-semibold text-green-800 dark:text-green-300">All caught up for today!</h3>
+          <p className="text-sm text-green-600 dark:text-green-400 mt-1">Great job completing all your check-ins.</p>
         </motion.div>
       )}
 
       {checkinProgress < 100 && stats.checkins.today_total > 0 && (
-        <motion.div variants={item} className="card bg-gradient-to-r from-brand-50 to-blue-50 border-brand-100 text-center">
-          <div className="flex justify-center mb-2 text-brand-600"><Zap size={40} /></div>
-          <h3 className="font-semibold text-brand-800">Keep going!</h3>
-          <p className="text-sm text-brand-600 mt-1">
+        <motion.div variants={item} className="card bg-gradient-to-r from-brand-50 to-blue-50 border-brand-100 text-center dark:from-brand-950 dark:to-blue-950 dark:border-brand-900">
+          <div className="flex justify-center mb-2 text-brand-600 dark:text-brand-400"><Zap size={40} /></div>
+          <h3 className="font-semibold text-brand-800 dark:text-brand-300">Keep going!</h3>
+          <p className="text-sm text-brand-600 dark:text-brand-400 mt-1">
             {stats.checkins.today_total - stats.checkins.today_completed} tasks left to complete today.
           </p>
         </motion.div>

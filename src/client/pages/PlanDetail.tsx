@@ -149,7 +149,7 @@ export default function PlanDetail() {
   if (!plan) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Plan not found</p>
+        <p className="text-gray-500 dark:text-gray-400">Plan not found</p>
         <button onClick={() => navigate('/plans')} className="btn-secondary mt-4">Back to Plans</button>
       </div>
     );
@@ -163,30 +163,30 @@ export default function PlanDetail() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       {/* Header */}
       <div>
-        <button onClick={() => navigate('/plans')} className="text-sm text-gray-400 hover:text-gray-600 mb-3 block">
+        <button onClick={() => navigate('/plans')} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-3 block">
           ← Back to Plans
         </button>
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 break-words">{plan.name}</h1>
-            {plan.description && <p className="text-gray-500 mt-1 break-words">{plan.description}</p>}
-            <p className="text-sm text-gray-400 mt-1">{plan.start_date} → {plan.end_date}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 break-words">{plan.name}</h1>
+            {plan.description && <p className="text-gray-500 dark:text-gray-400 mt-1 break-words">{plan.description}</p>}
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">{plan.start_date} → {plan.end_date}</p>
           </div>
           {plan.is_completed && (
-            <span className="badge bg-green-100 text-green-700 text-sm px-3 py-1 flex-shrink-0">Done</span>
+            <span className="badge bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 text-sm px-3 py-1 flex-shrink-0">Done</span>
           )}
         </div>
 
         {/* Plan actions */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
           {!plan.is_completed ? (
             <button onClick={handleComplete}
-              className="flex items-center gap-1 text-sm font-medium text-green-600 hover:text-green-700">
+              className="flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
               <Check size={14} /> Mark Complete
             </button>
           ) : <span />}
           <button onClick={openPlanEdit}
-            className="text-sm font-medium text-brand-600 hover:text-brand-700">
+            className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
             Edit
           </button>
           <button onClick={handleDelete}
@@ -200,10 +200,10 @@ export default function PlanDetail() {
       {plan.tasks.length > 0 && (
         <motion.div variants={listItem} className="card">
           <div className="flex justify-between text-sm mb-2">
-            <span className="text-gray-500">Progress</span>
-            <span className="font-semibold">{progress}%</span>
+            <span className="text-gray-500 dark:text-gray-400">Progress</span>
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{progress}%</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-2.5">
+          <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5">
             <motion.div
               className="bg-brand-500 h-2.5 rounded-full"
               initial={{ width: 0 }}
@@ -211,7 +211,7 @@ export default function PlanDetail() {
               transition={{ duration: 0.8, ease: 'easeOut' }}
             />
           </div>
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
             {plan.tasks.filter((t) => t.is_completed).length}/{plan.tasks.length} tasks done
           </p>
         </motion.div>
@@ -219,30 +219,30 @@ export default function PlanDetail() {
 
       {/* Tasks */}
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-900">Tasks</h2>
-        <button onClick={() => openTaskForm()} className="text-sm text-brand-600 font-medium hover:text-brand-700">
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Tasks</h2>
+        <button onClick={() => openTaskForm()} className="text-sm text-brand-600 dark:text-brand-400 font-medium hover:text-brand-700 dark:hover:text-brand-300">
           + Add Task
         </button>
       </div>
 
       {plan.tasks.length === 0 ? (
         <motion.div variants={listItem} className="card text-center py-12">
-          <div className="flex justify-center mb-3 text-gray-300"><FileText size={40} /></div>
-          <p className="text-gray-500 text-sm">No tasks yet. Break down your plan into actionable tasks.</p>
+          <div className="flex justify-center mb-3 text-gray-300 dark:text-gray-700"><FileText size={40} /></div>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">No tasks yet. Break down your plan into actionable tasks.</p>
           <button onClick={() => openTaskForm()} className="btn-primary mt-4 text-sm">Add First Task</button>
         </motion.div>
       ) : (
         <>
           {plan.tasks.slice(0, visible).map((task) => (
             <motion.div key={task.id} variants={listItem}>
-              <div className={`card ${task.is_completed ? 'opacity-60 bg-gray-50' : ''}`}>
+              <div className={`card ${task.is_completed ? 'opacity-60 bg-gray-50 dark:bg-gray-900/60' : ''}`}>
                 <div className="flex items-start gap-4">
                   <button
                     onClick={() => handleToggleTask(task)}
                     className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                       task.is_completed
                         ? 'bg-green-500 border-green-500 text-white'
-                        : 'border-gray-300 hover:border-brand-400'
+                        : 'border-gray-300 dark:border-gray-700 hover:border-brand-400'
                     }`}
                   >
                     {task.is_completed && (
@@ -250,17 +250,17 @@ export default function PlanDetail() {
                     )}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <h3 className={`font-medium ${task.is_completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                    <h3 className={`font-medium ${task.is_completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
                       {task.name}
                     </h3>
                     {task.description && (
-                      <p className="text-sm text-gray-500 mt-0.5 break-words">{task.description}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 break-words">{task.description}</p>
                     )}
-                    <p className="text-xs text-gray-400 mt-1">{task.planned_start} → {task.planned_end}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{task.planned_start} → {task.planned_end}</p>
                   </div>
                 </div>
-                <div className="flex justify-end gap-1 mt-3 pt-3 border-t border-gray-100">
-                  <button onClick={() => openTaskForm(task)} className="btn-ghost text-xs text-brand-600 hover:text-brand-700">Edit</button>
+                <div className="flex justify-end gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <button onClick={() => openTaskForm(task)} className="btn-ghost text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Edit</button>
                   <button onClick={() => handleDeleteTask(task.id)} className="btn-ghost text-xs text-red-400">Del</button>
                 </div>
               </div>
@@ -279,29 +279,29 @@ export default function PlanDetail() {
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
           >
-            <h2 className="text-lg font-bold mb-4">{editingTask ? 'Edit Task' : 'New Task'}</h2>
+            <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editingTask ? 'Edit Task' : 'New Task'}</h2>
             <form onSubmit={handleTaskSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                 <input className="input" value={taskForm.name}
                   onChange={(e) => setTaskForm({ ...taskForm, name: e.target.value })}
                   placeholder="e.g. Watch Introduction Video" required autoFocus />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea className="input" rows={4} value={taskForm.description}
                   onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
                   placeholder="Optional notes" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Planned Start</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Planned Start</label>
                 <DatePicker value={taskForm.planned_start}
                   onChange={(v) => setTaskForm({ ...taskForm, planned_start: v })} required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Planned End</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Planned End</label>
                 <DatePicker value={taskForm.planned_end}
                   onChange={(v) => setTaskForm({ ...taskForm, planned_end: v })} required />
               </div>
@@ -325,28 +325,28 @@ export default function PlanDetail() {
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
           >
-            <h2 className="text-lg font-bold mb-4">Edit Plan</h2>
+            <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">Edit Plan</h2>
             <form onSubmit={handlePlanSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                 <input className="input" value={planForm.name}
                   onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
                   required autoFocus />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea className="input" rows={4} value={planForm.description}
                   onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
                 <DatePicker value={planForm.start_date}
                   onChange={(v) => setPlanForm({ ...planForm, start_date: v })} required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
                 <DatePicker value={planForm.end_date}
                   onChange={(v) => setPlanForm({ ...planForm, end_date: v })} required />
               </div>

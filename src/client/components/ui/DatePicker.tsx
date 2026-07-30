@@ -75,32 +75,32 @@ export default function DatePicker({ value, onChange, required, placeholder }: D
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`input flex items-center justify-between text-left ${!value ? 'text-gray-400' : 'text-gray-900'}`}
+        className={`input flex items-center justify-between text-left ${!value ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}
       >
         <span>{value ? formatDisplay(value) : placeholder || 'Select date'}</span>
-        <CalendarIcon size={16} className="text-gray-400 flex-shrink-0" />
+        <CalendarIcon size={16} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
       </button>
       {required && <input tabIndex={-1} className="sr-only" required value={value} onChange={() => {}} />}
 
       {open && (
-        <div className="absolute z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-gray-100 p-3">
+        <div className="absolute z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 p-3">
           <div className="flex items-center justify-between mb-2">
             <button type="button" onClick={() => setViewDate(new Date(year, month - 1, 1))}
-              className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400">
               <ChevronLeft size={16} />
             </button>
-            <span className="text-sm font-semibold text-gray-900">
+            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
               {viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
             </span>
             <button type="button" onClick={() => setViewDate(new Date(year, month + 1, 1))}
-              className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400">
               <ChevronRight size={16} />
             </button>
           </div>
 
           <div className="grid grid-cols-7 gap-1 mb-1">
             {WEEKDAYS.map((w, i) => (
-              <div key={i} className="text-center text-xs font-medium text-gray-400 h-7 flex items-center justify-center">
+              <div key={i} className="text-center text-xs font-medium text-gray-400 dark:text-gray-500 h-7 flex items-center justify-center">
                 {w}
               </div>
             ))}
@@ -118,7 +118,7 @@ export default function DatePicker({ value, onChange, required, placeholder }: D
                   type="button"
                   onClick={() => pick(day)}
                   className={`h-9 w-9 rounded-lg text-sm font-medium flex items-center justify-center transition-colors mx-auto
-                    ${isSelected ? 'bg-brand-500 text-white' : isToday ? 'bg-brand-50 text-brand-600' : 'text-gray-700 hover:bg-gray-100'}`}
+                    ${isSelected ? 'bg-brand-500 text-white' : isToday ? 'bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                 >
                   {day}
                 </button>
@@ -129,7 +129,7 @@ export default function DatePicker({ value, onChange, required, placeholder }: D
           <button
             type="button"
             onClick={() => { onChange(toDateStr(today)); setOpen(false); }}
-            className="w-full mt-2 py-2 text-sm font-medium text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
+            className="w-full mt-2 py-2 text-sm font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950 rounded-lg transition-colors"
           >
             Today
           </button>

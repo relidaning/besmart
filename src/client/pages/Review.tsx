@@ -173,6 +173,14 @@ export default function Review() {
     await api.deleteCourse(courseId); toast.success('Deleted'); fetchAll();
   };
 
+  const handleTogglePostpone = async (record: ReviewRecord) => {
+    try {
+      await api.updateCourse(record.course_id, { is_postponed: !record.is_postponed });
+      toast.success(record.is_postponed ? 'Un-postponed' : 'Postponed to the back of the queue');
+      fetchAll();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
   const { visible: dueVisible, setVisible: setDueVisible, sentinelRef: dueSentinelRef } = useInfiniteScroll(dueRecords.length);
 
   if (loading) return (
@@ -185,8 +193,8 @@ export default function Review() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Review</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Review</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">
             {dueRecords.length > 0
               ? dueTotal > dueRecords.length
                 ? `Showing ${dueRecords.length} of ${dueTotal} due`
@@ -199,7 +207,7 @@ export default function Review() {
 
       {/* Search */}
       <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
         <input
           className="input pl-9 pr-8 text-sm"
           placeholder="Search courses…"
@@ -209,7 +217,7 @@ export default function Review() {
         {query && (
           <button
             onClick={() => setQuery('')}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
           >✕</button>
         )}
       </div>
@@ -217,13 +225,13 @@ export default function Review() {
       {/* Vault tools */}
       <div className="flex justify-end gap-3">
         <button onClick={handleSyncVault} disabled={syncing}
-          className="flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-700 disabled:opacity-40 transition-colors font-medium"
+          className="flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-700 dark:hover:text-brand-300 disabled:opacity-40 transition-colors font-medium"
           title="Import all unscheduled vault notes and detect moved/deleted ones">
           <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
           {syncing ? 'Syncing...' : 'Sync vault'}
         </button>
         <button onClick={handleRematch} disabled={rematching}
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-40 transition-colors"
           title="Re-scan vault and update fuzzy matches for manually added courses">
           <RefreshCw size={13} className={rematching ? 'animate-spin' : ''} />
           {rematching ? 'Matching...' : 'Re-match'}
@@ -234,8 +242,8 @@ export default function Review() {
         <motion.div variants={listItem} className="space-y-4">
           <div className="card text-center py-10">
             <div className="flex justify-center mb-3 text-green-400"><Trophy size={40} /></div>
-            <h3 className="text-lg font-semibold text-gray-900">{debouncedQuery ? 'No matches' : 'All caught up!'}</h3>
-            <p className="text-gray-500 text-sm mt-1">{debouncedQuery ? 'Try a different search term.' : 'No reviews due. Pick notes from your vault to schedule.'}</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{debouncedQuery ? 'No matches' : 'All caught up!'}</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{debouncedQuery ? 'Try a different search term.' : 'No reviews due. Pick notes from your vault to schedule.'}</p>
           </div>
           <VaultSuggestionPanel
             loading={loadingSuggestions} suggestions={vaultSuggestions}
@@ -256,7 +264,7 @@ export default function Review() {
 
             return (
               <motion.div key={record.id} id={`review-item-${record.id}`} variants={listItem}
-                className="card cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                className={`card cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-800 transition-colors ${record.is_postponed ? 'opacity-60' : ''}`}
                 onClick={() => {
                   const idx = dueRecords.indexOf(record);
                   sessionStorage.setItem('review-anchor', `${record.id}:${idx}`);
@@ -266,7 +274,7 @@ export default function Review() {
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className={`font-semibold break-words leading-snug ${noMatch ? 'text-red-500' : isMissing ? 'text-amber-600' : 'text-gray-900'}`}>
+                      <h3 className={`font-semibold break-words leading-snug ${noMatch ? 'text-red-500' : isMissing ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'}`}>
                         {record.course_name}
                       </h3>
                     </div>
@@ -274,7 +282,7 @@ export default function Review() {
                       ? record.vault_paths
                       : pp ? [pp] : []
                     ).map((path) => (
-                      <p key={path} className="text-xs text-gray-400 mt-0.5 truncate flex items-center gap-1">
+                      <p key={path} className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate flex items-center gap-1">
                         <FileText size={10} />
                         <span className="truncate">{path}</span>
                         {vaultName && (
@@ -289,22 +297,27 @@ export default function Review() {
                     {noMatch && <p className="text-xs text-red-400 mt-0.5">No matching note in vault</p>}
                     {isMissing && <p className="text-xs text-amber-500 mt-0.5">Note moved or deleted</p>}
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
-                      <span className="badge bg-purple-100 text-purple-700">Review #{record.reviewed_times + 1}</span>
-                      <span className="text-xs text-gray-400">{record.interval_days}d interval</span>
-                      <span className={`text-xs ${isOverdue ? 'text-red-400' : 'text-gray-400'}`}>
+                      <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400">Review #{record.reviewed_times + 1}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">{record.interval_days}d interval</span>
+                      <span className={`text-xs ${isOverdue ? 'text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
                         Due {record.planned_date}
                       </span>
                       {isOverdue && <span className="badge badge-high">Overdue</span>}
+                      {record.is_postponed && <span className="badge bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">Postponed</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={(e) => { e.stopPropagation(); handleTogglePostpone(record); }}
+                      title={record.is_postponed ? 'Move back to normal order' : 'Postpone to the back of the queue'}
+                      className={`text-xs px-2 py-1 ${record.is_postponed ? 'text-brand-500 hover:text-brand-700' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'}`}
+                    >{record.is_postponed ? 'Unpostpone' : 'Postpone'}</button>
                     <button onClick={(e) => { e.stopPropagation(); openForm(record); }}
-                      className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Edit</button>
+                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-1">Edit</button>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDelete(record.course_id); }}
                       className="text-xs text-red-400 hover:text-red-600 px-2 py-1"
                     >Del</button>
-                    <ChevronRight size={16} className="text-gray-300 mt-1" />
+                    <ChevronRight size={16} className="text-gray-300 dark:text-gray-600 mt-1" />
                   </div>
                 </div>
               </motion.div>
@@ -321,18 +334,18 @@ export default function Review() {
           onClick={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}
         >
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
           >
-            <h2 className="text-lg font-bold mb-4">{editing ? 'Edit Course' : 'New Course'}</h2>
+            <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editing ? 'Edit Course' : 'New Course'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                 <input className="input" value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="e.g. Introduction to Algorithms" required autoFocus />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea className="input" rows={2} value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="What did you learn? (optional)" />
@@ -357,32 +370,32 @@ function VaultSuggestionPanel({ loading, suggestions, selected, importing, onTog
 }) {
   return (
     <div className="card">
-      <h3 className="font-semibold text-gray-900 mb-1">Add from your vault</h3>
-      <p className="text-xs text-gray-400 mb-3">Recently modified notes not yet in your review queue</p>
+      <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Add from your vault</h3>
+      <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Recently modified notes not yet in your review queue</p>
       {loading ? (
         <div className="flex justify-center py-6">
           <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : suggestions.length === 0 ? (
-        <p className="text-sm text-gray-400 py-4 text-center">No unscheduled notes found.</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">No unscheduled notes found.</p>
       ) : (
         <>
           <div className="space-y-1 max-h-72 overflow-y-auto -mx-1 px-1">
             {suggestions.map((note) => (
-              <label key={note.path} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+              <label key={note.path} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
                 <input type="checkbox" checked={selected.has(note.path)} onChange={() => onToggle(note.path)}
-                  className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500 flex-shrink-0" />
+                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 dark:bg-gray-900 text-brand-500 focus:ring-brand-500 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{note.title}</p>
-                  <p className="text-xs text-gray-400 truncate">{note.path}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{note.title}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{note.path}</p>
                 </div>
-                <span className="text-xs text-gray-300 flex-shrink-0">{new Date(note.mtime).toLocaleDateString()}</span>
+                <span className="text-xs text-gray-300 dark:text-gray-600 flex-shrink-0">{new Date(note.mtime).toLocaleDateString()}</span>
               </label>
             ))}
           </div>
-          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50">
-            <button onClick={onSelectAll} className="text-xs text-gray-400 hover:text-gray-600">Select all</button>
-            <button onClick={onClear} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50 dark:border-gray-800">
+            <button onClick={onSelectAll} className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">Select all</button>
+            <button onClick={onClear} className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">Clear</button>
             <button onClick={onImport} disabled={!selected.size || importing} className="btn-primary ml-auto text-sm disabled:opacity-40">
               {importing ? 'Adding...' : selected.size ? `Schedule ${selected.size} note${selected.size > 1 ? 's' : ''}` : 'Schedule selected'}
             </button>

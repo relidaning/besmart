@@ -1,9 +1,31 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
-import { Bell, BellOff, Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw, FolderOpen, LogOut } from 'lucide-react';
+import { Bell, BellOff, Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw, FolderOpen, LogOut, Sun, Moon, MonitorSmartphone } from 'lucide-react';
 import { api, clearApiCache } from '../hooks/api';
 import { useAuth } from '../store/auth';
+import { useTheme } from '../contexts/ThemeContext';
+
+const THEME_CYCLE = ['system', 'light', 'dark'] as const;
+const THEME_ICON = { system: MonitorSmartphone, light: Sun, dark: Moon };
+const THEME_LABEL = { system: 'System theme', light: 'Light mode', dark: 'Dark mode' };
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const Icon = THEME_ICON[theme];
+  return (
+    <button
+      onClick={() => {
+        const next = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
+        setTheme(next);
+      }}
+      className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+      title={`${THEME_LABEL[theme]} — click to change`}
+    >
+      <Icon size={16} />
+    </button>
+  );
+}
 
 type PushStatus = 'idle' | 'subscribed' | 'denied' | 'unsupported';
 
@@ -104,9 +126,9 @@ export default function Layout() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top bar */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-gray-100">
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-gray-100 dark:bg-gray-950/80 dark:border-gray-800">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <NavLink to="/" className="flex items-center gap-2 font-bold text-lg text-brand-600">
+          <NavLink to="/" className="flex items-center gap-2 font-bold text-lg text-brand-600 dark:text-brand-400">
             <Brain size={24} />
             <span className="hidden sm:inline">BeSmart</span>
           </NavLink>
@@ -119,10 +141,12 @@ export default function Layout() {
               </div>
             )}
             {scoreToday !== null && (
-              <div className="text-sm font-medium text-brand-600 bg-brand-50 px-2.5 py-0.5 rounded-full">
+              <div className="text-sm font-medium text-brand-600 bg-brand-50 px-2.5 py-0.5 rounded-full dark:text-brand-400 dark:bg-brand-950">
                 {scoreToday} pts
               </div>
             )}
+
+            <ThemeToggle />
 
             {/* Push notifications toggle */}
             <button
@@ -130,8 +154,8 @@ export default function Layout() {
               disabled={pushLoading || pushStatus === 'denied' || pushStatus === 'unsupported'}
               className={`transition-colors ${
                 pushStatus === 'subscribed' ? 'text-brand-500 hover:text-brand-700' :
-                pushStatus === 'unsupported' || pushStatus === 'denied' ? 'text-gray-300 cursor-not-allowed' :
-                'text-gray-400 hover:text-gray-600'
+                pushStatus === 'unsupported' || pushStatus === 'denied' ? 'text-gray-300 dark:text-gray-700 cursor-not-allowed' :
+                'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
               }`}
               title={
                 pushStatus === 'subscribed' ? 'Notifications on — click to disable' :
@@ -148,13 +172,13 @@ export default function Layout() {
               {user?.avatar_url ? (
                 <img src={user.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold">
+                <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold dark:bg-brand-950 dark:text-brand-400">
                   {initials}
                 </div>
               )}
               <button
                 onClick={handleLogout}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
                 title="Sign out"
               >
                 <LogOut size={16} />
@@ -180,7 +204,7 @@ export default function Layout() {
       </main>
 
       {/* Bottom nav (mobile) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/80 backdrop-blur-lg border-t border-gray-100 safe-area-bottom">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/80 backdrop-blur-lg border-t border-gray-100 safe-area-bottom dark:bg-gray-950/80 dark:border-gray-800">
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map((item) => {
             const isActive = item.path === '/'
@@ -191,7 +215,7 @@ export default function Layout() {
                 key={item.path}
                 to={item.path}
                 className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors ${
-                  isActive ? 'text-brand-600' : 'text-gray-400'
+                  isActive ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400 dark:text-gray-500'
                 }`}
               >
                 {item.icon}
@@ -203,7 +227,7 @@ export default function Layout() {
       </nav>
 
       {/* Sidebar (desktop) */}
-      <aside className="hidden md:flex fixed left-0 top-14 bottom-0 w-16 bg-white border-r border-gray-100 flex-col items-center py-4 gap-1 z-30">
+      <aside className="hidden md:flex fixed left-0 top-14 bottom-0 w-16 bg-white border-r border-gray-100 flex-col items-center py-4 gap-1 z-30 dark:bg-gray-950 dark:border-gray-800">
         {navItems.map((item) => {
           const isActive = item.path === '/'
             ? location.pathname === '/'
@@ -213,7 +237,9 @@ export default function Layout() {
               key={item.path}
               to={item.path}
               className={`w-12 h-12 flex flex-col items-center justify-center rounded-xl transition-colors ${
-                isActive ? 'bg-brand-50 text-brand-600' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                isActive
+                  ? 'bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400'
+                  : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-900 dark:hover:text-gray-300'
               }`}
               title={item.label}
             >

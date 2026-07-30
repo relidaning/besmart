@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './store/auth';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Plans from './pages/Plans';
@@ -21,45 +22,56 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function ThemedToaster() {
+  const { resolvedTheme } = useTheme();
+  return (
+    <Toaster
+      position="top-center"
+      toastOptions={{
+        duration: 2000,
+        style: resolvedTheme === 'dark'
+          ? { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#27272a', color: '#f4f4f5' }
+          : { borderRadius: '12px', padding: '12px 16px', fontSize: '14px' },
+      }}
+    />
+  );
+}
+
 function App() {
   return (
-    <BrowserRouter>
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          duration: 2000,
-          style: { borderRadius: '12px', padding: '12px 16px', fontSize: '14px' },
-        }}
-      />
-      <Routes>
-        {/* Auth pages */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+    <ThemeProvider>
+      <BrowserRouter>
+        <ThemedToaster />
+        <Routes>
+          {/* Auth pages */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
-        {/* Protected app */}
-        <Route
-          path="/"
-          element={
-            <RequireAuth>
-              <Layout />
-            </RequireAuth>
-          }
-        >
-          <Route index element={<Dashboard />} />
-          <Route path="plans" element={<Plans />} />
-          <Route path="plans/:id" element={<PlanDetail />} />
-          <Route path="checkin" element={<CheckIn />} />
-          <Route path="review" element={<Review />} />
-          <Route path="review/record/:id" element={<ReviewContent />} />
-          <Route path="review/course/:id" element={<ReviewContent />} />
-          <Route path="todos" element={<Todos />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+          {/* Protected app */}
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <Layout />
+              </RequireAuth>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="plans" element={<Plans />} />
+            <Route path="plans/:id" element={<PlanDetail />} />
+            <Route path="checkin" element={<CheckIn />} />
+            <Route path="review" element={<Review />} />
+            <Route path="review/record/:id" element={<ReviewContent />} />
+            <Route path="review/course/:id" element={<ReviewContent />} />
+            <Route path="todos" element={<Todos />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
 

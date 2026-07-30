@@ -5,11 +5,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import toast from 'react-hot-toast';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useAuth } from '../store/auth';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ── Heading helpers ───────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ export default function ReviewContent() {
   const location = useLocation();
   const isRecord = location.pathname.includes('/record/');
   const { user } = useAuth();
+  const { resolvedTheme } = useTheme();
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -134,11 +136,13 @@ export default function ReviewContent() {
       if (match) {
         return (
           <SyntaxHighlighter
-            style={oneLight}
+            style={resolvedTheme === 'dark' ? oneDark : oneLight}
             language={match[1]}
             PreTag="div"
             className="rounded-lg text-sm my-4"
-            customStyle={{ background: '#f6f8fa', borderRadius: '0.5rem', padding: '1rem', margin: '1rem 0', maxWidth: '100%', overflowX: 'auto' }}
+            customStyle={resolvedTheme === 'dark'
+              ? { background: '#161b22', borderRadius: '0.5rem', padding: '1rem', margin: '1rem 0', maxWidth: '100%', overflowX: 'auto' }
+              : { background: '#f6f8fa', borderRadius: '0.5rem', padding: '1rem', margin: '1rem 0', maxWidth: '100%', overflowX: 'auto' }}
           >
             {String(children).replace(/\n$/, '')}
           </SyntaxHighlighter>
@@ -166,15 +170,15 @@ export default function ReviewContent() {
       {/* Page header */}
       <div className="flex items-center gap-3 mb-4">
         <button onClick={() => navigate('/review')}
-          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors flex-shrink-0">
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors flex-shrink-0">
           <ArrowLeft size={18} />
         </button>
-        <h1 className={`flex-1 font-bold text-lg truncate ${matchStatus === 'none' ? 'text-red-500' : 'text-gray-900'}`}>
+        <h1 className={`flex-1 font-bold text-lg truncate ${matchStatus === 'none' ? 'text-red-500' : 'text-gray-900 dark:text-gray-100'}`}>
           {title}
         </h1>
         {obsidianUris[0] && (
           <a href={obsidianUris[0]} title="Open in Obsidian"
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-purple-50 text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0">
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950 text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0">
             <ExternalLink size={16} />
           </a>
         )}
@@ -183,16 +187,16 @@ export default function ReviewContent() {
       {/* Meta badges */}
       <div className="flex items-center gap-2 mb-6 flex-wrap">
         {reviewedTimes !== undefined && (
-          <span className="badge bg-purple-100 text-purple-700">Review #{reviewedTimes + 1}</span>
+          <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400">Review #{reviewedTimes + 1}</span>
         )}
         {paths.length > 1 && (
-          <span className="badge bg-blue-100 text-blue-700">{paths.length} notes merged</span>
+          <span className="badge bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">{paths.length} notes merged</span>
         )}
         {matchStatus === 'none' && (
-          <span className="badge bg-red-100 text-red-600">No vault match</span>
+          <span className="badge bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400">No vault match</span>
         )}
         {paths.map((p) => (
-          <span key={p} className="text-xs text-gray-400 truncate max-w-[220px]">{p}</span>
+          <span key={p} className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[220px]">{p}</span>
         ))}
       </div>
 
@@ -203,7 +207,7 @@ export default function ReviewContent() {
         {headings.length > 1 && (
           <aside className="hidden lg:block w-44 flex-shrink-0">
             <nav className="sticky top-20 space-y-0.5 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Contents</p>
+              <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Contents</p>
               {headings.map((h) => (
                 <a
                   key={h.id + h.text}
@@ -215,8 +219,8 @@ export default function ReviewContent() {
                   }}
                   style={{ paddingLeft: `${(h.level - 1) * 10}px` }}
                   className={`block text-xs py-1 rounded truncate transition-colors leading-snug ${activeId === h.id
-                    ? 'text-brand-600 font-semibold'
-                    : 'text-gray-400 hover:text-gray-700'
+                    ? 'text-brand-600 dark:text-brand-400 font-semibold'
+                    : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
                     }`}
                 >
                   {h.text}
@@ -229,38 +233,38 @@ export default function ReviewContent() {
         {/* Main content */}
         <div ref={contentRef} className="flex-1 min-w-0 overflow-x-hidden">
           {content ? (
-            <div className="prose prose-sm max-w-none 
-              prose-headings:font-semibold prose-headings:text-gray-800
-              prose-p:text-gray-600 prose-p:leading-relaxed
-              prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline
-              prose-code:bg-gray-100 prose-code:px-1 prose-code:rounded prose-code:text-sm prose-code:text-purple-700 prose-code:before:content-none prose-code:after:content-none
-              prose-pre:bg-gray-100 prose-pre:text-gray-800 prose-pre:overflow-x-auto prose-pre:max-w-full
+            <div className="prose prose-sm max-w-none dark:prose-invert
+              prose-headings:font-semibold prose-headings:text-gray-800 dark:prose-headings:text-gray-100
+              prose-p:text-gray-600 dark:prose-p:text-gray-300 prose-p:leading-relaxed
+              prose-a:text-brand-600 dark:prose-a:text-brand-400 prose-a:no-underline hover:prose-a:underline
+              prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:rounded prose-code:text-sm prose-code:text-purple-700 dark:prose-code:text-purple-400 prose-code:before:content-none prose-code:after:content-none
+              prose-pre:bg-gray-100 dark:prose-pre:bg-gray-900 prose-pre:text-gray-800 dark:prose-pre:text-gray-100 prose-pre:overflow-x-auto prose-pre:max-w-full
               prose-table:block prose-table:overflow-x-auto
-              prose-blockquote:border-brand-300 prose-blockquote:text-gray-500
-              prose-li:text-gray-600 prose-strong:text-gray-800 prose-hr:border-gray-200">
+              prose-blockquote:border-brand-300 dark:prose-blockquote:border-brand-700 prose-blockquote:text-gray-500 dark:prose-blockquote:text-gray-400
+              prose-li:text-gray-600 dark:prose-li:text-gray-300 prose-strong:text-gray-800 dark:prose-strong:text-gray-100 prose-hr:border-gray-200 dark:prose-hr:border-gray-800">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={mdComponents}>
                 {content}
               </ReactMarkdown>
             </div>
           ) : matchStatus === 'none' ? (
-            <div className="text-center py-16 text-gray-400">
-              <p className="text-sm">No matching note found in vault for <span className="font-medium text-gray-600">"{title}"</span>.</p>
+            <div className="text-center py-16 text-gray-400 dark:text-gray-500">
+              <p className="text-sm">No matching note found in vault for <span className="font-medium text-gray-600 dark:text-gray-300">"{title}"</span>.</p>
               <p className="text-xs mt-2">Create a note in Obsidian with a matching name, then reload.</p>
             </div>
           ) : (
-            <div className="text-center py-16 text-gray-400 text-sm">No content available.</div>
+            <div className="text-center py-16 text-gray-400 dark:text-gray-500 text-sm">No content available.</div>
           )}
 
           {/* Rating footer */}
           {isRecord && data?.record && (
-            <div className="mt-10 pt-5 border-t border-gray-100">
-              <p className="text-xs text-gray-400 mb-3 text-center">How well did you recall?</p>
+            <div className="mt-10 pt-5 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 text-center">How well did you recall?</p>
               <div className="flex gap-2">
                 {(['hard', 'ok', 'easy'] as const).map((r) => (
                   <button key={r} onClick={() => handleRating(r)} disabled={ratingLoading}
-                    className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-colors disabled:opacity-40 ${r === 'hard' ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' :
-                      r === 'ok' ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' :
-                        'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                    className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-colors disabled:opacity-40 ${r === 'hard' ? 'bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-100 dark:hover:bg-red-900' :
+                      r === 'ok' ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900 hover:bg-amber-100 dark:hover:bg-amber-900' :
+                        'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 border-green-200 dark:border-green-900 hover:bg-green-100 dark:hover:bg-green-900'
                       }`}>
                     {r === 'hard' ? 'Hard' : r === 'ok' ? 'OK' : 'Easy'}
                   </button>

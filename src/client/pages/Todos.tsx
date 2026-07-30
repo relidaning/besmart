@@ -185,14 +185,14 @@ export default function Todos() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Todos</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{todos.length} tasks</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Todos</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">{todos.length} tasks</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-xl px-3 py-1.5">
-            <Check size={14} className="text-green-600" />
-            <span className="text-green-700 font-semibold text-sm">{completedToday}</span>
-            <span className="text-green-600 text-xs">done today</span>
+          <div className="flex items-center gap-1.5 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900 rounded-xl px-3 py-1.5">
+            <Check size={14} className="text-green-600 dark:text-green-400" />
+            <span className="text-green-700 dark:text-green-400 font-semibold text-sm">{completedToday}</span>
+            <span className="text-green-600 dark:text-green-500 text-xs">done today</span>
           </div>
           <button onClick={() => openForm()} className="btn-primary text-sm">+ New Todo</button>
         </div>
@@ -210,18 +210,18 @@ export default function Todos() {
         {search && (
           <button
             onClick={() => setSearch('')}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
           >✕</button>
         )}
       </div>
 
       {/* Tabs + filter */}
       <div className="flex items-center gap-2">
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-1">
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-xl p-1 flex-1">
           <button
             onClick={() => setTab('active')}
             className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-              tab === 'active' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              tab === 'active' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
             }`}
           >
             Active
@@ -229,7 +229,7 @@ export default function Todos() {
           <button
             onClick={() => setTab('completed')}
             className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-              tab === 'completed' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              tab === 'completed' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
             }`}
           >
             Done
@@ -250,13 +250,13 @@ export default function Todos() {
       {/* Todo list */}
       {todos.length === 0 ? (
         <motion.div variants={listItem} className="card text-center py-12">
-          <div className="flex justify-center mb-4 text-gray-300">
+          <div className="flex justify-center mb-4 text-gray-300 dark:text-gray-700">
             {tab === 'completed' ? <Trophy size={48} /> : <ListTodo size={48} />}
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
             {debouncedSearch ? 'No matches' : tab === 'completed' ? 'No completed todos yet' : 'No active todos'}
           </h3>
-          <p className="text-gray-500 text-sm mb-4">
+          <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
             {debouncedSearch ? 'Try a different search term.' : tab === 'completed' ? 'Complete some tasks to see them here.' : 'Create your first todo to get started.'}
           </p>
           {tab === 'active' && !debouncedSearch && (
@@ -271,7 +271,7 @@ export default function Todos() {
 
             return (
               <motion.div key={todo.id} variants={listItem}>
-                <div className={`card border-l-4 ${config.border} ${todo.completed ? 'opacity-60 bg-gray-50' : ''}`}>
+                <div className={`card border-l-4 ${config.border} ${todo.completed ? 'opacity-60 bg-gray-50 dark:bg-gray-900/60' : ''}`}>
                   <div className="flex items-start gap-4">
                     <button
                       onClick={() => handleToggle(todo)}
@@ -280,8 +280,8 @@ export default function Todos() {
                         todo.completed
                           ? 'bg-green-500 border-green-500 text-white'
                           : completingId === todo.id
-                            ? 'border-brand-400 bg-brand-50'
-                            : 'border-gray-300 hover:border-brand-400'
+                            ? 'border-brand-400 bg-brand-50 dark:bg-brand-950'
+                            : 'border-gray-300 dark:border-gray-700 hover:border-brand-400'
                       }`}
                     >
                       {todo.completed && (
@@ -292,26 +292,26 @@ export default function Todos() {
                       )}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <h3 className={`font-medium ${todo.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                      <h3 className={`font-medium ${todo.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
                         {todo.title}
                       </h3>
                       {todo.description && (
-                        <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{todo.description}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{todo.description}</p>
                       )}
                       <div className="flex items-center gap-3 mt-2">
                         {todo.due_date && (
-                          <span className={`flex items-center gap-0.5 text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                          <span className={`flex items-center gap-0.5 text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
                             {isOverdue && <AlertTriangle size={11} />}
                             {isOverdue ? 'Overdue: ' : 'Due: '}{todo.due_date}
                           </span>
                         )}
                         {todo.completed && todo.completed_at && (
-                          <span className="text-xs text-gray-400">Done: {todo.completed_at.split('T')[0]}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">Done: {todo.completed_at.split('T')[0]}</span>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-1 mt-3 pt-3 border-t border-gray-100 justify-center">
+                  <div className="flex gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 justify-center">
                     <button onClick={() => openForm(todo)} className="btn-ghost text-xs">Edit</button>
                     <button onClick={() => handleDelete(todo.id)} className="btn-ghost text-xs text-red-400">Delete</button>
                   </div>
@@ -334,24 +334,24 @@ export default function Todos() {
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
           >
-            <h2 className="text-lg font-bold mb-4">{editing ? 'Edit Todo' : 'New Todo'}</h2>
+            <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editing ? 'Edit Todo' : 'New Todo'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
                 <input className="input" value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder="What needs to be done?" required autoFocus />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <textarea className="input" rows={2} value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Details (optional)" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
                 <select className="input" value={form.priority}
                   onChange={(e) => setForm({ ...form, priority: e.target.value })}>
                   <option value="low">Low</option>
@@ -360,13 +360,13 @@ export default function Todos() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
                 <input type="date" className="input" value={form.due_date}
                   onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
                 {form.due_date && (
                   <button type="button"
                     onClick={() => setForm({ ...form, due_date: '' })}
-                    className="text-xs text-gray-400 hover:text-gray-600 mt-1 block">
+                    className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mt-1 block">
                     Clear date
                   </button>
                 )}
