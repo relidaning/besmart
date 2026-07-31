@@ -5,6 +5,7 @@ import { Bell, BellOff, Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw,
 import { api, clearApiCache } from '../hooks/api';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
+import MusicPlayer from './MusicPlayer';
 
 const THEME_CYCLE = ['system', 'light', 'dark'] as const;
 const THEME_ICON = { system: MonitorSmartphone, light: Sun, dark: Moon };
@@ -147,6 +148,8 @@ export default function Layout() {
             )}
 
             <ThemeToggle />
+
+            <MusicPlayer />
 
             {/* Push notifications toggle */}
             <button

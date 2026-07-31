@@ -118,4 +118,10 @@ export const api = {
   uncompleteTodo: (id: number) => request<any>(`/todos/${id}/uncomplete`, { method: 'POST' }),
   deleteTodo: (id: number) => request<any>(`/todos/${id}`, { method: 'DELETE' }),
   getTodoStats: () => request<any>('/todos/stats/overview'),
+
+  // Music
+  getMusicCatalog: () => request<any>('/music/catalog'),
+  getMusicLibrary: () => request<any>('/music/library'),
+  addMusicTrack: (id: string) => request<any>('/music/library', { method: 'POST', body: JSON.stringify({ id }) }),
+  removeMusicTrack: (id: string) => request<any>(`/music/library/${id}`, { method: 'DELETE' }),
 };

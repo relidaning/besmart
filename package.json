@@ -10,7 +10,8 @@
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "download-music": "node scripts/download-music.mjs"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.19",

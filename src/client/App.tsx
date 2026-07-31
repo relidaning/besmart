@@ -10,6 +10,7 @@ import CheckIn from './pages/CheckIn';
 import Review from './pages/Review';
 import ReviewContent from './pages/ReviewContent';
 import Todos from './pages/Todos';
+import MusicLibrary from './pages/MusicLibrary';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import AuthCallback from './pages/AuthCallback';
@@ -67,6 +68,7 @@ function App() {
             <Route path="review/record/:id" element={<ReviewContent />} />
             <Route path="review/course/:id" element={<ReviewContent />} />
             <Route path="todos" element={<Todos />} />
+            <Route path="music" element={<MusicLibrary />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

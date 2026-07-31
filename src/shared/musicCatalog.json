@@ -1,0 +1,162 @@
+[
+  {
+    "id": "chopin-op9-no2",
+    "title": "Nocturne Op. 9 No. 2 in E-flat major",
+    "composer": "Chopin",
+    "filename": "chopin-nocturne-op9-no2.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/NocturneOp9No2.mp3",
+    "durationSec": 271
+  },
+  {
+    "id": "chopin-op27-no2",
+    "title": "Nocturne Op. 27 No. 2 in D-flat major",
+    "composer": "Chopin",
+    "filename": "chopin-nocturne-op27-no2.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/NocturneOp27No2.mp3",
+    "durationSec": 377
+  },
+  {
+    "id": "chopin-op48-no1",
+    "title": "Nocturne Op. 48 No. 1 in C minor",
+    "composer": "Chopin",
+    "filename": "chopin-nocturne-op48-no1.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Nocturne Op. 48 no. 1 in C minor.mp3",
+    "durationSec": 379
+  },
+  {
+    "id": "chopin-op55-no1",
+    "title": "Nocturne Op. 55 No. 1 in F minor",
+    "composer": "Chopin",
+    "filename": "chopin-nocturne-op55-no1.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Nocturne Op. 55 no. 1 in F minor.mp3",
+    "durationSec": 316
+  },
+  {
+    "id": "chopin-op32-no2",
+    "title": "Nocturne Op. 32 No. 2 in A-flat major",
+    "composer": "Chopin",
+    "filename": "chopin-nocturne-op32-no2.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Nocturne Op. 32 no. 2 in A flat major.mp3",
+    "durationSec": 343
+  },
+  {
+    "id": "chopin-b108",
+    "title": "Nocturne in C minor, B. 108",
+    "composer": "Chopin",
+    "filename": "chopin-nocturne-b108.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Nocturne B. 108 in C minor.mp3",
+    "durationSec": 193
+  },
+  {
+    "id": "chopin-op27-no1",
+    "title": "Nocturne Op. 27 No. 1 in C-sharp minor",
+    "composer": "Chopin",
+    "filename": "chopin-nocturne-op27-no1.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Nocturne Op. 27 no. 1 in C sharp minor.mp3",
+    "durationSec": 352
+  },
+  {
+    "id": "chopin-op32-no1",
+    "title": "Nocturne Op. 32 No. 1 in B major",
+    "composer": "Chopin",
+    "filename": "chopin-nocturne-op32-no1.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Nocturne Op. 32 no. 1 in B major.mp3",
+    "durationSec": 301
+  },
+  {
+    "id": "chopin-waltz-op64-no1",
+    "title": "Waltz Op. 64 No. 1 in D-flat major (\"Minute Waltz\")",
+    "composer": "Chopin",
+    "filename": "chopin-waltz-op64-no1.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Waltz Op. 64 no. 1 in D flat major.mp3",
+    "durationSec": 107
+  },
+  {
+    "id": "chopin-waltz-op64-no2",
+    "title": "Waltz Op. 64 No. 2 in C-sharp minor",
+    "composer": "Chopin",
+    "filename": "chopin-waltz-op64-no2.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Waltz Op. 64 no. 2 in C sharp minor.mp3",
+    "durationSec": 230
+  },
+  {
+    "id": "chopin-waltz-op69-no1",
+    "title": "Waltz Op. 69 No. 1 in A-flat major (\"L'Adieu\")",
+    "composer": "Chopin",
+    "filename": "chopin-waltz-op69-no1.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Waltz Op. 69 no. 1 in A flat major.mp3",
+    "durationSec": 248
+  },
+  {
+    "id": "chopin-grande-valse-op18",
+    "title": "Grande Valse Brillante Op. 18 in E-flat major",
+    "composer": "Chopin",
+    "filename": "chopin-grande-valse-op18.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Grande Valse Brilliante Op.18 In E flat major.mp3",
+    "durationSec": 319
+  },
+  {
+    "id": "chopin-fantaisie-impromptu-op66",
+    "title": "Fantaisie-Impromptu Op. 66",
+    "composer": "Chopin",
+    "filename": "chopin-fantaisie-impromptu-op66.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Fantasie Impromptu Op. 66.mp3",
+    "durationSec": 326
+  },
+  {
+    "id": "chopin-impromptu-op29-no1",
+    "title": "Impromptu No. 1, Op. 29",
+    "composer": "Chopin",
+    "filename": "chopin-impromptu-op29-no1.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Impromptu no. 1 - Op. 29.mp3",
+    "durationSec": 280
+  },
+  {
+    "id": "chopin-prelude-op28-no15",
+    "title": "Prelude Op. 28 No. 15 in D-flat major (\"Raindrop\")",
+    "composer": "Chopin",
+    "filename": "chopin-prelude-op28-no15.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Prelude Op. 28 no. 15.mp3",
+    "durationSec": 295
+  },
+  {
+    "id": "chopin-prelude-op28-no7",
+    "title": "Prelude Op. 28 No. 7 in A major",
+    "composer": "Chopin",
+    "filename": "chopin-prelude-op28-no7.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Prelude Op. 28 no. 7.mp3",
+    "durationSec": 155
+  },
+  {
+    "id": "chopin-prelude-op28-no6",
+    "title": "Prelude Op. 28 No. 6 in B minor",
+    "composer": "Chopin",
+    "filename": "chopin-prelude-op28-no6.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Prelude Op. 28 no. 6.mp3",
+    "durationSec": 108
+  },
+  {
+    "id": "chopin-ballade-op23-no1",
+    "title": "Ballade No. 1 in G minor, Op. 23",
+    "composer": "Chopin",
+    "filename": "chopin-ballade-op23-no1.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Ballade no. 1 - Op. 23.mp3",
+    "durationSec": 613
+  },
+  {
+    "id": "chopin-polonaise-op53-heroic",
+    "title": "Polonaise Op. 53 in A-flat major (\"Heroic\")",
+    "composer": "Chopin",
+    "filename": "chopin-polonaise-op53-heroic.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/PolonaiseOp.53InAFlatMajorheroic.mp3",
+    "durationSec": 438
+  },
+  {
+    "id": "chopin-mazurka-op17-no4",
+    "title": "Mazurka Op. 17 No. 4 in A minor",
+    "composer": "Chopin",
+    "filename": "chopin-mazurka-op17-no4.mp3",
+    "sourceUrl": "https://archive.org/download/musopen-chopin/Mazurka Op. 17 no. 4 in A minor.mp3",
+    "durationSec": 299
+  }
+]

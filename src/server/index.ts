@@ -15,6 +15,8 @@ import { authRoutes } from './routes/auth.js';
 import { requireAuth } from './middleware/auth.js';
 import { scheduleJob } from './scheduler.js';
 import { notificationRoutes } from './routes/notifications.js';
+import { musicRoutes } from './routes/music.js';
+import { MUSIC_DIR } from './musicLibrary.js';
 import { initWebPush, sendDailyReviewReminders } from './push.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -91,6 +93,12 @@ app.use('/api/checkins', requireAuth, checkinRoutes);
 app.use('/api/reviews', requireAuth, reviewRoutes);
 app.use('/api/todos', requireAuth, todoRoutes);
 app.use('/api/dashboard', requireAuth, dashboardRoutes);
+app.use('/api/music', requireAuth, musicRoutes);
+
+// Locally-downloaded public-domain music (see scripts/download-music.mjs) served straight
+// from disk. The .library.json state file lives alongside the mp3s but express.static
+// ignores dotfiles by default, so it isn't exposed here.
+app.use('/media/music', express.static(MUSIC_DIR, { maxAge: '30d', immutable: true }));
 
 if (process.env.NODE_ENV === 'production') {
   const clientDist = path.join(__dirname, '..');
