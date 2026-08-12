@@ -60,6 +60,8 @@ export function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS plan_tasks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       plan_id INTEGER NOT NULL,
+      parent_task_id INTEGER,
+      sort_order REAL DEFAULT 0,
       name TEXT NOT NULL,
       description TEXT DEFAULT '',
       planned_start TEXT NOT NULL,
@@ -242,6 +244,18 @@ export function initializeDatabase() {
       }
 
       db.prepare('INSERT INTO schema_migrations (version) VALUES (2)').run();
+    })();
+  }
+
+  // Migration 7: WBS hierarchy for plan tasks
+  if (version < 7) {
+    db.transaction(() => {
+      addColIfMissing('plan_tasks', 'parent_task_id', 'INTEGER');
+      addColIfMissing('plan_tasks', 'sort_order', 'REAL DEFAULT 0');
+      db.exec(`
+        UPDATE plan_tasks SET sort_order = id WHERE sort_order = 0 OR sort_order IS NULL;
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (7)').run();
     })();
   }
 

@@ -11,6 +11,8 @@ export interface StudyPlan {
 export interface PlanTask {
   id: number;
   plan_id: number;
+  parent_task_id: number | null;
+  sort_order: number;
   name: string;
   description: string;
   planned_start: string;

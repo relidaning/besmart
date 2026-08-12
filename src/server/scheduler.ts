@@ -129,7 +129,15 @@ export function scheduleJob() {
         const seasonlies = db.prepare(
           "SELECT * FROM checkin_schedules WHERE is_active = 1 AND type = 'seasonly' AND user_id = ?"
         ).all(user_id) as any[];
-        for (const s of seasonlies) insertTask.run(s.id, s.name, today, 'seasonly');
+        const existingSeasonly = db.prepare(`
+          SELECT t.schedule_id FROM checkin_tasks t
+          JOIN checkin_schedules s ON t.schedule_id = s.id
+          WHERE t.task_date = ? AND t.schedule_type = 'seasonly' AND s.user_id = ?
+        `).all(today, user_id) as any[];
+        const existingSeasonlyIds = new Set(existingSeasonly.map((e) => e.schedule_id));
+        for (const s of seasonlies) {
+          if (!existingSeasonlyIds.has(s.id)) insertTask.run(s.id, s.name, today, 'seasonly');
+        }
       }
 
       // Yearly tasks on Jan 1
@@ -137,7 +145,15 @@ export function scheduleJob() {
         const yearlies = db.prepare(
           "SELECT * FROM checkin_schedules WHERE is_active = 1 AND type = 'yearly' AND user_id = ?"
         ).all(user_id) as any[];
-        for (const s of yearlies) insertTask.run(s.id, s.name, today, 'yearly');
+        const existingYearly = db.prepare(`
+          SELECT t.schedule_id FROM checkin_tasks t
+          JOIN checkin_schedules s ON t.schedule_id = s.id
+          WHERE t.task_date = ? AND t.schedule_type = 'yearly' AND s.user_id = ?
+        `).all(today, user_id) as any[];
+        const existingYearlyIds = new Set(existingYearly.map((e) => e.schedule_id));
+        for (const s of yearlies) {
+          if (!existingYearlyIds.has(s.id)) insertTask.run(s.id, s.name, today, 'yearly');
+        }
       }
     }
 

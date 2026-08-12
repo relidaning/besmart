@@ -43,6 +43,7 @@ export default function MusicPlayer() {
   const [speedIndex, setSpeedIndex] = useState(initialPrefs.speedIndex);
   const [shuffle, setShuffle] = useState(initialPrefs.shuffle);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const pendingAutoplayRef = useRef(false);
 
   const trackIndex = tracks.findIndex((t) => t.id === currentTrackId);
   const track = trackIndex >= 0 ? tracks[trackIndex] : tracks[0];
@@ -71,6 +72,15 @@ export default function MusicPlayer() {
     audio.playbackRate = SPEEDS[speedIndex];
     audio.muted = muted;
   }, [volume, speedIndex, muted]);
+
+  // requestAnimationFrame is throttled/suspended in background tabs, so autoplay-on-track-change
+  // is driven from an effect (fires on commit regardless of tab visibility) instead.
+  useEffect(() => {
+    if (pendingAutoplayRef.current) {
+      pendingAutoplayRef.current = false;
+      audioRef.current?.play().catch(() => {});
+    }
+  }, [currentTrackId]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -105,8 +115,8 @@ export default function MusicPlayer() {
     if (tracks.length === 0) return;
     const idx = trackIndex >= 0 ? trackIndex : 0;
     const nextId = delta === 1 ? nextTrackId() : tracks[(idx - 1 + tracks.length) % tracks.length].id;
+    pendingAutoplayRef.current = true;
     setCurrentTrackId(nextId);
-    requestAnimationFrame(() => audioRef.current?.play().catch(() => {}));
   }
 
   function cycleSpeed() {
@@ -127,8 +137,8 @@ export default function MusicPlayer() {
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           onEnded={() => {
+            pendingAutoplayRef.current = true;
             setCurrentTrackId(nextTrackId());
-            requestAnimationFrame(() => audioRef.current?.play().catch(() => {}));
           }}
         />
       )}

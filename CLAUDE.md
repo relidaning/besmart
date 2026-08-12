@@ -21,24 +21,26 @@ docker compose build besmart && docker compose up -d besmart besmart-https
 ```
 docker exec besmart-besmart-1 rm -rf /app/dist && docker cp /data/apps/besmart/dist besmart-besmart-1:/app/dist && docker compose restart besmart
 ```
-The `rm -rf` first is required — `docker cp dist/. container:/app/dist/` alone only overlays and leaves stale hashed asset files behind, which can mismatch `index.html`.
+The `rm -rf` first is required — `docker cp dist/. container:/app/dist/` alone only overlays and leaves stale hashed asset files behind, which can mismatch `index.html`. This path replaces the *entire* `dist/` (client + server + shared) — always run the full `npm run build`, not `npm run build:client` alone, or the copied tree will be missing `dist/server` and the container will crash-loop on restart.
 
 ### App Structure
 - `src/client/` — React frontend
   - `src/client/pages/` — page components (Dashboard, Todos, Plans, CheckIn, Review, ReviewContent, …)
   - `src/client/components/` — shared UI components (`Layout.tsx`, `WeChatLoginModal.tsx`, `ui/`)
     - `ui/DatePicker.tsx` — calendar-dropdown date picker (value/onChange as `'YYYY-MM-DD'` strings), replaces native `<input type="date">` for consistent mobile/desktop UX; used in Plans/PlanDetail forms
-  - `src/client/contexts/` — React contexts
+  - `src/client/contexts/` — React contexts, e.g. `ThemeContext.tsx` (see Theming below)
   - `src/client/hooks/` — `api.ts` (cache), `useInfiniteScroll.ts`
   - `src/client/store/` — Zustand auth store
 - `src/server/` — Express backend with SQLite
-  - `src/server/routes/` — `auth.ts`, `todos.ts`, `reviews.ts`, `checkins.ts`, `studyplans.ts`, `dashboard.ts`, `notifications.ts`
+  - `src/server/routes/` — `auth.ts`, `todos.ts`, `reviews.ts`, `checkins.ts`, `studyplans.ts`, `dashboard.ts`, `notifications.ts`, `music.ts`
   - `src/server/middleware/auth.ts` — JWT middleware
-  - `src/server/scheduler.ts` — recurring task generation (daily check-in tasks)
+  - `src/server/scheduler.ts` — recurring task generation (daily/weekly/monthly/seasonal/yearly check-in tasks), run on startup and hourly via `setInterval`. Each block must check for an existing task before inserting — the seasonal/yearly blocks were missing this check (unlike weekly/monthly) until 2026-07-28, so every hourly tick on a matching day inserted another duplicate `checkin_tasks` row. Also contains a legacy job that regenerates "next" `review_records` independently of the SM-2 logic in `reviews.ts` (see Review Module)
   - `src/server/vaultWatcher.ts` — chokidar watcher; syncs Obsidian vault changes to review courses
   - `src/server/push.ts` — web-push init (`initWebPush()`) and `sendDailyReviewPush()` (called by scheduler)
+  - `src/server/musicLibrary.ts` — reads/writes the user's active track selection (see Music Player below)
   - `src/server/database.ts`, `src/server/date.ts`, `src/server/types.ts`
 - `src/shared/types.ts` — shared TypeScript types
+- `src/shared/musicCatalog.json` — full catalog of downloadable tracks (see Music Player below)
 
 ### Auth
 JWT-based multi-user auth (7d TTL, `Authorization: Bearer <token>`). All `/api/*` routes except `/api/auth/*` require a token. Each data table has a `user_id` column. OAuth supported: Google, GitHub, WeChat (configured via env vars in docker-compose.yml).
@@ -58,6 +60,8 @@ Nextcloud server at `192.168.255.6:8080` is the sync source for the vault — ve
 
 Key files: `src/server/routes/reviews.ts` (SM-2 logic in `sm2()`), DB migration 3 adds `vault_path`, `ease_factor`, `interval_days`. DB migration 6 adds `push_subscriptions` table.
 
+**Invariant: at most one pending (`is_reviewed=0`) `review_records` row per course.** A legacy `scheduler.ts` job independently regenerates "next" records for any course whose latest generation is complete but has no successor — a second code path alongside the insert that `reviews.ts` does on completion. Historically this produced duplicate pending rows for the same course, which made a just-completed item immediately reappear in the due list (the due query's per-course logic just promoted the stray duplicate). `POST /records/:id/complete` now self-heals by deleting any other stray pending records for the same course before inserting the new one, which also makes the legacy scheduler harmless going forward.
+
 **Daily cap:** `DUE_DAILY_LIMIT = 20` in `reviews.ts`. `GET /reviews/due` runs a COUNT first (same WHERE clause), then fetches at most 20 oldest-due rows. Response shape: `{ data, total, limit }` — `total` is the real overdue count across all courses. Frontend shows "Showing 20 of N due" when `total > data.length`.
 
 Search on the due list is **server-side**: `GET /reviews/due?search=` filters by `c.name LIKE '%?%'`. The frontend uses the two-state debounce pattern (`query` + `debouncedQuery`, 400ms). The search input shows a clear (✕) button when non-empty.
@@ -70,6 +74,9 @@ Search uses a two-state debounce pattern: `search` (input value) + `debouncedSea
 ### UI Patterns (shared across modules)
 - **Two-state debounce**: raw state (immediate, drives input value) + debounced state (400ms delay, drives API call). Prevents per-keystroke requests.
 - **`initialLoadDone` ref**: set to `true` after first successful fetch. Subsequent fetches (filter/search changes) skip the full loading spinner, avoiding jarring resets.
+
+### Theming (Dark Mode)
+Tailwind uses `darkMode: 'class'` (`tailwind.config.js`); the `dark` class is toggled on `<html>`. `src/client/contexts/ThemeContext.tsx` exposes `theme` (`'light' | 'dark' | 'system'`, persisted to `localStorage` under `besmart-theme`) and `resolvedTheme` (the actual applied value, following `prefers-color-scheme` when `theme === 'system'`). An inline script in `index.html` (runs before React hydrates) applies the class synchronously to avoid a flash of the wrong theme on load. `App.tsx` wraps the tree in `ThemeProvider`; the toggle lives in `Layout.tsx`'s header (next to the bell icon) and cycles System → Light → Dark. Every page and shared component (cards, buttons, inputs, badges, modals, `DatePicker`) carries `dark:` variants; `ReviewContent.tsx` additionally swaps the `react-syntax-highlighter` Prism theme based on `resolvedTheme`.
 
 ### API Client Cache
 `src/client/hooks/api.ts` keeps an in-memory `_cache` Map with a 30s TTL. Repeated requests to the same URL (including `?search=` variants) are served from cache. Mutations bust cache entries by matching the resource URL prefix.
@@ -90,6 +97,14 @@ Service workers (required for push) only work over HTTPS. A local CA was created
 - **TLS cert/key:** `config/mkcert/cert.pem` / `key.pem` — covers `192.168.255.6`, `192.168.1.8`, `localhost`, `127.0.0.1`
 - **Nginx config:** `config/nginx/besmart.conf` — listens on 443, proxies to besmart:3001, serves rootCA.pem at `/rootCA.pem`
 - **iOS CA install flow:** Safari → `http://192.168.255.6:5090/rootCA.mobileconfig` → Allow → Settings → General → VPN & Device Management → Install → then Settings → General → About → Certificate Trust Settings → toggle on
+
+### Music Player
+A top-bar button opens a small focus-music player (play/pause, 1x–2x speed, volume, shuffle) playing public-domain classical piano recordings.
+
+- **Catalog vs. library:** `src/shared/musicCatalog.json` is the full set of downloadable tracks (currently 20 CC0 Chopin recordings). `src/server/musicLibrary.ts` tracks which subset is the user's *active* library (defaults to 6); `GET/POST/DELETE /api/music/library` (`src/server/routes/music.ts`) reads/adds/removes from it. The player only plays the active library; the full catalog is browsed/managed at `/music` (`src/client/pages/MusicLibrary.tsx`), which replaced an earlier popup-modal version because the modal overflowed on mobile.
+- **Files live on disk, not in git or the DB:** tracks are downloaded once via `scripts/download-music.mjs` (`npm run download-music`) into `data/besmart/music/`, served statically by Express at `/media/music/`.
+- **The running container has no outbound internet access** — downloads only work from the host (which has proxy env vars set). Any future catalog changes must be downloaded on the host and deployed via the `dist/` swap or image rebuild, never attempted from inside the container.
+- Frontend components: `src/client/components/MusicPlayer.tsx` (top-bar popup), `src/client/pages/MusicLibrary.tsx` (`/music` management page, with search, add/remove, per-track preview play, and pagination).
 
 ### Database
 SQLite path defaults to `<project>/data/besmart.db` but can be overridden via `DB_PATH` env var (`database.ts`).

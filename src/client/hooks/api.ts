@@ -73,6 +73,10 @@ export const api = {
   createPlanTask: (planId: number, data: any) => request<any>(`/plans/${planId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
   updatePlanTask: (planId: number, taskId: number, data: any) => request<any>(`/plans/${planId}/tasks/${taskId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePlanTask: (planId: number, taskId: number) => request<any>(`/plans/${planId}/tasks/${taskId}`, { method: 'DELETE' }),
+  indentPlanTask: (planId: number, taskId: number) => request<any>(`/plans/${planId}/tasks/${taskId}/indent`, { method: 'POST' }),
+  outdentPlanTask: (planId: number, taskId: number) => request<any>(`/plans/${planId}/tasks/${taskId}/outdent`, { method: 'POST' }),
+  movePlanTask: (planId: number, taskId: number, direction: 'up' | 'down') =>
+    request<any>(`/plans/${planId}/tasks/${taskId}/move`, { method: 'POST', body: JSON.stringify({ direction }) }),
 
   // Check-ins
   getTodayCheckins: (date?: string) => request<any>(`/checkins/today${date ? `?date=${date}` : ''}`),

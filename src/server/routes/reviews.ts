@@ -319,7 +319,7 @@ reviewRoutes.get('/due', (req, res) => {
            r.ease_factor, r.interval_days,
            c.vault_path, c.vault_paths, c.vault_match_status, c.is_postponed
     ${dueWhere}
-    ORDER BY r.planned_date ASC
+    ORDER BY c.is_postponed ASC, r.planned_date ASC
     LIMIT ?
   `).all(userId, today, search, search, today, DUE_DAILY_LIMIT) as any[];
 
@@ -375,6 +375,11 @@ reviewRoutes.post('/records/:id/complete', (req, res) => {
   const { interval, ef } = sm2(rating, record.interval_days ?? 1, record.ease_factor ?? 2.5);
 
   db.prepare('UPDATE review_records SET is_reviewed = 1, reviewed_date = ? WHERE id = ?').run(today, req.params.id);
+
+  // Self-heal: a course should have at most one pending record at a time. Stray
+  // duplicates (from historical double-scheduling) would otherwise pop right back
+  // into the due list as soon as this one is completed.
+  db.prepare('DELETE FROM review_records WHERE course_id = ? AND is_reviewed = 0').run(record.course_id);
 
   const nextDate = new Date();
   nextDate.setDate(nextDate.getDate() + interval);
