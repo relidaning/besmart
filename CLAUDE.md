@@ -66,6 +66,14 @@ Key files: `src/server/routes/reviews.ts` (SM-2 logic in `sm2()`), DB migration 
 
 Search on the due list is **server-side**: `GET /reviews/due?search=` filters by `c.name LIKE '%?%'`. The frontend uses the two-state debounce pattern (`query` + `debouncedQuery`, 400ms). The search input shows a clear (✕) button when non-empty.
 
+### Study Plans Module (WBS)
+Plans (`study_plans`) contain tasks (`plan_tasks`) arranged as a work-breakdown-structure tree, not a flat list. `plan_tasks` has `parent_task_id` (nullable, self-referencing) and `sort_order` (per-sibling-group) — added in DB migration 7, added directly to the fresh-install schema too. `src/server/routes/studyplans.ts`:
+- `POST/GET/PUT /:planId/tasks[/:taskId]` accept/return `parent_task_id`; sort order auto-assigned as `max(siblings.sort_order) + 1`.
+- `DELETE /:planId/tasks/:taskId` recursively deletes the task and all descendants via a `WITH RECURSIVE` CTE.
+- `POST /:planId/tasks/:taskId/indent` — becomes the last child of its previous sibling. `/outdent` — becomes the next sibling of its parent. `/move` — reorder within the same parent.
+- A task with children cannot be marked complete directly (`PUT` ignores `is_completed` when `hasChildren`); completion only applies to leaves, and parent progress is a rollup computed client-side from leaf state.
+- `PlanDetail.tsx` renders the tree with computed WBS codes (`1`, `1.1`, `1.2.1`, …) derived from tree position, not stored.
+
 ### Todos Module
 Todo interface: `id`, `title`, `description`, `priority` (low/medium/high), `due_date`, `completed`, `completed_at`, `plan_id`. Pagination: 20 per page via Intersection Observer infinite scroll (sentinel pattern).
 
@@ -108,3 +116,8 @@ A top-bar button opens a small focus-music player (play/pause, 1x–2x speed, vo
 
 ### Database
 SQLite path defaults to `<project>/data/besmart.db` but can be overridden via `DB_PATH` env var (`database.ts`).
+
+**Known issue — fresh-DB migration ordering:** `database.ts` migration 1 references the `scores` table before migration 2 creates it, so bootstrapping against a genuinely empty DB file fails at startup. Not hit in production (the DB always already exists), but blocks spinning up a fresh dev/demo instance — copy an existing `.db` file instead of starting from empty.
+
+### Git Push (network)
+Direct `git push` over SSH to `github.com` can fail with DNS resolution errors in this environment (no direct outbound DNS/SSH). A local SOCKS5 proxy is available at `127.0.0.1:10808` (also set as `http_proxy`/`https_proxy` env vars). Route a single push through it without touching git config: `GIT_SSH_COMMAND='ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:10808 %h %p"' git push origin master`.
