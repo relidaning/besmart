@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { ListTodo, Trophy, Check, AlertTriangle } from 'lucide-react';
+import { ListTodo, Trophy, Check, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
 import { api } from '../hooks/api';
 
 interface Todo {
@@ -31,6 +31,22 @@ const priorityConfig = {
   medium: { border: 'border-l-yellow-400' },
   low: { border: 'border-l-green-400' },
 };
+
+const priorityOrder: Todo['priority'][] = ['low', 'medium', 'high'];
+const priorityRank: Record<Todo['priority'], number> = { high: 0, medium: 1, low: 2 };
+
+// Mirrors the server's ORDER BY (priority, due_date ASC NULLS LAST) so a local
+// priority change re-sorts the same way a refetch would.
+function sortTodos(list: Todo[]): Todo[] {
+  return [...list].sort((a, b) => {
+    const pr = priorityRank[a.priority] - priorityRank[b.priority];
+    if (pr !== 0) return pr;
+    if (a.due_date === b.due_date) return 0;
+    if (a.due_date === null) return 1;
+    if (b.due_date === null) return -1;
+    return a.due_date < b.due_date ? -1 : 1;
+  });
+}
 
 export default function Todos() {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -126,6 +142,19 @@ export default function Todos() {
       setCompletedToday((n) => todo.completed ? n + 1 : n - 1);
     }
     setCompletingId(null);
+  };
+
+  const handlePriorityChange = async (todo: Todo, direction: 1 | -1) => {
+    const nextIndex = priorityOrder.indexOf(todo.priority) + direction;
+    if (nextIndex < 0 || nextIndex >= priorityOrder.length) return;
+    const newPriority = priorityOrder[nextIndex];
+    setTodos((prev) => sortTodos(prev.map((t) => (t.id === todo.id ? { ...t, priority: newPriority } : t))));
+    try {
+      await api.updateTodo(todo.id, { priority: newPriority });
+    } catch (err: any) {
+      toast.error(err.message);
+      setTodos((prev) => sortTodos(prev.map((t) => (t.id === todo.id ? { ...t, priority: todo.priority } : t))));
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -311,7 +340,23 @@ export default function Todos() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 justify-center">
+                  <div className="flex gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 justify-center items-center">
+                    <button
+                      onClick={() => handlePriorityChange(todo, 1)}
+                      disabled={todo.priority === 'high'}
+                      title="Prioritize"
+                      className="btn-ghost text-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      onClick={() => handlePriorityChange(todo, -1)}
+                      disabled={todo.priority === 'low'}
+                      title="De-prioritize"
+                      className="btn-ghost text-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
                     <button onClick={() => openForm(todo)} className="btn-ghost text-xs">Edit</button>
                     <button onClick={() => handleDelete(todo.id)} className="btn-ghost text-xs text-red-400">Delete</button>
                   </div>
