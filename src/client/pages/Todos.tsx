@@ -27,9 +27,9 @@ const listItem = {
 };
 
 const priorityConfig = {
-  high: { border: 'border-l-red-400' },
-  medium: { border: 'border-l-yellow-400' },
-  low: { border: 'border-l-green-400' },
+  high: { border: 'border-l-red-400', label: 'High', badge: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' },
+  medium: { border: 'border-l-yellow-400', label: 'Medium', badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300' },
+  low: { border: 'border-l-green-400', label: 'Low', badge: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300' },
 };
 
 const priorityOrder: Todo['priority'][] = ['low', 'medium', 'high'];
@@ -175,13 +175,17 @@ export default function Todos() {
     try {
       if (editing) {
         await api.updateTodo(editing.id, form);
-        setTodos((prev) => prev.map((t) =>
-          t.id === editing.id ? { ...t, ...form, priority: form.priority as Todo['priority'] } : t
-        ));
+        setTodos((prev) => sortTodos(prev.map((t) =>
+          t.id === editing.id
+            ? { ...t, ...form, priority: form.priority as Todo['priority'], due_date: form.due_date || null }
+            : t
+        )));
         toast.success('Updated');
       } else {
         const r = await api.createTodo(form);
-        if (tab === 'active') setTodos((prev) => [r.data, ...prev]);
+        if (tab === 'active' && (!priorityFilter || r.data.priority === priorityFilter)) {
+          setTodos((prev) => sortTodos([r.data, ...prev]));
+        }
         toast.success('Created');
       }
       setShowForm(false);
@@ -321,9 +325,14 @@ export default function Todos() {
                       )}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <h3 className={`font-medium ${todo.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
-                        {todo.title}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold ${config.badge} ${todo.completed ? 'opacity-60' : ''}`}>
+                          {config.label}
+                        </span>
+                        <h3 className={`font-medium min-w-0 break-words ${todo.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
+                          {todo.title}
+                        </h3>
+                      </div>
                       {todo.description && (
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{todo.description}</p>
                       )}
