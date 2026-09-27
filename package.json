@@ -19,6 +19,7 @@
     "@types/web-push": "^3.6.4",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^11.7.0",
+    "chokidar": "^3.6.0",
     "cors": "^2.8.5",
     "express": "^4.22.1",
     "framer-motion": "^11.15.0",

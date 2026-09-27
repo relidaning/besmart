@@ -1,0 +1,7 @@
+# The Dockerfile only copies package*.json, node_modules and dist; keep the rest
+# (music files, DB, git history) out of the build context.
+.git
+data
+src
+public
+config

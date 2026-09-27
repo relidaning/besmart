@@ -259,6 +259,20 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 8: indexes for the hot read paths. Without them GET /reviews/due runs its
+  // per-row correlated subqueries as full scans of review_records (~77ms at 500 courses),
+  // and computeStreak does a full checkin_tasks scan per day of streak (~100ms for a year).
+  if (version < 8) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_review_records_course ON review_records(course_id, is_reviewed, planned_date);
+        CREATE INDEX IF NOT EXISTS idx_review_courses_user_name ON review_courses(user_id, name);
+        CREATE INDEX IF NOT EXISTS idx_checkin_tasks_date_type ON checkin_tasks(task_date, schedule_type);
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (8)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'
