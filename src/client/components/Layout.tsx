@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Bell, BellOff, Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw, FolderOpen, LogOut, Sun, Moon, MonitorSmartphone } from 'lucide-react';
 import { api, clearApiCache } from '../hooks/api';
 import { useAuth } from '../store/auth';
@@ -201,7 +201,10 @@ export default function Layout() {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.2 }}
           >
-            <Outlet />
+            {/* Keep header/nav on screen while a lazy page chunk loads */}
+            <Suspense fallback={null}>
+              <Outlet />
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>

@@ -1,21 +1,25 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './store/auth';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
-import Plans from './pages/Plans';
-import PlanDetail from './pages/PlanDetail';
-import CheckIn from './pages/CheckIn';
-import Review from './pages/Review';
-import ReviewContent from './pages/ReviewContent';
-import Todos from './pages/Todos';
-import MusicLibrary from './pages/MusicLibrary';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import AuthCallback from './pages/AuthCallback';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
+
+// Non-landing pages are split into their own chunks so the first load only ships
+// the shell + Dashboard (ReviewContent alone pulls in markdown + syntax highlighting).
+const Plans = lazy(() => import('./pages/Plans'));
+const PlanDetail = lazy(() => import('./pages/PlanDetail'));
+const CheckIn = lazy(() => import('./pages/CheckIn'));
+const Review = lazy(() => import('./pages/Review'));
+const ReviewContent = lazy(() => import('./pages/ReviewContent'));
+const Todos = lazy(() => import('./pages/Todos'));
+const MusicLibrary = lazy(() => import('./pages/MusicLibrary'));
+const Login = lazy(() => import('./pages/Login'));
+const Signup = lazy(() => import('./pages/Signup'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
@@ -43,6 +47,7 @@ function App() {
     <ThemeProvider>
       <BrowserRouter>
         <ThemedToaster />
+        <Suspense fallback={null}>
         <Routes>
           {/* Auth pages */}
           <Route path="/login" element={<Login />} />
@@ -72,6 +77,7 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </ThemeProvider>
   );

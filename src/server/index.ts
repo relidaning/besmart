@@ -102,8 +102,20 @@ app.use('/media/music', express.static(MUSIC_DIR, { maxAge: '30d', immutable: tr
 
 if (process.env.NODE_ENV === 'production') {
   const clientDist = path.join(__dirname, '..');
-  app.use(express.static(clientDist));
+  // Vite's hashed bundles never change under the same name — cache them for a year.
+  app.use('/assets', express.static(path.join(clientDist, 'assets'), { maxAge: '1y', immutable: true }));
+  app.use(express.static(clientDist, {
+    // index.html and sw.js must always revalidate so a new deploy is picked up.
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html') || filePath.endsWith('sw.js')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+      }
+    },
+  }));
   app.get('*', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }

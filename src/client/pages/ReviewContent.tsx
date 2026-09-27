@@ -4,13 +4,47 @@ import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
+import c from 'react-syntax-highlighter/dist/esm/languages/prism/c';
+import cpp from 'react-syntax-highlighter/dist/esm/languages/prism/cpp';
+import css from 'react-syntax-highlighter/dist/esm/languages/prism/css';
+import diff from 'react-syntax-highlighter/dist/esm/languages/prism/diff';
+import docker from 'react-syntax-highlighter/dist/esm/languages/prism/docker';
+import go from 'react-syntax-highlighter/dist/esm/languages/prism/go';
+import ini from 'react-syntax-highlighter/dist/esm/languages/prism/ini';
+import java from 'react-syntax-highlighter/dist/esm/languages/prism/java';
+import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript';
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json';
+import jsx from 'react-syntax-highlighter/dist/esm/languages/prism/jsx';
+import log from 'react-syntax-highlighter/dist/esm/languages/prism/log';
+import lua from 'react-syntax-highlighter/dist/esm/languages/prism/lua';
+import markdown from 'react-syntax-highlighter/dist/esm/languages/prism/markdown';
+import markup from 'react-syntax-highlighter/dist/esm/languages/prism/markup';
+import nginx from 'react-syntax-highlighter/dist/esm/languages/prism/nginx';
+import properties from 'react-syntax-highlighter/dist/esm/languages/prism/properties';
+import python from 'react-syntax-highlighter/dist/esm/languages/prism/python';
+import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql';
+import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx';
+import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
+import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import toast from 'react-hot-toast';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
+
+// The full Prism build bundles ~300 grammars (~1MB). Register only what the vault's
+// notes actually use; unknown fence languages still render, just unhighlighted.
+for (const [lang, grammar] of Object.entries({
+  bash, sh: bash, shell: bash, zsh: bash, c, cpp, css, diff, docker, dockerfile: docker, go,
+  ini, cnf: ini, java, javascript, js: javascript, json, jsonc: json, jsonl: json, jsx, log, lua,
+  markdown, md: markdown, markup, html: markup, xml: markup, nginx, properties, python, py: python,
+  sql, tsx, typescript, ts: typescript, yaml, yml: yaml,
+})) {
+  SyntaxHighlighter.registerLanguage(lang, grammar);
+}
 
 // ── Heading helpers ───────────────────────────────────────────────────────────
 
