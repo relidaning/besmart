@@ -18,6 +18,7 @@ import { notificationRoutes } from './routes/notifications.js';
 import { musicRoutes } from './routes/music.js';
 import { MUSIC_DIR } from './musicLibrary.js';
 import { initWebPush, sendDailyReviewReminders } from './push.js';
+import { localDate } from './date.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,16 +39,28 @@ setInterval(scheduleJob, 60 * 60 * 1000);
 // Daily push notification at configured time (default 10:30 local time)
 const [PUSH_HOUR, PUSH_MINUTE] = (process.env.PUSH_NOTIFY_TIME ?? '10:30').split(':').map(Number);
 let lastPushDate = '';
-setInterval(async () => {
+// Sleep until the next push time instead of waking every minute to check the clock.
+function schedulePush() {
   const now = new Date();
-  if (now.getHours() === PUSH_HOUR && now.getMinutes() === PUSH_MINUTE) {
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    if (today !== lastPushDate) {
-      lastPushDate = today;
-      await sendDailyReviewReminders();
+  const next = new Date(now);
+  next.setHours(PUSH_HOUR, PUSH_MINUTE, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  setTimeout(async () => {
+    // Guards against a double send if the timer fires a hair before the wall-clock minute.
+    const today = localDate(new Date());
+    try {
+      if (today !== lastPushDate) {
+        lastPushDate = today;
+        await sendDailyReviewReminders();
+      }
+    } catch (err) {
+      // An unhandled rejection here would crash the whole server.
+      console.error('Daily push failed:', err);
     }
-  }
-}, 60 * 1000);
+    schedulePush();
+  }, next.getTime() - now.getTime());
+}
+schedulePush();
 
 // Serve root CA cert over plain HTTP so phones can install it before trusting HTTPS
 const CA_CERT_PATH = process.env.CA_CERT_PATH;
