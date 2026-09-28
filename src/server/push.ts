@@ -63,4 +63,5 @@ export async function sendDailyReviewReminders() {
       await sendPushToUser(user_id, 'BeSmart', 'Good job — no reviews due today!');
     }
   }
+  console.log(`Daily review push sent to ${users.length} user(s)`);
 }
