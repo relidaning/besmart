@@ -319,7 +319,7 @@ reviewRoutes.get('/due', (req, res) => {
            r.ease_factor, r.interval_days,
            c.vault_path, c.vault_paths, c.vault_match_status, c.is_postponed
     ${dueWhere}
-    ORDER BY c.is_postponed ASC, r.planned_date ASC
+    ORDER BY c.is_postponed ASC, r.planned_date ASC, r.id ASC
     LIMIT ?
   `).all(userId, today, search, search, today, DUE_DAILY_LIMIT) as any[];
 
@@ -429,7 +429,7 @@ reviewRoutes.get('/courses', (req, res) => {
       (SELECT COUNT(*) FROM review_records WHERE course_id = c.id AND is_reviewed = 0 AND planned_date <= date('now')) as due_reviews
     FROM review_courses c
     WHERE c.user_id = ?
-    ORDER BY c.studied_date DESC
+    ORDER BY c.studied_date DESC, c.id ASC
   `).all(userId) as any[];
 
   const cfg = getUserVaultConfig(userId);
