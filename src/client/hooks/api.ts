@@ -50,7 +50,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
       if (r === resource || r === 'garden' || r === 'dashboard') _cache.delete(k);
     }
     celebrate(data?.xp);
-    celebrate(data?.bonus);
+    celebrate(data?.bonus, 'Check-in done'); // the "Complete 5 todos" check-in ticked itself
   }
 
   return data;

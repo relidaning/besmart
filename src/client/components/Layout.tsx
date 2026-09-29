@@ -47,6 +47,12 @@ const navItems = [
   { path: '/garden', icon: <Sprout size={18} />, label: 'Garden' },
 ];
 
+// Top-bar title per route, so the current page stays named while scrolling.
+const SECTION_TITLE: [string, string][] = [
+  ['/', 'Home'], ['/checkin', 'Check In'], ['/todos', 'Todos'], ['/review', 'Review'],
+  ['/plans', 'Study Plans'], ['/garden', 'Growth Garden'], ['/music', 'Music'],
+];
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -126,6 +132,9 @@ export default function Layout() {
     navigate('/login', { replace: true });
   }
 
+  const section = SECTION_TITLE.find(([prefix]) =>
+    prefix === '/' ? location.pathname === '/' : location.pathname.startsWith(prefix))?.[1] ?? 'BeSmart';
+
   const initials = user?.display_name
     ? user.display_name.slice(0, 2).toUpperCase()
     : user?.email?.slice(0, 2).toUpperCase() ?? '?';
@@ -133,12 +142,17 @@ export default function Layout() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top bar */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-gray-100 dark:bg-gray-950/80 dark:border-white/[0.08]">
-        <div className="max-w-5xl mx-auto px-4 h-12 flex items-center justify-between">
-          <NavLink to="/" className="flex items-center gap-2 font-bold text-[15px] text-gray-900 dark:text-gray-100">
-            <Brain size={20} className="text-brand-600 dark:text-brand-400" />
-            <span className="hidden sm:inline">BeSmart</span>
-          </NavLink>
+      {/* Fixed, not sticky: html/body's overflow-x: hidden stops sticky from holding on iOS. */}
+      <header className="fixed top-0 inset-x-0 z-40 bg-white/85 backdrop-blur-lg border-b border-gray-200/70 dark:bg-gray-950/85 dark:border-white/[0.08]">
+        <div className="max-w-5xl mx-auto px-4 h-12 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0 text-[15px]">
+            <NavLink to="/" className="flex items-center gap-2 font-bold text-gray-900 dark:text-gray-100 flex-shrink-0">
+              <Brain size={20} className="text-brand-600 dark:text-brand-400" />
+              <span className="hidden sm:inline">BeSmart</span>
+            </NavLink>
+            <span className="hidden sm:inline text-gray-300 dark:text-gray-700">/</span>
+            <span className="font-bold text-gray-900 dark:text-gray-100 truncate">{section}</span>
+          </div>
 
           <div className="flex items-center gap-3.5">
             {streak > 0 && (
@@ -198,7 +212,7 @@ export default function Layout() {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6 pb-24 md:pb-6 overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
+      <main className="flex-1 max-w-5xl mx-auto w-full px-4 pt-[72px] pb-24 md:pb-6 overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}

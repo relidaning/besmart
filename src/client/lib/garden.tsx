@@ -80,7 +80,8 @@ function confetti(count: number, colors: string[]) {
 }
 
 // Called by the API client for every mutation response carrying `xp` / `bonus`.
-export function celebrate(award: XpAward | null | undefined) {
+// `label` names what earned it when that isn't the item just completed (e.g. a bonus check-in).
+export function celebrate(award: XpAward | null | undefined, label?: string) {
   if (!award) return;
   const meta = ATTR_META[award.attribute];
   if (award.capped) {
@@ -90,8 +91,12 @@ export function celebrate(award: XpAward | null | undefined) {
   if (award.amount <= 0) return;
 
   toast(
-    `${award.crit ? 'Critical · ' : ''}+${award.amount} ${meta.label} XP`,
-    { duration: 2200, icon: <span className="dot" style={{ background: meta.hex }} /> },
+    `${label ? `${label} · ` : ''}${award.crit ? 'Critical · ' : ''}+${award.amount} ${meta.label} XP`,
+    {
+      duration: 2600,
+      icon: <span className="dot !w-2.5 !h-2.5" style={{ background: meta.hex }} />,
+      style: { borderColor: meta.hex },
+    },
   );
 
   if (award.levelUp) {

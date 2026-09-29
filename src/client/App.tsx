@@ -33,17 +33,20 @@ function ThemedToaster() {
   return (
     <Toaster
       position="top-center"
+      /* Below the fixed 48px top bar, not on top of it. */
+      containerStyle={{ top: 'calc(env(safe-area-inset-top) + 60px)' }}
       toastOptions={{
-        duration: 2000,
-        // floatingsphere's toast: small, flat, hairline border.
+        duration: 2500,
+        // floatingsphere's surfaces, raised: amber hairline, shadow, 14px bold.
         style: {
-          borderRadius: '10px', padding: '8px 14px', fontSize: '12px', fontFamily: 'inherit', boxShadow: 'none',
+          borderRadius: '12px', padding: '10px 16px', fontSize: '14px', fontWeight: 700, fontFamily: 'inherit',
+          border: '1px solid rgba(250,191,64,0.55)',
           ...(resolvedTheme === 'dark'
-            ? { background: '#15161e', color: '#edf0f5', border: '1px solid rgba(255,255,255,0.08)' }
-            : { background: '#ffffff', color: '#15161e', border: '1px solid #dcdfe6' }),
+            ? { background: '#1b1c26', color: '#edf0f5', boxShadow: '0 10px 30px rgba(0,0,0,0.55)' }
+            : { background: '#ffffff', color: '#15161e', boxShadow: '0 10px 30px rgba(15,17,25,0.18)' }),
         },
         success: { iconTheme: { primary: '#1fa874', secondary: '#fff' } },
-        error: { iconTheme: { primary: '#e66666', secondary: '#fff' } },
+        error: { iconTheme: { primary: '#e66666', secondary: '#fff' }, style: { borderColor: 'rgba(230,102,102,0.6)' } },
       }}
     />
   );
