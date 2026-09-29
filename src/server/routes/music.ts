@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCatalog, getActiveTracks, addToLibrary, removeFromLibrary } from '../musicLibrary.js';
+import { getCatalog, getActiveTracks, getSleepTracks, addToLibrary, removeFromLibrary } from '../musicLibrary.js';
 
 export const musicRoutes = Router();
 
@@ -9,6 +9,10 @@ musicRoutes.get('/catalog', (_req, res) => {
 
 musicRoutes.get('/library', (_req, res) => {
   res.json({ data: getActiveTracks() });
+});
+
+musicRoutes.get('/sleep', (_req, res) => {
+  res.json({ data: getSleepTracks() });
 });
 
 musicRoutes.post('/library', (req, res) => {

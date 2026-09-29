@@ -134,6 +134,7 @@ export const api = {
   // Music
   getMusicCatalog: () => request<any>('/music/catalog'),
   getMusicLibrary: () => request<any>('/music/library'),
+  getSleepTracks: () => request<any>('/music/sleep'),
   addMusicTrack: (id: string) => request<any>('/music/library', { method: 'POST', body: JSON.stringify({ id }) }),
   removeMusicTrack: (id: string) => request<any>(`/music/library/${id}`, { method: 'DELETE' }),
 };

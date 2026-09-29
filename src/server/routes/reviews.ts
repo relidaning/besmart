@@ -284,6 +284,16 @@ export function syncVaultForAllConfiguredUsers() {
 
 const DUE_DAILY_LIMIT = 20;
 
+// Due-list priority by vault folder: AI/ML/DL notes first, then the rest of 0_dev,
+// then everything else; oldest-due first within a tier. The AI folder was renamed
+// from 0_dev/AI to 0_dev/0_AI, and older courses still carry the old path.
+const DUE_TOPIC_TIER = `CASE
+    WHEN COALESCE(c.vault_path, c.vault_paths, '') LIKE '%0_dev/0_AI/%'
+      OR COALESCE(c.vault_path, c.vault_paths, '') LIKE '%0_dev/AI/%' THEN 0
+    WHEN COALESCE(c.vault_path, c.vault_paths, '') LIKE '%0_dev/%' THEN 1
+    ELSE 2
+  END`;
+
 reviewRoutes.get('/due', (req, res) => {
   const userId = req.user!.id;
   const today = localDate(new Date());
@@ -320,7 +330,7 @@ reviewRoutes.get('/due', (req, res) => {
            r.ease_factor, r.interval_days,
            c.vault_path, c.vault_paths, c.vault_match_status, c.is_postponed
     ${dueWhere}
-    ORDER BY c.is_postponed ASC, r.planned_date ASC
+    ORDER BY c.is_postponed ASC, ${DUE_TOPIC_TIER}, r.planned_date ASC
     LIMIT ?
   `).all(userId, today, search, search, today, DUE_DAILY_LIMIT) as any[];
 
