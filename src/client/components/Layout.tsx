@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { Bell, BellOff, Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw, FolderOpen, Sprout, LogOut, Sun, Moon, MonitorSmartphone } from 'lucide-react';
 import { api, clearApiCache } from '../hooks/api';
+import { checkForUpdate } from '../lib/autoUpdate';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import MusicPlayer from './MusicPlayer';
@@ -55,6 +56,10 @@ export default function Layout() {
   const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported');
   const [pushLoading, setPushLoading] = useState(false);
   const swRegRef = useRef<ServiceWorkerRegistration | null>(null);
+
+  useEffect(() => {
+    checkForUpdate('route');
+  }, [location.pathname]);
 
   useEffect(() => {
     api.getStats().then((r) => {
