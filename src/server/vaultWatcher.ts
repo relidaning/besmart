@@ -35,6 +35,18 @@ export function startVaultWatchers() {
   }
 }
 
+// chokidar calls these listeners synchronously from its EventEmitter, so a throw (fs or DB
+// error) would be an uncaught exception that takes down the whole server. Log and move on.
+function guarded(event: string, fn: (filePath: string) => void) {
+  return (filePath: string) => {
+    try {
+      fn(filePath);
+    } catch (err) {
+      console.error(`[vault-watch] ${event} handler failed for ${filePath}:`, err);
+    }
+  };
+}
+
 function startWatcherForUser(userId: number, vaultRoot: string) {
   const watcher = chokidar.watch(vaultRoot, {
     ignored: (filePath: string) => {
@@ -49,7 +61,7 @@ function startWatcherForUser(userId: number, vaultRoot: string) {
   });
 
   watcher
-    .on('add', (filePath: string) => {
+    .on('add', guarded('add', (filePath: string) => {
       if (!filePath.endsWith('.md')) return;
       const rel = path.relative(vaultRoot, filePath);
       // A note with this filename whose old path no longer exists = a move → re-link it.
@@ -69,8 +81,8 @@ function startWatcherForUser(userId: number, vaultRoot: string) {
       if (scheduleVaultNote(userId, vaultRoot, rel)) {
         console.log(`[vault-watch] scheduled: ${rel}`);
       }
-    })
-    .on('change', (filePath: string) => {
+    }))
+    .on('change', guarded('change', (filePath: string) => {
       if (!filePath.endsWith('.md')) return;
       const rel = path.relative(vaultRoot, filePath);
       const result = ensureScheduleForNote(userId, vaultRoot, rel);
@@ -78,14 +90,14 @@ function startWatcherForUser(userId: number, vaultRoot: string) {
         console.log(`[vault-watch] ${result} (on update): ${rel}`);
       }
       markRestored(userId, rel);
-    })
-    .on('unlink', (filePath: string) => {
+    }))
+    .on('unlink', guarded('unlink', (filePath: string) => {
       if (!filePath.endsWith('.md')) return;
       const rel = path.relative(vaultRoot, filePath);
       markMissing(userId, rel);
       // Defer deletion: a move re-links the course (to a path that exists) within the grace
       // window, so only delete notes that are still gone afterwards.
-      setTimeout(() => {
+      setTimeout(guarded('unlink-grace', () => {
         const course = db.prepare(
           'SELECT vault_path FROM review_courses WHERE user_id = ? AND vault_path = ?'
         ).get(userId, rel) as any;
@@ -97,7 +109,12 @@ function startWatcherForUser(userId: number, vaultRoot: string) {
         if (deleteCourseForNote(userId, rel)) {
           console.log(`[vault-watch] deleted schedule (note removed): ${rel}`);
         }
-      }, DELETE_GRACE_MS);
+      }), DELETE_GRACE_MS, filePath);
+    }))
+    // Without an 'error' listener, EventEmitter throws — e.g. one unreadable directory
+    // (EACCES) or an exhausted inotify limit (ENOSPC) would crash the server.
+    .on('error', (err: any) => {
+      console.error(`[vault-watch] watcher error: ${err?.code ?? ''} ${err?.message ?? err}`);
     });
 
   console.log(`[vault-watch] watching ${vaultRoot} (user ${userId})`);
