@@ -227,7 +227,7 @@ export default function ReviewContent() {
           <span className="badge bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">{paths.length} notes merged</span>
         )}
         {matchStatus === 'none' && (
-          <span className="badge bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400">No vault match</span>
+          <span className="badge badge-high">No vault match</span>
         )}
         {paths.map((p) => (
           <span key={p} className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[220px]">{p}</span>
@@ -291,14 +291,16 @@ export default function ReviewContent() {
 
           {/* Rating footer */}
           {isRecord && data?.record && (
-            <div className="mt-10 pt-5 border-t border-gray-100 dark:border-gray-800">
+            <div className="mt-10 pt-5 border-t border-gray-100 dark:border-white/[0.08]">
               <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 text-center">How well did you recall?</p>
               <div className="flex gap-2">
                 {(['hard', 'ok', 'easy'] as const).map((r) => (
                   <button key={r} onClick={() => handleRating(r)} disabled={ratingLoading}
-                    className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-colors disabled:opacity-40 ${r === 'hard' ? 'bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-100 dark:hover:bg-red-900' :
-                      r === 'ok' ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900 hover:bg-amber-100 dark:hover:bg-amber-900' :
-                        'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 border-green-200 dark:border-green-900 hover:bg-green-100 dark:hover:bg-green-900'
+                    className={`flex-1 h-11 rounded-xl border text-sm font-bold transition-colors disabled:opacity-40 ${r === 'hard'
+                      ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100 dark:bg-[#e66666]/[0.12] dark:text-[#ec8a8a] dark:border-[#e66666]/50 dark:hover:bg-[#e66666]/[0.2]'
+                      : r === 'ok'
+                        ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-brand-400/[0.12] dark:text-brand-400 dark:border-brand-400/50 dark:hover:bg-brand-400/[0.2]'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-[#1fa874]/[0.12] dark:text-[#4fd6a0] dark:border-[#1fa874]/50 dark:hover:bg-[#1fa874]/[0.2]'
                       }`}>
                     {r === 'hard' ? 'Hard' : r === 'ok' ? 'OK' : 'Easy'}
                   </button>

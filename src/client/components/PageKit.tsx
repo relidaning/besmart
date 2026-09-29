@@ -3,18 +3,18 @@ import { motion } from 'framer-motion';
 import type { LucideIcon } from 'lucide-react';
 import { ATTR_META, type Attribute } from '../lib/garden';
 
-// Shared building blocks that give every page the Growth Garden look.
+// Shared building blocks styled after floatingsphere's web view: small bold
+// headings, muted meta text, ink numbers, thin meter bars, status dots.
 // Variant names match the `hidden`/`show` labels every page container uses,
 // so these join the page's stagger animation.
 
 const item = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0 },
 };
 
-export function PageHeader({ icon: Icon, iconClass, title, subtitle, actions, onBack, backLabel = 'Back' }: {
+export function PageHeader({ icon: Icon, title, subtitle, actions, onBack, backLabel = 'Back' }: {
   icon: LucideIcon;
-  iconClass: string;
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
@@ -24,17 +24,17 @@ export function PageHeader({ icon: Icon, iconClass, title, subtitle, actions, on
   return (
     <motion.div variants={item}>
       {onBack && (
-        <button onClick={onBack} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-3 block">
-          ← {backLabel}
+        <button onClick={onBack} className="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 mb-3 block">
+          ‹ {backLabel}
         </button>
       )}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <Icon size={24} className={`flex-shrink-0 ${iconClass}`} />
-            <span className="break-words min-w-0">{title}</span>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <Icon size={18} className="flex-shrink-0 text-gray-400 dark:text-gray-500" />
+            <span className="min-w-0">{title}</span>
           </h1>
-          {subtitle && <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">{subtitle}</p>}
+          {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
         </div>
         {actions && <div className="flex items-center gap-2 flex-shrink-0">{actions}</div>}
       </div>
@@ -42,62 +42,94 @@ export function PageHeader({ icon: Icon, iconClass, title, subtitle, actions, on
   );
 }
 
+// A card heading row: bold title left, muted meta right (floatingsphere's .head).
+export function CardHead({ title, meta }: { title: ReactNode; meta?: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 mb-3">
+      <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">{title}</h2>
+      {meta && <span className="text-[11px] text-gray-500 flex items-center gap-2">{meta}</span>}
+    </div>
+  );
+}
+
+// Thin meter bar; `tick` marks a reference point (e.g. time elapsed).
+export function Bar({ pct, className = 'bg-brand-400', tick, thin = false }: {
+  pct: number;
+  className?: string;
+  tick?: number;
+  thin?: boolean;
+}) {
+  const clamp = (n: number) => Math.min(100, Math.max(0, n));
+  return (
+    <div className={`relative ${thin ? 'h-1.5' : 'h-2'} rounded-full bg-gray-200/70 dark:bg-white/[0.08]`}>
+      <motion.div
+        className={`absolute inset-y-0 left-0 rounded-full ${className}`}
+        initial={{ width: 0 }}
+        animate={{ width: `${clamp(pct)}%` }}
+        transition={{ duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }}
+      />
+      {tick !== undefined && (
+        <div className="absolute -top-[3px] w-0.5 h-[calc(100%+6px)] rounded-sm bg-gray-900 dark:bg-white" style={{ left: `${clamp(tick)}%` }} />
+      )}
+    </div>
+  );
+}
+
 export interface Stat {
   value: ReactNode;
   label: ReactNode;
-  valueClass: string;
-  /** 0–100: draws a thin animated progress bar under the label. */
+  /** `critical` for values that need attention, `muted` for zero/idle. */
+  tone?: 'critical' | 'muted';
+  /** 0–100: draws a thin meter bar under the value. */
   progress?: number;
   barClass?: string;
 }
+
+const TONE = {
+  critical: 'text-[#d64545] dark:text-[#ec8a8a]',
+  muted: 'text-gray-400 dark:text-gray-600',
+};
 
 export function StatTiles({ stats }: { stats: Stat[] }) {
   return (
     <motion.div variants={item} className="grid grid-cols-3 gap-3">
       {stats.map((s, i) => (
-        <div key={i} className="card p-4 text-center">
-          <div className={`text-2xl font-bold flex items-center justify-center gap-1 ${s.valueClass}`}>{s.value}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center justify-center gap-1">{s.label}</div>
-          {s.progress !== undefined && (
-            <div className="h-1 mt-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
-              <motion.div
-                className={`h-full rounded-full ${s.barClass ?? 'bg-emerald-500'}`}
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, Math.max(0, s.progress))}%` }}
-                transition={{ duration: 0.8, ease: 'easeOut' }}
-              />
-            </div>
-          )}
+        <div key={i} className="card !p-3.5">
+          <div className="text-[11px] text-gray-500 flex items-center gap-1">{s.label}</div>
+          <div className={`text-xl font-bold mt-0.5 flex items-center gap-1 ${s.tone ? TONE[s.tone] : 'text-gray-900 dark:text-gray-100'}`}>
+            {s.value}
+          </div>
+          {s.progress !== undefined && <div className="mt-2"><Bar pct={s.progress} className={s.barClass} thin /></div>}
         </div>
       ))}
     </motion.div>
   );
 }
 
-// The XP an item will earn when completed, in its attribute's color.
-export function XpChip({ attribute, amount, dim = false }: { attribute: Attribute; amount: ReactNode; dim?: boolean }) {
+export function AttrDot({ attribute }: { attribute: Attribute }) {
+  return <span className={`dot ${ATTR_META[attribute].dot}`} />;
+}
+
+// The XP an item will earn when completed: attribute dot + amount.
+export function XpChip({ attribute, amount }: { attribute: Attribute; amount: ReactNode }) {
   const meta = ATTR_META[attribute];
   return (
-    <span
-      title={`Earns ${meta.label} XP`}
-      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${meta.chip} ${dim ? 'opacity-50' : ''}`}
-    >
-      +{amount} {meta.emoji}
+    <span title={`Earns ${meta.label} XP`} className="inline-flex items-center gap-1.5 text-[11px] text-gray-500 whitespace-nowrap">
+      <AttrDot attribute={attribute} />+{amount} XP
     </span>
   );
 }
 
-export function EmptyState({ icon: Icon, iconClass = 'text-gray-300 dark:text-gray-700', title, children }: {
+export function EmptyState({ icon: Icon, title, children }: {
   icon: LucideIcon;
-  iconClass?: string;
   title: ReactNode;
   children?: ReactNode;
 }) {
   return (
-    <motion.div variants={item} className="card text-center py-12">
-      <div className={`flex justify-center mb-4 ${iconClass}`}><Icon size={48} /></div>
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{title}</h3>
-      {children}
+    <motion.div variants={item} className="card text-center py-10">
+      <div className="flex justify-center mb-3 text-gray-300 dark:text-gray-700"><Icon size={32} /></div>
+      <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-1">{title}</h3>
+      <div className="text-xs text-gray-500 [&_p]:mb-4">{children}</div>
     </motion.div>
   );
 }

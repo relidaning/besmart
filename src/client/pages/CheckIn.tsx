@@ -5,7 +5,7 @@ import { ClipboardCheck, Check, Flame } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { ATTRIBUTES, ATTR_META, type Attribute } from '../lib/garden';
-import { PageHeader, StatTiles, XpChip, EmptyState } from '../components/PageKit';
+import { PageHeader, StatTiles, XpChip, EmptyState, AttrDot } from '../components/PageKit';
 
 // Mirrors MIN_CHECKIN_XP in server/garden.ts.
 const checkinXp = (score: number | null) => Math.max(score || 0, 5);
@@ -88,7 +88,7 @@ export default function CheckIn() {
         toast('Task reopened');
       } else {
         await api.completeCheckin(task.id);
-        toast.success('Nice work!');
+        toast.success('Checked in');
       }
       fetchAll();
     } catch (err: any) {
@@ -143,7 +143,6 @@ export default function CheckIn() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       <PageHeader
         icon={ClipboardCheck}
-        iconClass="text-emerald-500"
         title="Check In"
         subtitle={data?.date && new Date(`${data.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         actions={tab === 'schedules' && (
@@ -153,12 +152,10 @@ export default function CheckIn() {
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-xl p-1">
+      <div className="seg">
         {(['today', 'schedules'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-              tab === t ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}>
+            className={tab === t ? 'on' : ''}>
             {t === 'today' ? `Today (${data?.tasks.length ?? 0})` : `Schedules (${schedules.length})`}
           </button>
         ))}
@@ -177,11 +174,10 @@ export default function CheckIn() {
             {
               value: `${dailyDone}/${dailyTotal}`,
               label: 'Daily Done',
-              valueClass: 'text-emerald-600 dark:text-emerald-400',
               progress: dailyTotal > 0 ? (dailyDone / dailyTotal) * 100 : 0,
             },
-            { value: <><Flame size={20} />{streak}</>, label: 'Day Streak', valueClass: 'text-orange-500' },
-            { value: xpLeft, label: 'XP to Earn', valueClass: 'text-brand-600 dark:text-brand-400' },
+            { value: streak, label: 'Day Streak' },
+            { value: xpLeft, label: 'XP to Earn' },
           ]} />
         );
       })()}
@@ -244,7 +240,7 @@ export default function CheckIn() {
                       onClick={() => handleComplete(task)}
                       className="w-full card flex items-center gap-4 text-left opacity-60 bg-gray-50 dark:bg-gray-900/60"
                     >
-                      <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-[#1fa874] flex items-center justify-center flex-shrink-0">
                         <motion.span
                           initial={{ scale: 0, rotate: -45 }}
                           animate={{ scale: 1, rotate: 0 }}
@@ -289,7 +285,7 @@ export default function CheckIn() {
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className={`badge ${typeBadges[s.type] || ''}`}>{s.type}</span>
                     <span className="text-xs text-gray-400 dark:text-gray-500">{s.score} pts</span>
-                    <span className={`text-xs ${ATTR_META[s.category].text}`}>{ATTR_META[s.category].emoji} {ATTR_META[s.category].label}</span>
+                    <span className="text-[11px] text-gray-500 flex items-center gap-1.5"><AttrDot attribute={s.category} />{ATTR_META[s.category].label}</span>
                   </div>
                 </div>
                 <button onClick={() => handleToggleActive(s)}
@@ -311,12 +307,12 @@ export default function CheckIn() {
       {showScheduleForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowScheduleForm(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editingSchedule ? 'Edit Schedule' : 'New Schedule'}</h2>
             <form onSubmit={handleScheduleSubmit} className="space-y-4">
@@ -343,7 +339,7 @@ export default function CheckIn() {
                   onChange={(e) => setScheduleForm({ ...scheduleForm, category: (e.target.value || undefined) as Attribute | undefined })}>
                   {!editingSchedule && <option value="">Auto (guess from name)</option>}
                   {ATTRIBUTES.map((a) => (
-                    <option key={a} value={a}>{ATTR_META[a].emoji} {ATTR_META[a].label}</option>
+                    <option key={a} value={a}>{ATTR_META[a].label}</option>
                   ))}
                 </select>
               </div>

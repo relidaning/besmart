@@ -71,37 +71,32 @@ export default function Plans() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       <PageHeader
         icon={FolderOpen}
-        iconClass="text-indigo-500"
         title="Study Plans"
-        subtitle="Big goals, broken into steps that grow your 🧠 Wisdom."
+        subtitle="Goals broken into steps. Each finished step earns Wisdom XP."
         actions={<button onClick={() => setShowForm(true)} className="btn-primary text-sm whitespace-nowrap">+ New Plan</button>}
       />
 
       <StatTiles stats={[
-        { value: activePlans.length, label: 'Active', valueClass: 'text-indigo-600 dark:text-indigo-400' },
-        { value: completedPlans.length, label: 'Completed', valueClass: 'text-emerald-600 dark:text-emerald-400' },
+        { value: activePlans.length, label: 'Active' },
+        { value: completedPlans.length, label: 'Completed' },
         {
           value: overdueCount,
           label: 'Overdue',
-          valueClass: overdueCount > 0 ? 'text-red-500' : 'text-gray-400 dark:text-gray-500',
+          tone: overdueCount > 0 ? 'critical' : 'muted',
         },
       ]} />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-xl p-1">
+      <div className="seg">
         <button
           onClick={() => setTab('active')}
-          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-            tab === 'active' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-          }`}
+          className={tab === 'active' ? 'on' : ''}
         >
           Active ({activePlans.length})
         </button>
         <button
           onClick={() => setTab('completed')}
-          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-            tab === 'completed' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-          }`}
+          className={tab === 'completed' ? 'on' : ''}
         >
           Done ({completedPlans.length})
         </button>
@@ -155,12 +150,12 @@ export default function Plans() {
       {showForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">New Plan</h2>
             <form onSubmit={handleSubmit} className="space-y-4">

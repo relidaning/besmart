@@ -4,20 +4,41 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      // Palette shared with floatingsphere's web view: cool blue-black neutrals,
+      // one amber accent. gray-950 = its --bg, gray-900 = --surface,
+      // gray-100/300/500/600 = --ink/--ink-2/--ink-3/--ink-4.
       colors: {
-        brand: {
-          50: '#f0f7ff',
-          100: '#e0effe',
-          200: '#b9dffd',
-          300: '#7cc5fc',
-          400: '#36a9f8',
-          500: '#0c8ee9',
-          600: '#0070c7',
-          700: '#0159a1',
-          800: '#064b85',
-          900: '#0b3f6e',
-          950: '#072849',
+        gray: {
+          50: '#f5f6f8',
+          100: '#edf0f5',
+          200: '#dcdfe6',
+          300: '#b3b8c7',
+          400: '#9398a4',
+          500: '#80858f',
+          600: '#5c606b',
+          700: '#393c47',
+          800: '#23252f',
+          900: '#15161e',
+          950: '#0d0e13',
         },
+        brand: {
+          50: '#fef8e7',
+          100: '#fdefc4',
+          200: '#fbe08a',
+          300: '#fbcf5c',
+          400: '#fabf40',
+          500: '#f0a91c',
+          600: '#a86f06',
+          700: '#8a5a05',
+          800: '#6b4608',
+          900: '#4d330a',
+          950: '#2a1c05',
+        },
+        ink: '#1a1406',
+      },
+      fontFamily: {
+        sans: ['"JetBrains Mono Variable"', '"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        mono: ['"JetBrains Mono Variable"', '"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       animation: {
         'bounce-in': 'bounceIn 0.5s ease-out',

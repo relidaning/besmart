@@ -35,9 +35,15 @@ function ThemedToaster() {
       position="top-center"
       toastOptions={{
         duration: 2000,
-        style: resolvedTheme === 'dark'
-          ? { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#27272a', color: '#f4f4f5' }
-          : { borderRadius: '12px', padding: '12px 16px', fontSize: '14px' },
+        // floatingsphere's toast: small, flat, hairline border.
+        style: {
+          borderRadius: '10px', padding: '8px 14px', fontSize: '12px', fontFamily: 'inherit', boxShadow: 'none',
+          ...(resolvedTheme === 'dark'
+            ? { background: '#15161e', color: '#edf0f5', border: '1px solid rgba(255,255,255,0.08)' }
+            : { background: '#ffffff', color: '#15161e', border: '1px solid #dcdfe6' }),
+        },
+        success: { iconTheme: { primary: '#1fa874', secondary: '#fff' } },
+        error: { iconTheme: { primary: '#e66666', secondary: '#fff' } },
       }}
     />
   );

@@ -102,7 +102,6 @@ export default function MusicLibrary() {
 
       <PageHeader
         icon={ListMusic}
-        iconClass="text-brand-500"
         title="Manage Music"
         subtitle={`${activeIds.length} of ${available.length} tracks active in the focus-music rotation.`}
         onBack={() => navigate(-1)}
@@ -120,7 +119,7 @@ export default function MusicLibrary() {
 
       {error && <div className="text-sm text-red-500">{error}</div>}
 
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-[14px] border border-gray-200/70 dark:border-white/[0.08] divide-y divide-gray-100 dark:divide-white/[0.06] overflow-hidden">
         {!catalog && <div className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">Loading…</div>}
         {catalog && filtered.length === 0 && (
           <div className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">No matches</div>

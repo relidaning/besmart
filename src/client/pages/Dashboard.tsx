@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FolderOpen, ClipboardCheck, RefreshCw, ListTodo, Flame, Moon, Sun, PartyPopper, Zap, Sprout, ChevronRight } from 'lucide-react';
+import { Moon, Sun, ChevronRight } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useEffect, useState } from 'react';
 import AttributeBar from '../components/AttributeBar';
+import { PageHeader, CardHead } from '../components/PageKit';
 import type { GardenSummary } from './Garden';
 
 interface ScoreRecord {
@@ -19,31 +20,30 @@ function ScoreChart({ scores }: { scores: ScoreRecord[] }) {
 
   const max = Math.max(...scores.map((s) => s.score), 1);
   const chartH = 80;
-  const barW = 20;
-  const gap = 6;
-  const totalW = scores.length * (barW + gap) - gap;
+  const slot = 24;
+  const barW = 14;
+  const totalW = scores.length * slot;
 
+  // Scales to the card width (viewBox), so it never pushes the layout wider.
   return (
-    <div className="overflow-x-auto">
-      <svg width={totalW} height={chartH + 24} className="block mx-auto">
-        {scores.map((s, i) => {
-          const barH = Math.max(2, Math.round((s.score / max) * chartH));
-          const x = i * (barW + gap);
-          const y = chartH - barH;
-          const label = s.score_date.slice(5); // MM-DD
-          return (
-            <g key={s.score_date}>
-              <title>{s.score_date}: {s.score} pts</title>
-              <rect x={x} y={y} width={barW} height={barH} rx={3} className="fill-brand-400 hover:fill-brand-500 transition-colors cursor-default" />
-              <text x={x + barW / 2} y={chartH + 14} textAnchor="middle" fontSize={9} className="fill-gray-400 dark:fill-gray-500">{label}</text>
-              {s.score > 0 && (
-                <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize={9} className="fill-gray-500 dark:fill-gray-400">{s.score}</text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-    </div>
+    <svg viewBox={`0 0 ${totalW} ${chartH + 30}`} className="block w-full h-auto max-h-44">
+      {scores.map((s, i) => {
+        const barH = s.score > 0 ? Math.max(2, Math.round((s.score / max) * chartH)) : 0;
+        const x = i * slot + (slot - barW) / 2;
+        const y = chartH - barH + 12;
+        return (
+          <g key={s.score_date}>
+            <title>{s.score_date}: {s.score} pts</title>
+            <rect x={x} y={12} width={barW} height={chartH} rx={3} className="fill-gray-200/60 dark:fill-white/[0.04]" />
+            {barH > 0 && <rect x={x} y={y} width={barW} height={barH} rx={3} className="fill-brand-400" />}
+            <text x={x + barW / 2} y={chartH + 26} textAnchor="middle" fontSize={8} className="fill-gray-500">{s.score_date.slice(8)}</text>
+            {s.score > 0 && (
+              <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize={8} className="fill-gray-600 dark:fill-gray-300">{s.score}</text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 
@@ -110,180 +110,145 @@ export default function Dashboard() {
     ? Math.round((stats.checkins.today_completed / stats.checkins.today_total) * 100)
     : 0;
 
+  const modules = [
+    {
+      to: '/checkin',
+      title: 'Check In',
+      dot: 'bg-[#1fa874]',
+      stat: `${stats.checkins.today_completed}/${stats.checkins.today_total}`,
+      sub: 'daily check-ins done today',
+    },
+    {
+      to: '/todos',
+      title: 'Todos',
+      dot: stats.todos.overdue > 0 ? 'bg-[#e66666]' : 'bg-[#3987e5]',
+      stat: `${stats.todos.active} active`,
+      sub: stats.todos.overdue > 0
+        ? `${stats.todos.overdue} overdue · ${stats.todos.high_priority} high priority`
+        : `${stats.todos.high_priority} high priority`,
+    },
+    {
+      to: '/review',
+      title: 'Review',
+      dot: 'bg-[#a854f7]',
+      stat: `${stats.reviews.due_today} due`,
+      sub: `${stats.reviews.total_courses} courses`,
+    },
+    {
+      to: '/plans',
+      title: 'Study Plans',
+      dot: 'bg-brand-400',
+      stat: `${stats.studyplans.active} active`,
+      sub: `${stats.studyplans.completed} completed`,
+    },
+  ];
+  const left = stats.checkins.today_total - stats.checkins.today_completed;
+
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
-      {/* Greeting */}
-      <motion.div variants={item}>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-          <GreetingIcon size={24} className="text-gray-500 dark:text-gray-400" />
-          {greetingText}
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </p>
-      </motion.div>
+    <motion.div variants={container} initial="hidden" animate="show" className="space-y-4 md:ml-16">
+      <PageHeader
+        icon={GreetingIcon}
+        title={greetingText}
+        subtitle={new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+      />
 
-      {/* Check-in progress ring */}
-      <motion.div variants={item}>
-        <Link to="/checkin" className="card flex items-center gap-5 block">
-          <div className="relative w-20 h-20 flex-shrink-0">
-            <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" strokeWidth="6" className="text-gray-200 dark:text-gray-800" />
-              <circle
-                cx="40" cy="40" r="34" fill="none" stroke="#0c8ee9"
-                strokeWidth="6" strokeLinecap="round"
-                strokeDasharray={`${2 * Math.PI * 34}`}
-                strokeDashoffset={`${2 * Math.PI * 34 * (1 - checkinProgress / 100)}`}
-                className="progress-ring-circle"
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_1fr] lg:items-start [&>*]:min-w-0">
+        <div className="space-y-4 lg:sticky lg:top-20">
+          {/* Today: check-in ring + meters */}
+          <motion.div variants={item}>
+            <Link to="/checkin" className="card block">
+              <CardHead
+                title="Today"
+                meta={stats.checkins.today_total > 0
+                  ? left > 0 ? `${left} left` : 'all done'
+                  : 'no check-ins'}
               />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-lg font-bold text-brand-600 dark:text-brand-400">{checkinProgress}%</span>
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Today's Check-in</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              {stats.checkins.today_completed}/{stats.checkins.today_total} tasks completed
-            </p>
-            <div className="flex items-center gap-3 mt-2">
-              {stats.checkins.streak > 0 && (
-                <span className="flex items-center gap-1 text-sm font-medium text-orange-500">
-                  <Flame size={14} />
-                  {stats.checkins.streak}-day streak
-                </span>
-              )}
-              {stats.checkins.score_today !== null && (
-                <span className="text-sm font-medium text-green-600 dark:text-green-400">{stats.checkins.score_today} points today</span>
-              )}
-            </div>
-          </div>
-        </Link>
-      </motion.div>
-
-      {/* Growth Garden */}
-      {garden && (
-        <motion.div variants={item}>
-          <Link to="/garden" className="card block">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                <Sprout size={18} className="text-emerald-500" /> Growth Garden
-              </h2>
-              <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-2">
-                <span className="text-brand-600 dark:text-brand-400 font-semibold">+{garden.todayXp} XP today</span>
-                {garden.streak.current > 0 && (
-                  <span className="text-orange-500 font-semibold flex items-center"><Flame size={12} />{garden.streak.current}</span>
-                )}
-                <ChevronRight size={14} />
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-3">
-              {garden.attributes.map((a) => <AttributeBar key={a.attribute} a={a} compact />)}
-            </div>
-          </Link>
-        </motion.div>
-      )}
-
-      {/* Four module cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          {
-            to: '/checkin',
-            icon: <ClipboardCheck size={24} className="text-green-400" />,
-            title: 'Check In',
-            stat: `${stats.checkins.today_completed}/${stats.checkins.today_total}`,
-            sub: 'today',
-            color: 'border-l-green-400',
-          },
-          {
-            to: '/todos',
-            icon: <ListTodo size={24} className={stats.todos.overdue > 0 ? 'text-red-400' : 'text-yellow-400'} />,
-            title: 'Todos',
-            stat: `${stats.todos.active} active`,
-            sub: stats.todos.overdue > 0 ? `${stats.todos.overdue} overdue` : `${stats.todos.completed} done`,
-            color: stats.todos.overdue > 0 ? 'border-l-red-400' : 'border-l-yellow-400',
-          },
-          {
-            to: '/review',
-            icon: <RefreshCw size={24} className="text-purple-400" />,
-            title: 'Review',
-            stat: `${stats.reviews.due_today} due`,
-            sub: `${stats.reviews.total_courses} courses`,
-            color: 'border-l-purple-400',
-          },
-          {
-            to: '/plans',
-            icon: <FolderOpen size={24} className="text-blue-400" />,
-            title: 'Study Plans',
-            stat: `${stats.studyplans.active} active`,
-            sub: `${stats.studyplans.completed} completed`,
-            color: 'border-l-blue-400',
-          },
-        ].map((card) => (
-          <motion.div key={card.to} variants={item}>
-            <Link to={card.to} className={`card border-l-4 ${card.color} block p-4`}>
-              {card.icon}
-              <h3 className="font-semibold text-sm mt-2 text-gray-900 dark:text-gray-100">{card.title}</h3>
-              <p className="text-lg font-bold mt-1 text-gray-900 dark:text-gray-100">{card.stat}</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500">{card.sub}</p>
+              <div className="flex items-center gap-5">
+                <div className="relative w-24 h-24 flex-shrink-0">
+                  <svg className="w-24 h-24 -rotate-90" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" strokeWidth="7" className="text-gray-200/70 dark:text-white/[0.08]" />
+                    <circle
+                      cx="40" cy="40" r="34" fill="none" stroke="#fabf40"
+                      strokeWidth="7" strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 34}`}
+                      strokeDashoffset={`${2 * Math.PI * 34 * (1 - checkinProgress / 100)}`}
+                      className="progress-ring-circle"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xl font-bold text-gray-900 dark:text-gray-100">{checkinProgress}%</span>
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0 space-y-2.5">
+                  <div>
+                    <div className="text-[11px] text-gray-500">Check-ins</div>
+                    <div className="text-base font-bold text-gray-900 dark:text-gray-100">
+                      {stats.checkins.today_completed}/{stats.checkins.today_total}
+                    </div>
+                  </div>
+                  <div className="flex gap-5">
+                    <div>
+                      <div className="text-[11px] text-gray-500">Streak</div>
+                      <div className="text-base font-bold text-gray-900 dark:text-gray-100">{stats.checkins.streak}d</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500">Points</div>
+                      <div className="text-base font-bold text-gray-900 dark:text-gray-100">{stats.checkins.score_today ?? 0}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </Link>
           </motion.div>
-        ))}
-      </div>
 
-      {/* Quick stats */}
-      <motion.div variants={item} className="card">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">At a Glance</h2>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <div className="text-2xl font-bold text-orange-500">{stats.checkins.streak}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Day Streak</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-purple-500">{stats.reviews.due_today}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Reviews Due</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-red-500">{stats.todos.high_priority}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">High Priority</div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Score history chart */}
-      <motion.div variants={item} className="card">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100">Daily Scores (last 14 days)</h2>
-          {scores.length > 0 && (
-            <span className="text-xs text-gray-400 dark:text-gray-500">
-              Total: {scores.reduce((sum, s) => sum + s.score, 0)} pts
-            </span>
+          {/* Growth Garden */}
+          {garden && (
+            <motion.div variants={item}>
+              <Link to="/garden" className="card block">
+                <CardHead
+                  title="Growth Garden"
+                  meta={<>+{garden.todayXp} XP today{garden.streak.current > 0 && ` · ${garden.streak.current}d streak`}<ChevronRight size={12} /></>}
+                />
+                <div className="space-y-3">
+                  {garden.attributes.map((a) => <AttributeBar key={a.attribute} a={a} compact />)}
+                </div>
+              </Link>
+            </motion.div>
           )}
         </div>
-        <ScoreChart scores={scores} />
-      </motion.div>
 
-      {/* Encouragement */}
-      {checkinProgress === 100 && stats.checkins.today_total > 0 && (
-        <motion.div
-          variants={item}
-          className="card bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 text-center dark:from-green-950 dark:to-emerald-950 dark:border-green-900"
-        >
-          <div className="flex justify-center mb-2 text-green-600 dark:text-green-400"><PartyPopper size={40} /></div>
-          <h3 className="font-semibold text-green-800 dark:text-green-300">All caught up for today!</h3>
-          <p className="text-sm text-green-600 dark:text-green-400 mt-1">Great job completing all your check-ins.</p>
-        </motion.div>
-      )}
+        <div className="space-y-4">
+          {/* Modules, as floatingsphere's session rows */}
+          <motion.div variants={item} className="card">
+            <CardHead title="Modules" />
+            <div className="grid gap-1.5">
+              {modules.map((m) => (
+                <Link key={m.to} to={m.to}
+                  className="row grid grid-cols-[10px_1fr_auto] items-start gap-x-2.5 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
+                  <span className={`dot mt-1.5 ${m.dot}`} />
+                  <div className="min-w-0">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-[13px] font-bold text-gray-900 dark:text-gray-100 truncate">{m.title}</span>
+                      <span className="text-[11px] text-gray-600 dark:text-gray-300 whitespace-nowrap">{m.stat}</span>
+                    </div>
+                    <div className="text-[11px] text-gray-500 mt-0.5 truncate">{m.sub}</div>
+                  </div>
+                  <ChevronRight size={14} className="text-gray-400 dark:text-gray-600 mt-0.5" />
+                </Link>
+              ))}
+            </div>
+          </motion.div>
 
-      {checkinProgress < 100 && stats.checkins.today_total > 0 && (
-        <motion.div variants={item} className="card bg-gradient-to-r from-brand-50 to-blue-50 border-brand-100 text-center dark:from-brand-950 dark:to-blue-950 dark:border-brand-900">
-          <div className="flex justify-center mb-2 text-brand-600 dark:text-brand-400"><Zap size={40} /></div>
-          <h3 className="font-semibold text-brand-800 dark:text-brand-300">Keep going!</h3>
-          <p className="text-sm text-brand-600 dark:text-brand-400 mt-1">
-            {stats.checkins.today_total - stats.checkins.today_completed} tasks left to complete today.
-          </p>
-        </motion.div>
-      )}
+          {/* Score history chart */}
+          <motion.div variants={item} className="card">
+            <CardHead
+              title="Daily scores"
+              meta={scores.length > 0 ? `last 14 days · ${scores.reduce((sum, s) => sum + s.score, 0)} pts` : 'last 14 days'}
+            />
+            <ScoreChart scores={scores} />
+          </motion.div>
+        </div>
+      </div>
     </motion.div>
   );
 }

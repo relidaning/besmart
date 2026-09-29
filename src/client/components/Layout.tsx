@@ -38,12 +38,12 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 const navItems = [
-  { path: '/', icon: <Home size={20} />, label: 'Home' },
-  { path: '/checkin', icon: <ClipboardCheck size={20} />, label: 'Check In' },
-  { path: '/todos', icon: <ListTodo size={20} />, label: 'Todos' },
-  { path: '/review', icon: <RefreshCw size={20} />, label: 'Review' },
-  { path: '/plans', icon: <FolderOpen size={20} />, label: 'Plans' },
-  { path: '/garden', icon: <Sprout size={20} />, label: 'Garden' },
+  { path: '/', icon: <Home size={18} />, label: 'Home' },
+  { path: '/checkin', icon: <ClipboardCheck size={18} />, label: 'Check In' },
+  { path: '/todos', icon: <ListTodo size={18} />, label: 'Todos' },
+  { path: '/review', icon: <RefreshCw size={18} />, label: 'Review' },
+  { path: '/plans', icon: <FolderOpen size={18} />, label: 'Plans' },
+  { path: '/garden', icon: <Sprout size={18} />, label: 'Garden' },
 ];
 
 export default function Layout() {
@@ -128,22 +128,22 @@ export default function Layout() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top bar */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-gray-100 dark:bg-gray-950/80 dark:border-gray-800">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <NavLink to="/" className="flex items-center gap-2 font-bold text-lg text-brand-600 dark:text-brand-400">
-            <Brain size={24} />
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-gray-100 dark:bg-gray-950/80 dark:border-white/[0.08]">
+        <div className="max-w-5xl mx-auto px-4 h-12 flex items-center justify-between">
+          <NavLink to="/" className="flex items-center gap-2 font-bold text-[15px] text-gray-900 dark:text-gray-100">
+            <Brain size={20} className="text-brand-600 dark:text-brand-400" />
             <span className="hidden sm:inline">BeSmart</span>
           </NavLink>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3.5">
             {streak > 0 && (
-              <div className="flex items-center gap-1 text-sm font-medium text-orange-500">
-                <Flame size={16} className="streak-flame" />
+              <div className="flex items-center gap-1 text-xs text-gray-500" title="Check-in streak">
+                <Flame size={13} className="text-[#d95926]" />
                 <span>{streak}d</span>
               </div>
             )}
             {scoreToday !== null && (
-              <div className="text-sm font-medium text-brand-600 bg-brand-50 px-2.5 py-0.5 rounded-full dark:text-brand-400 dark:bg-brand-950">
+              <div className="text-xs text-gray-500" title="Check-in points today">
                 {scoreToday} pts
               </div>
             )}
@@ -157,7 +157,7 @@ export default function Layout() {
               onClick={toggleNotifications}
               disabled={pushLoading || pushStatus === 'denied' || pushStatus === 'unsupported'}
               className={`transition-colors ${
-                pushStatus === 'subscribed' ? 'text-brand-500 hover:text-brand-700' :
+                pushStatus === 'subscribed' ? 'text-brand-600 dark:text-brand-400' :
                 pushStatus === 'unsupported' || pushStatus === 'denied' ? 'text-gray-300 dark:text-gray-700 cursor-not-allowed' :
                 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
               }`}
@@ -174,9 +174,9 @@ export default function Layout() {
             {/* User avatar + logout */}
             <div className="flex items-center gap-2">
               {user?.avatar_url ? (
-                <img src={user.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                <img src={user.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold dark:bg-brand-950 dark:text-brand-400">
+                <div className="w-7 h-7 rounded-full border border-gray-200 text-gray-600 flex items-center justify-center text-[11px] font-bold dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-gray-300">
                   {initials}
                 </div>
               )}
@@ -211,7 +211,7 @@ export default function Layout() {
       </main>
 
       {/* Bottom nav (mobile) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/80 backdrop-blur-lg border-t border-gray-100 safe-area-bottom dark:bg-gray-950/80 dark:border-gray-800">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/80 backdrop-blur-lg border-t border-gray-100 safe-area-bottom dark:bg-gray-950/80 dark:border-white/[0.08]">
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map((item) => {
             const isActive = item.path === '/'
@@ -222,7 +222,7 @@ export default function Layout() {
                 key={item.path}
                 to={item.path}
                 className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors ${
-                  isActive ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400 dark:text-gray-500'
+                  isActive ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400 dark:text-gray-600'
                 }`}
               >
                 {item.icon}
@@ -234,7 +234,7 @@ export default function Layout() {
       </nav>
 
       {/* Sidebar (desktop) */}
-      <aside className="hidden md:flex fixed left-0 top-14 bottom-0 w-16 bg-white border-r border-gray-100 flex-col items-center py-4 gap-1 z-30 dark:bg-gray-950 dark:border-gray-800">
+      <aside className="hidden md:flex fixed left-0 top-12 bottom-0 w-16 bg-white border-r border-gray-100 flex-col items-center py-4 gap-1 z-30 dark:bg-gray-950 dark:border-white/[0.08]">
         {navItems.map((item) => {
           const isActive = item.path === '/'
             ? location.pathname === '/'
@@ -243,10 +243,10 @@ export default function Layout() {
             <NavLink
               key={item.path}
               to={item.path}
-              className={`w-12 h-12 flex flex-col items-center justify-center rounded-xl transition-colors ${
+              className={`w-11 h-11 flex flex-col items-center justify-center rounded-xl transition-colors ${
                 isActive
-                  ? 'bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-400'
-                  : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-900 dark:hover:text-gray-300'
+                  ? 'bg-gray-100 text-brand-600 dark:bg-white/[0.06] dark:text-brand-400'
+                  : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-600 dark:hover:bg-white/[0.04] dark:hover:text-gray-300'
               }`}
               title={item.label}
             >

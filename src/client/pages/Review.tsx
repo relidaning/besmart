@@ -204,7 +204,6 @@ export default function Review() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       <PageHeader
         icon={RefreshCw}
-        iconClass="text-violet-500"
         title="Review"
         subtitle={dueRecords.length > 0
           ? dueTotal > dueRecords.length
@@ -218,15 +217,13 @@ export default function Review() {
         {
           value: dueTotal,
           label: debouncedQuery ? 'Matches' : 'Due',
-          valueClass: dueTotal > 0 ? 'text-violet-600 dark:text-violet-400' : 'text-emerald-600 dark:text-emerald-400',
         },
-        { value: courseCount ?? '–', label: 'Courses', valueClass: 'text-gray-700 dark:text-gray-200' },
+        { value: courseCount ?? '–', label: 'Courses' },
         {
-          value: <><Brain size={20} />{wisdom ? wisdom.level : '–'}</>,
+          value: wisdom ? wisdom.level : '–',
           label: 'Wisdom Lv',
-          valueClass: 'text-violet-600 dark:text-violet-400',
           progress: wisdom ? ((wisdom.xp - wisdom.floor) / (wisdom.next - wisdom.floor)) * 100 : undefined,
-          barClass: 'bg-violet-500',
+          barClass: 'bg-[#a854f7]',
         },
       ]} />
 
@@ -289,7 +286,7 @@ export default function Review() {
 
             return (
               <motion.div key={record.id} id={`review-item-${record.id}`} variants={listItem}
-                className={`card cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 active:bg-gray-100 dark:active:bg-gray-800 transition-colors ${record.is_postponed ? 'opacity-60' : ''}`}
+                className={`card cursor-pointer ${record.is_postponed ? 'opacity-60' : ''}`}
                 onClick={() => {
                   const idx = dueRecords.indexOf(record);
                   sessionStorage.setItem('review-anchor', `${record.id}:${idx}`);
@@ -297,54 +294,51 @@ export default function Review() {
                 }}
               >
                 <div className="flex items-start gap-2">
+                  <span className={`dot mt-1.5 ${noMatch || isOverdue ? 'bg-[#e66666]' : isMissing ? 'bg-brand-400' : 'bg-[#a854f7]'}`} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className={`font-semibold break-words leading-snug ${noMatch ? 'text-red-500' : isMissing ? 'text-amber-600' : 'text-gray-900 dark:text-gray-100'}`}>
-                        {record.course_name}
-                      </h3>
-                    </div>
+                    <h3 className={`text-[13px] font-bold leading-snug ${noMatch ? 'text-[#d64545] dark:text-[#ec8a8a]' : isMissing ? 'text-brand-600 dark:text-brand-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                      {record.course_name}
+                    </h3>
                     {(record.vault_paths && record.vault_paths.length > 0
                       ? record.vault_paths
                       : pp ? [pp] : []
                     ).map((path) => (
-                      <p key={path} className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate flex items-center gap-1">
-                        <FileText size={10} />
+                      <p key={path} className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1 min-w-0">
+                        <FileText size={10} className="flex-shrink-0" />
                         <span className="truncate">{path}</span>
                         {vaultName && (
                           <a href={obsidianUri(vaultName, path)} onClick={(e) => e.stopPropagation()}
                             title="Open in Obsidian"
-                            className="text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0 ml-0.5">
+                            className="text-[#a854f7] hover:text-[#c58cfa] transition-colors flex-shrink-0 ml-0.5">
                             <ExternalLink size={11} />
                           </a>
                         )}
                       </p>
                     ))}
-                    {noMatch && <p className="text-xs text-red-400 mt-0.5">No matching note in vault</p>}
-                    {isMissing && <p className="text-xs text-amber-500 mt-0.5">Note moved or deleted</p>}
-                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                      <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400">Review #{record.reviewed_times + 1}</span>
+                    {noMatch && <p className="text-[11px] text-[#d64545] dark:text-[#ec8a8a] mt-0.5">No matching note in vault</p>}
+                    {isMissing && <p className="text-[11px] text-brand-600 dark:text-brand-400 mt-0.5">Note moved or deleted</p>}
+                    <div className="text-[11px] text-gray-500 mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
                       <XpChip attribute="wisdom" amount="6–12" />
-                      <span className="text-xs text-gray-400 dark:text-gray-500">{record.interval_days}d interval</span>
-                      <span className={`text-xs ${isOverdue ? 'text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                        Due {record.planned_date}
+                      <span>· review #{record.reviewed_times + 1} · {record.interval_days}d interval ·</span>
+                      <span className={isOverdue ? 'text-[#d64545] dark:text-[#ec8a8a]' : ''}>
+                        {isOverdue ? 'overdue since' : 'due'} {record.planned_date}
                       </span>
-                      {isOverdue && <span className="badge badge-high">Overdue</span>}
-                      {record.is_postponed && <span className="badge bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">Postponed</span>}
+                      {record.is_postponed && <span>· postponed</span>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={(e) => { e.stopPropagation(); handleTogglePostpone(record); }}
-                      title={record.is_postponed ? 'Move back to normal order' : 'Postpone to the back of the queue'}
-                      className={`text-xs px-2 py-1 ${record.is_postponed ? 'text-brand-500 hover:text-brand-700' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'}`}
-                    >{record.is_postponed ? 'Unpostpone' : 'Postpone'}</button>
-                    <button onClick={(e) => { e.stopPropagation(); openForm(record); }}
-                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-1">Edit</button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(record.course_id); }}
-                      className="text-xs text-red-400 hover:text-red-600 px-2 py-1"
-                    >Del</button>
-                    <ChevronRight size={16} className="text-gray-300 dark:text-gray-600 mt-1" />
-                  </div>
+                  <ChevronRight size={14} className="text-gray-400 dark:text-gray-600 mt-0.5 flex-shrink-0" />
+                </div>
+                <div className="flex justify-end gap-1 mt-2 -mb-1 -mr-1">
+                  <button onClick={(e) => { e.stopPropagation(); handleTogglePostpone(record); }}
+                    title={record.is_postponed ? 'Move back to normal order' : 'Postpone to the back of the queue'}
+                    className={`btn-ghost text-xs !px-2 !py-1 ${record.is_postponed ? '!text-brand-600 dark:!text-brand-400' : ''}`}
+                  >{record.is_postponed ? 'Unpostpone' : 'Postpone'}</button>
+                  <button onClick={(e) => { e.stopPropagation(); openForm(record); }}
+                    className="btn-ghost text-xs !px-2 !py-1">Edit</button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(record.course_id); }}
+                    className="btn-ghost text-xs !px-2 !py-1 !text-[#d64545] dark:!text-[#ec8a8a]"
+                  >Delete</button>
                 </div>
               </motion.div>
             );
@@ -356,11 +350,11 @@ export default function Review() {
       {/* Form modal */}
       {showForm && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}
         >
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editing ? 'Edit Course' : 'New Course'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -419,7 +413,7 @@ function VaultSuggestionPanel({ loading, suggestions, selected, importing, onTog
               </label>
             ))}
           </div>
-          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50 dark:border-gray-800">
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50 dark:border-white/[0.08]">
             <button onClick={onSelectAll} className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">Select all</button>
             <button onClick={onClear} className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">Clear</button>
             <button onClick={onImport} disabled={!selected.size || importing} className="btn-primary ml-auto text-sm disabled:opacity-40">

@@ -4,11 +4,12 @@ export type Attribute = 'wisdom' | 'health' | 'capability' | 'wealth';
 
 export const ATTRIBUTES: Attribute[] = ['wisdom', 'health', 'capability', 'wealth'];
 
-export const ATTR_META: Record<Attribute, { label: string; emoji: string; bar: string; text: string; chip: string; hex: string }> = {
-  wisdom: { label: 'Wisdom', emoji: '🧠', bar: 'bg-violet-500', text: 'text-violet-600 dark:text-violet-400', chip: 'bg-violet-50 text-violet-600 dark:bg-violet-950/60 dark:text-violet-300', hex: '#8b5cf6' },
-  health: { label: 'Health', emoji: '💪', bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', chip: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300', hex: '#10b981' },
-  capability: { label: 'Capability', emoji: '🛠', bar: 'bg-sky-500', text: 'text-sky-600 dark:text-sky-400', chip: 'bg-sky-50 text-sky-600 dark:bg-sky-950/60 dark:text-sky-300', hex: '#0ea5e9' },
-  wealth: { label: 'Wealth', emoji: '💰', bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400', chip: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300', hex: '#f59e0b' },
+// Colors are floatingsphere's status palette (busy / idle / background-run / amber).
+export const ATTR_META: Record<Attribute, { label: string; bar: string; text: string; dot: string; hex: string }> = {
+  wisdom: { label: 'Wisdom', bar: 'bg-[#a854f7]', text: 'text-[#8b3fd9] dark:text-[#c58cfa]', dot: 'bg-[#a854f7]', hex: '#a854f7' },
+  health: { label: 'Health', bar: 'bg-[#1fa874]', text: 'text-[#16865c] dark:text-[#4fd6a0]', dot: 'bg-[#1fa874]', hex: '#1fa874' },
+  capability: { label: 'Capability', bar: 'bg-[#3987e5]', text: 'text-[#2a6fc4] dark:text-[#7ab3f5]', dot: 'bg-[#3987e5]', hex: '#3987e5' },
+  wealth: { label: 'Wealth', bar: 'bg-[#fabf40]', text: 'text-[#a86f06] dark:text-[#fabf40]', dot: 'bg-[#fabf40]', hex: '#fabf40' },
 };
 
 export interface XpAward {
@@ -83,25 +84,25 @@ export function celebrate(award: XpAward | null | undefined) {
   if (!award) return;
   const meta = ATTR_META[award.attribute];
   if (award.capped) {
-    toast('Review XP cap reached for today. Everything else is pure learning 🌿', { id: 'xp-cap' });
+    toast('Daily review XP cap reached', { id: 'xp-cap' });
     return;
   }
   if (award.amount <= 0) return;
 
   toast(
-    `${award.crit ? '✨ Critical! ' : ''}+${award.amount} ${meta.emoji} ${meta.label}`,
-    { duration: 2200, style: { fontWeight: 600, color: meta.hex } },
+    `${award.crit ? 'Critical · ' : ''}+${award.amount} ${meta.label} XP`,
+    { duration: 2200, icon: <span className="dot" style={{ background: meta.hex }} /> },
   );
 
   if (award.levelUp) {
-    confetti(70, ['#8b5cf6', '#10b981', '#0ea5e9', '#f59e0b', '#f43f5e']);
+    confetti(70, ['#a854f7', '#1fa874', '#3987e5', '#fabf40']);
     chime([523, 659, 784, 1047]);
-    toast(`🎉 ${meta.label} reached level ${award.levelUp}!`, { duration: 4000, style: { fontWeight: 700 } });
+    toast(`${meta.label} reached level ${award.levelUp}`, { duration: 4000, style: { fontWeight: 700 } });
   } else if (award.crit) {
-    confetti(40, [meta.hex, '#fbbf24', '#f472b6']);
+    confetti(40, [meta.hex, '#fabf40', '#edf0f5']);
     chime([659, 880, 1175]);
   } else {
-    confetti(16, [meta.hex, '#fbbf24']);
+    confetti(16, [meta.hex, '#fabf40']);
     chime([784, 1047]);
   }
 }

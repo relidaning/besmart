@@ -83,7 +83,7 @@ export default function DatePicker({ value, onChange, required, placeholder }: D
       {required && <input tabIndex={-1} className="sr-only" required value={value} onChange={() => {}} />}
 
       {open && (
-        <div className="absolute z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 p-3">
+        <div className="absolute z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-900 rounded-[14px] shadow-2xl shadow-black/30 border border-gray-200/70 dark:border-white/[0.08] p-3">
           <div className="flex items-center justify-between mb-2">
             <button type="button" onClick={() => setViewDate(new Date(year, month - 1, 1))}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400">
@@ -118,7 +118,7 @@ export default function DatePicker({ value, onChange, required, placeholder }: D
                   type="button"
                   onClick={() => pick(day)}
                   className={`h-9 w-9 rounded-lg text-sm font-medium flex items-center justify-center transition-colors mx-auto
-                    ${isSelected ? 'bg-brand-500 text-white' : isToday ? 'bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                    ${isSelected ? 'bg-brand-400 text-ink font-bold' : isToday ? 'bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                 >
                   {day}
                 </button>

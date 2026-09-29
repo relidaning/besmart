@@ -28,9 +28,9 @@ const listItem = {
 };
 
 const priorityConfig = {
-  high: { border: 'border-l-red-400', label: 'High', badge: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' },
-  medium: { border: 'border-l-yellow-400', label: 'Medium', badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300' },
-  low: { border: 'border-l-green-400', label: 'Low', badge: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300' },
+  high: { label: 'High' },
+  medium: { label: 'Medium' },
+  low: { label: 'Low' },
 };
 
 // Mirrors the todo XP table in server/garden.ts.
@@ -144,7 +144,7 @@ export default function Todos() {
         toast('Reopened');
       } else {
         await api.completeTodo(todo.id);
-        toast.success('Done! 🎉');
+        toast.success('Completed');
       }
       fetchStats();
     } catch (err: any) {
@@ -232,19 +232,18 @@ export default function Todos() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       <PageHeader
         icon={ListTodo}
-        iconClass="text-sky-500"
         title="Todos"
-        subtitle="Every finished task grows your 🛠 Capability."
+        subtitle="Each completed todo earns Capability XP."
         actions={<button onClick={() => openForm()} className="btn-primary text-sm">+ New Todo</button>}
       />
 
       <StatTiles stats={[
-        { value: stats.pending, label: 'Active', valueClass: 'text-sky-600 dark:text-sky-400' },
-        { value: <><Check size={20} />{stats.completedToday}</>, label: 'Done Today', valueClass: 'text-emerald-600 dark:text-emerald-400' },
+        { value: stats.pending, label: 'Active' },
+        { value: stats.completedToday, label: 'Done Today' },
         {
           value: stats.overdue,
           label: 'Overdue',
-          valueClass: stats.overdue > 0 ? 'text-red-500' : 'text-gray-400 dark:text-gray-500',
+          tone: stats.overdue > 0 ? 'critical' : 'muted',
         },
       ]} />
 
@@ -267,20 +266,16 @@ export default function Todos() {
 
       {/* Tabs + filter */}
       <div className="flex items-center gap-2">
-        <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-xl p-1 flex-1">
+        <div className="seg flex-1">
           <button
             onClick={() => setTab('active')}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-              tab === 'active' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
+            className={tab === 'active' ? 'on' : ''}
           >
             Active
           </button>
           <button
             onClick={() => setTab('completed')}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-              tab === 'completed' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
+            className={tab === 'completed' ? 'on' : ''}
           >
             Done
           </button>
@@ -318,14 +313,14 @@ export default function Todos() {
 
             return (
               <motion.div key={todo.id} variants={listItem}>
-                <div className={`card border-l-4 ${config.border} ${todo.completed ? 'opacity-60 bg-gray-50 dark:bg-gray-900/60' : ''}`}>
+                <div className={`card ${todo.completed ? 'opacity-60 bg-gray-50 dark:bg-gray-900/60' : ''}`}>
                   <div className="flex items-start gap-4">
                     <button
                       onClick={() => handleToggle(todo)}
                       disabled={completingId === todo.id}
                       className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                         todo.completed
-                          ? 'bg-green-500 border-green-500 text-white'
+                          ? 'bg-[#1fa874] border-[#1fa874] text-white'
                           : completingId === todo.id
                             ? 'border-brand-400 bg-brand-50 dark:bg-brand-950'
                             : 'border-gray-300 dark:border-gray-700 hover:border-brand-400'
@@ -339,8 +334,8 @@ export default function Todos() {
                       )}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold ${config.badge} ${todo.completed ? 'opacity-60' : ''}`}>
+                      <div className="flex items-start gap-2">
+                        <span className={`badge badge-${todo.priority} flex-shrink-0 ${todo.completed ? 'opacity-60' : ''}`}>
                           {config.label}
                         </span>
                         <h3 className={`font-medium min-w-0 break-words ${todo.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
@@ -364,7 +359,7 @@ export default function Todos() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 justify-center items-center">
+                  <div className="flex gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-white/[0.08] justify-center items-center">
                     <button
                       onClick={() => handlePriorityChange(todo, 1)}
                       disabled={todo.priority === 'high'}
@@ -398,12 +393,12 @@ export default function Todos() {
       {showForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editing ? 'Edit Todo' : 'New Todo'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">

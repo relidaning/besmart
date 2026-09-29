@@ -154,7 +154,7 @@ export default function MusicPlayer() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-8 z-50 w-64 rounded-xl border border-gray-100 bg-white p-3 shadow-lg dark:border-gray-800 dark:bg-gray-900">
+        <div className="absolute right-0 top-8 z-50 w-64 rounded-[14px] border border-gray-200/70 bg-white p-3 shadow-2xl shadow-black/30 dark:border-white/[0.08] dark:bg-gray-900">
           {!track ? (
             <div className="py-4 text-center text-sm text-gray-400 dark:text-gray-500">
               No tracks active.
@@ -187,7 +187,7 @@ export default function MusicPlayer() {
                 </button>
                 <button
                   onClick={playPause}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white hover:bg-brand-700"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-400 text-ink hover:bg-brand-300"
                 >
                   {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
                 </button>

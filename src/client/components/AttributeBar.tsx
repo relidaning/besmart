@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion';
 import { ATTR_META, type Attribute } from '../lib/garden';
+import { AttrDot, Bar } from './PageKit';
 
 export interface AttributeLevel {
   attribute: Attribute;
@@ -9,27 +9,23 @@ export interface AttributeLevel {
   next: number;
 }
 
+// floatingsphere's meter: title left, bold value right, thin bar, muted sub line.
 export default function AttributeBar({ a, compact = false }: { a: AttributeLevel; compact?: boolean }) {
   const meta = ATTR_META[a.attribute];
-  const pct = Math.round(((a.xp - a.floor) / (a.next - a.floor)) * 100);
+  const pct = ((a.xp - a.floor) / (a.next - a.floor)) * 100;
   return (
     <div>
-      <div className="flex items-baseline justify-between text-sm">
-        <span className="font-medium text-gray-800 dark:text-gray-200">
-          {meta.emoji} {meta.label}
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-2">
+          <AttrDot attribute={a.attribute} />{meta.label}
         </span>
-        <span className={`font-bold ${meta.text}`}>Lv {a.level}</span>
+        <span className={`font-bold text-gray-900 dark:text-gray-100 ${compact ? 'text-sm' : 'text-base'}`}>Lv {a.level}</span>
       </div>
-      <div className={`${compact ? 'h-1.5' : 'h-2.5'} mt-1 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden`}>
-        <motion.div
-          className={`h-full rounded-full ${meta.bar}`}
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-        />
+      <div className={compact ? 'mt-1.5' : 'mt-2 mb-1.5'}>
+        <Bar pct={pct} className={meta.bar} thin={compact} />
       </div>
       {!compact && (
-        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+        <div className="text-[11px] text-gray-500">
           {a.xp.toLocaleString()} XP · {(a.next - a.xp).toLocaleString()} to Lv {a.level + 1}
         </div>
       )}

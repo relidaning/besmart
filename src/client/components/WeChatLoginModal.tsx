@@ -57,7 +57,7 @@ export default function WeChatLoginModal({ onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center z-50"
       onClick={onClose}
     >
       <div

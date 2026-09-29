@@ -151,7 +151,7 @@ export default function PlanDetail() {
   const handleComplete = async () => {
     try {
       await api.completePlan(plan!.id);
-      toast.success('Plan completed! 🎉');
+      toast.success('Plan completed');
       navigate('/plans');
     } catch (err: any) { toast.error(err.message); }
   };
@@ -168,7 +168,7 @@ export default function PlanDetail() {
   const handleToggleTask = async (task: PlanTask) => {
     try {
       await api.updatePlanTask(plan!.id, task.id, { is_completed: !task.is_completed });
-      toast.success(task.is_completed ? 'Task reopened' : 'Task completed! ✓');
+      toast.success(task.is_completed ? 'Task reopened' : 'Task completed');
       fetchPlan();
     } catch (err: any) { toast.error(err.message); }
   };
@@ -245,7 +245,6 @@ export default function PlanDetail() {
       <div>
         <PageHeader
           icon={FolderOpen}
-          iconClass="text-indigo-500"
           title={plan.name}
           subtitle={`${plan.start_date} → ${plan.end_date}`}
           onBack={() => navigate('/plans')}
@@ -257,7 +256,7 @@ export default function PlanDetail() {
         {plan.description && <p className="text-gray-500 dark:text-gray-400 mt-2 break-words whitespace-pre-line">{plan.description}</p>}
 
         {/* Plan actions */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-white/[0.08]">
           {!plan.is_completed ? (
             <button onClick={handleComplete}
               className="flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
@@ -281,15 +280,12 @@ export default function PlanDetail() {
           {
             value: `${progress}%`,
             label: 'Progress',
-            valueClass: 'text-indigo-600 dark:text-indigo-400',
             progress,
-            barClass: 'bg-indigo-500',
           },
-          { value: `${overall.completed}/${overall.total}`, label: 'Items Done', valueClass: 'text-emerald-600 dark:text-emerald-400' },
+          { value: `${overall.completed}/${overall.total}`, label: 'Items Done' },
           {
             value: (overall.total - overall.completed) * TASK_XP + (plan.is_completed ? 0 : PLAN_XP),
             label: 'XP to Earn',
-            valueClass: 'text-violet-600 dark:text-violet-400',
           },
         ]} />
       )}
@@ -309,7 +305,7 @@ export default function PlanDetail() {
           <button onClick={() => openTaskForm(null)} className="btn-primary mt-4 text-sm">Add First Task</button>
         </motion.div>
       ) : (
-        <motion.div variants={listItem} className="card divide-y divide-gray-100 dark:divide-gray-800 !p-2">
+        <motion.div variants={listItem} className="card divide-y divide-gray-100 dark:divide-white/[0.06] !p-2">
           {tree.map((node, idx) => (
             <TaskRow
               key={node.id}
@@ -336,12 +332,12 @@ export default function PlanDetail() {
       {showTaskForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowTaskForm(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">
               {editingTask ? 'Edit Task' : parentTaskId ? 'New Subtask' : 'New Task'}
@@ -384,12 +380,12 @@ export default function PlanDetail() {
       {showPlanForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowPlanForm(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">Edit Plan</h2>
             <form onSubmit={handlePlanSubmit} className="space-y-4">
@@ -471,7 +467,7 @@ function TaskRow({
           <div
             title={`${stats.completed}/${stats.total} done`}
             className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-semibold ${
-              complete ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500'
+              complete ? 'bg-[#1fa874] border-[#1fa874] text-white' : 'border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500'
             }`}
           >
             {complete ? <Check size={12} /> : `${stats.completed}/${stats.total}`}
@@ -482,7 +478,7 @@ function TaskRow({
             title={node.is_completed ? 'Mark incomplete' : 'Mark complete'}
             className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
               node.is_completed
-                ? 'bg-green-500 border-green-500 text-white'
+                ? 'bg-[#1fa874] border-[#1fa874] text-white'
                 : 'border-gray-300 dark:border-gray-700 hover:border-brand-400'
             }`}
           >
