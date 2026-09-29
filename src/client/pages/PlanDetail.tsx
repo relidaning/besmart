@@ -150,8 +150,8 @@ export default function PlanDetail() {
 
   const handleComplete = async () => {
     try {
-      await api.completePlan(plan!.id);
-      toast.success('Plan completed');
+      const r = await api.completePlan(plan!.id);
+      if (!r.xp) toast.success('Plan completed'); // otherwise the XP toast confirms it
       navigate('/plans');
     } catch (err: any) { toast.error(err.message); }
   };
@@ -167,8 +167,9 @@ export default function PlanDetail() {
 
   const handleToggleTask = async (task: PlanTask) => {
     try {
-      await api.updatePlanTask(plan!.id, task.id, { is_completed: !task.is_completed });
-      toast.success(task.is_completed ? 'Task reopened' : 'Task completed');
+      const r = await api.updatePlanTask(plan!.id, task.id, { is_completed: !task.is_completed });
+      if (task.is_completed) toast('Task reopened');
+      else if (!r.xp) toast.success('Task completed'); // otherwise the XP toast confirms it
       fetchPlan();
     } catch (err: any) { toast.error(err.message); }
   };

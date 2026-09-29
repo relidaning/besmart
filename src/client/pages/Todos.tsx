@@ -143,8 +143,8 @@ export default function Todos() {
         await api.uncompleteTodo(todo.id);
         toast('Reopened');
       } else {
-        await api.completeTodo(todo.id);
-        toast.success('Completed');
+        const r = await api.completeTodo(todo.id);
+        if (!r.xp) toast.success('Completed'); // otherwise the XP toast confirms it
       }
       fetchStats();
     } catch (err: any) {

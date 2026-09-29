@@ -87,8 +87,9 @@ export default function CheckIn() {
         await api.uncompleteCheckin(task.id);
         toast('Task reopened');
       } else {
-        await api.completeCheckin(task.id);
-        toast.success('Checked in');
+        // The XP toast (lib/garden.tsx) is the confirmation; only fall back when none was awarded.
+        const r = await api.completeCheckin(task.id);
+        if (!r.xp) toast.success('Checked in');
       }
       fetchAll();
     } catch (err: any) {

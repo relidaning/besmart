@@ -139,9 +139,9 @@ export default function ReviewContent() {
     if (!data?.record) return;
     setRatingLoading(true);
     try {
-      await api.completeReview(data.record.id, rating);
+      const r = await api.completeReview(data.record.id, rating);
       if (posKey) localStorage.removeItem(posKey);
-      toast.success({ hard: 'Keep at it!', ok: 'Good job!', easy: 'Nailed it!' }[rating]);
+      if (!r.xp) toast.success('Reviewed'); // otherwise the XP toast confirms it
       navigate('/review');
     } catch (err: any) { toast.error(err.message); }
     setRatingLoading(false);
