@@ -33,8 +33,8 @@ function ThemedToaster() {
   return (
     <Toaster
       position="top-center"
-      /* Below the fixed 48px top bar, not on top of it. */
-      containerStyle={{ top: 'calc(env(safe-area-inset-top) + 60px)' }}
+      /* A little above the middle of the screen, where the eye already is. */
+      containerStyle={{ top: '38vh' }}
       toastOptions={{
         duration: 2500,
         // floatingsphere's surfaces, raised: amber hairline, shadow, 14px bold.
