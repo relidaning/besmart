@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { FileText, Check, ChevronRight, ChevronDown, Plus, ArrowUp, ArrowDown, ChevronsRight, ChevronsLeft } from 'lucide-react';
+import { FileText, FolderOpen, Check, ChevronRight, ChevronDown, Plus, ArrowUp, ArrowDown, ChevronsRight, ChevronsLeft } from 'lucide-react';
 import { api } from '../hooks/api';
 import DatePicker from '../components/ui/DatePicker';
+import { PageHeader, StatTiles, XpChip } from '../components/PageKit';
+
+// Mirrors the plan XP table in server/garden.ts.
+const TASK_XP = 15;
+const PLAN_XP = 50;
 
 interface Plan {
   id: number;
@@ -238,26 +243,25 @@ export default function PlanDetail() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       {/* Header */}
       <div>
-        <button onClick={() => navigate('/plans')} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-3 block">
-          ← Back to Plans
-        </button>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 break-words">{plan.name}</h1>
-            {plan.description && <p className="text-gray-500 dark:text-gray-400 mt-1 break-words whitespace-pre-line">{plan.description}</p>}
-            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">{plan.start_date} → {plan.end_date}</p>
-          </div>
-          {plan.is_completed && (
-            <span className="badge bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 text-sm px-3 py-1 flex-shrink-0">Done</span>
+        <PageHeader
+          icon={FolderOpen}
+          iconClass="text-indigo-500"
+          title={plan.name}
+          subtitle={`${plan.start_date} → ${plan.end_date}`}
+          onBack={() => navigate('/plans')}
+          backLabel="Back to Plans"
+          actions={plan.is_completed && (
+            <span className="badge bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 text-sm px-3 py-1">Done</span>
           )}
-        </div>
+        />
+        {plan.description && <p className="text-gray-500 dark:text-gray-400 mt-2 break-words whitespace-pre-line">{plan.description}</p>}
 
         {/* Plan actions */}
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
           {!plan.is_completed ? (
             <button onClick={handleComplete}
               className="flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
-              <Check size={14} /> Mark Complete
+              <Check size={14} /> Mark Complete <XpChip attribute="wisdom" amount={PLAN_XP} />
             </button>
           ) : <span />}
           <button onClick={openPlanEdit}
@@ -271,25 +275,23 @@ export default function PlanDetail() {
         </div>
       </div>
 
-      {/* Progress bar */}
+      {/* Progress */}
       {overall.total > 0 && (
-        <motion.div variants={listItem} className="card">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="text-gray-500 dark:text-gray-400">Progress</span>
-            <span className="font-semibold text-gray-900 dark:text-gray-100">{progress}%</span>
-          </div>
-          <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5">
-            <motion.div
-              className="bg-brand-500 h-2.5 rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-            />
-          </div>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-            {overall.completed}/{overall.total} work items done
-          </p>
-        </motion.div>
+        <StatTiles stats={[
+          {
+            value: `${progress}%`,
+            label: 'Progress',
+            valueClass: 'text-indigo-600 dark:text-indigo-400',
+            progress,
+            barClass: 'bg-indigo-500',
+          },
+          { value: `${overall.completed}/${overall.total}`, label: 'Items Done', valueClass: 'text-emerald-600 dark:text-emerald-400' },
+          {
+            value: (overall.total - overall.completed) * TASK_XP + (plan.is_completed ? 0 : PLAN_XP),
+            label: 'XP to Earn',
+            valueClass: 'text-violet-600 dark:text-violet-400',
+          },
+        ]} />
       )}
 
       {/* WBS Tasks */}
@@ -501,7 +503,10 @@ function TaskRow({
           {node.description && (
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 break-words whitespace-pre-line">{node.description}</p>
           )}
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{node.planned_start} → {node.planned_end}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <span className="text-xs text-gray-400 dark:text-gray-500">{node.planned_start} → {node.planned_end}</span>
+            {!hasChildren && !node.is_completed && <XpChip attribute="wisdom" amount={TASK_XP} />}
+          </div>
 
           {/* Row actions */}
           <div className="flex flex-wrap items-center gap-x-1 gap-y-1 mt-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">

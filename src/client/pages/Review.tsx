@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { Trophy, FileText, ExternalLink, ChevronRight, RefreshCw, Search } from 'lucide-react';
+import { Trophy, FileText, ExternalLink, ChevronRight, RefreshCw, Search, Brain } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { PageHeader, StatTiles, XpChip } from '../components/PageKit';
+import type { GardenSummary } from './Garden';
 
 interface ReviewRecord {
   id: number;
@@ -57,6 +59,8 @@ export default function Review() {
   const [importingVault, setImportingVault] = useState(false);
   const [rematching, setRematching] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [courseCount, setCourseCount] = useState<number | null>(null);
+  const [wisdom, setWisdom] = useState<GardenSummary['attributes'][number] | null>(null);
 
   const initialLoadDone = useRef(false);
 
@@ -75,6 +79,13 @@ export default function Review() {
   useEffect(() => {
     fetchAll(debouncedQuery);
   }, [debouncedQuery]);
+
+  useEffect(() => {
+    api.getStats().then((r) => setCourseCount(r.data.reviews.total_courses)).catch(() => {});
+    api.getGardenSummary()
+      .then((r: { data: GardenSummary }) => setWisdom(r.data.attributes.find((a) => a.attribute === 'wisdom') ?? null))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.getVaultInfo().then((r: any) => setVaultName(r.vault_name)).catch(() => {});
@@ -191,19 +202,33 @@ export default function Review() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Review</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">
-            {dueRecords.length > 0
-              ? dueTotal > dueRecords.length
-                ? `Showing ${dueRecords.length} of ${dueTotal} due`
-                : `${dueRecords.length} due for review`
-              : 'Spaced repetition for lasting memory'}
-          </p>
-        </div>
-        <button onClick={() => openForm()} className="btn-primary text-sm">+ New Course</button>
-      </div>
+      <PageHeader
+        icon={RefreshCw}
+        iconClass="text-violet-500"
+        title="Review"
+        subtitle={dueRecords.length > 0
+          ? dueTotal > dueRecords.length
+            ? `Showing ${dueRecords.length} of ${dueTotal} due`
+            : `${dueRecords.length} due for review`
+          : 'Spaced repetition for lasting memory'}
+        actions={<button onClick={() => openForm()} className="btn-primary text-sm">+ New Course</button>}
+      />
+
+      <StatTiles stats={[
+        {
+          value: dueTotal,
+          label: debouncedQuery ? 'Matches' : 'Due',
+          valueClass: dueTotal > 0 ? 'text-violet-600 dark:text-violet-400' : 'text-emerald-600 dark:text-emerald-400',
+        },
+        { value: courseCount ?? '–', label: 'Courses', valueClass: 'text-gray-700 dark:text-gray-200' },
+        {
+          value: <><Brain size={20} />{wisdom ? wisdom.level : '–'}</>,
+          label: 'Wisdom Lv',
+          valueClass: 'text-violet-600 dark:text-violet-400',
+          progress: wisdom ? ((wisdom.xp - wisdom.floor) / (wisdom.next - wisdom.floor)) * 100 : undefined,
+          barClass: 'bg-violet-500',
+        },
+      ]} />
 
       {/* Search */}
       <div className="relative">
@@ -298,6 +323,7 @@ export default function Review() {
                     {isMissing && <p className="text-xs text-amber-500 mt-0.5">Note moved or deleted</p>}
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400">Review #{record.reviewed_times + 1}</span>
+                      <XpChip attribute="wisdom" amount="6–12" />
                       <span className="text-xs text-gray-400 dark:text-gray-500">{record.interval_days}d interval</span>
                       <span className={`text-xs ${isOverdue ? 'text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>
                         Due {record.planned_date}

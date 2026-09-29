@@ -145,9 +145,15 @@ todoRoutes.get('/stats/overview', (req, res) => {
   const highPriority = (db.prepare(
     "SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 0 AND priority = 'high'"
   ).get(userId) as any).c;
+  // completed_at is a UTC ISO string, so count by the local day's UTC bounds;
+  // date(completed_at) would put 00:00–08:00 Shanghai completions on yesterday.
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
   const completedToday = (db.prepare(
-    'SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 1 AND date(completed_at) = ?'
-  ).get(userId, today) as any).c;
+    'SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 1 AND completed_at >= ? AND completed_at < ?'
+  ).get(userId, dayStart.toISOString(), dayEnd.toISOString()) as any).c;
 
   res.json({
     data: { total, completed, pending, overdue, today: todayCount, highPriority, completedToday },

@@ -4,11 +4,11 @@ export type Attribute = 'wisdom' | 'health' | 'capability' | 'wealth';
 
 export const ATTRIBUTES: Attribute[] = ['wisdom', 'health', 'capability', 'wealth'];
 
-export const ATTR_META: Record<Attribute, { label: string; emoji: string; bar: string; text: string; hex: string }> = {
-  wisdom: { label: 'Wisdom', emoji: '🧠', bar: 'bg-violet-500', text: 'text-violet-600 dark:text-violet-400', hex: '#8b5cf6' },
-  health: { label: 'Health', emoji: '💪', bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', hex: '#10b981' },
-  capability: { label: 'Capability', emoji: '🛠', bar: 'bg-sky-500', text: 'text-sky-600 dark:text-sky-400', hex: '#0ea5e9' },
-  wealth: { label: 'Wealth', emoji: '💰', bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400', hex: '#f59e0b' },
+export const ATTR_META: Record<Attribute, { label: string; emoji: string; bar: string; text: string; chip: string; hex: string }> = {
+  wisdom: { label: 'Wisdom', emoji: '🧠', bar: 'bg-violet-500', text: 'text-violet-600 dark:text-violet-400', chip: 'bg-violet-50 text-violet-600 dark:bg-violet-950/60 dark:text-violet-300', hex: '#8b5cf6' },
+  health: { label: 'Health', emoji: '💪', bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', chip: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300', hex: '#10b981' },
+  capability: { label: 'Capability', emoji: '🛠', bar: 'bg-sky-500', text: 'text-sky-600 dark:text-sky-400', chip: 'bg-sky-50 text-sky-600 dark:bg-sky-950/60 dark:text-sky-300', hex: '#0ea5e9' },
+  wealth: { label: 'Wealth', emoji: '💰', bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400', chip: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300', hex: '#f59e0b' },
 };
 
 export interface XpAward {

@@ -6,6 +6,7 @@ import { FolderOpen } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import DatePicker from '../components/ui/DatePicker';
+import { PageHeader, StatTiles, XpChip, EmptyState } from '../components/PageKit';
 
 interface Plan {
   id: number;
@@ -41,6 +42,7 @@ export default function Plans() {
 
   const activePlans = plans.filter((p) => !p.is_completed);
   const completedPlans = plans.filter((p) => p.is_completed);
+  const overdueCount = activePlans.filter((p) => p.expired).length;
   const displayed = tab === 'active' ? activePlans : completedPlans;
   const { visible, sentinelRef } = useInfiniteScroll(displayed.length, tab);
 
@@ -67,13 +69,23 @@ export default function Plans() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Study Plans</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">{activePlans.length} active, {completedPlans.length} completed</p>
-        </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary text-sm flex-shrink-0 whitespace-nowrap">+ New Plan</button>
-      </div>
+      <PageHeader
+        icon={FolderOpen}
+        iconClass="text-indigo-500"
+        title="Study Plans"
+        subtitle="Big goals, broken into steps that grow your 🧠 Wisdom."
+        actions={<button onClick={() => setShowForm(true)} className="btn-primary text-sm whitespace-nowrap">+ New Plan</button>}
+      />
+
+      <StatTiles stats={[
+        { value: activePlans.length, label: 'Active', valueClass: 'text-indigo-600 dark:text-indigo-400' },
+        { value: completedPlans.length, label: 'Completed', valueClass: 'text-emerald-600 dark:text-emerald-400' },
+        {
+          value: overdueCount,
+          label: 'Overdue',
+          valueClass: overdueCount > 0 ? 'text-red-500' : 'text-gray-400 dark:text-gray-500',
+        },
+      ]} />
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-xl p-1">
@@ -97,18 +109,14 @@ export default function Plans() {
 
       {/* Plan list */}
       {displayed.length === 0 ? (
-        <motion.div variants={listItem} className="card text-center py-12">
-          <div className="flex justify-center mb-4 text-gray-300 dark:text-gray-700"><FolderOpen size={48} /></div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            {tab === 'active' ? 'No active plans' : 'No completed plans yet'}
-          </h3>
+        <EmptyState icon={FolderOpen} title={tab === 'active' ? 'No active plans' : 'No completed plans yet'}>
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
             {tab === 'active' ? 'Create your first learning plan to get started.' : 'Complete a plan to see it here.'}
           </p>
           {tab === 'active' && (
             <button onClick={() => setShowForm(true)} className="btn-primary">Create a Plan</button>
           )}
-        </motion.div>
+        </EmptyState>
       ) : (
         <>
           {displayed.slice(0, visible).map((plan) => (
@@ -126,6 +134,7 @@ export default function Plans() {
                 <div className="flex items-center justify-between gap-3 mt-2">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
                     <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">{plan.start_date} → {plan.end_date}</span>
+                    {!plan.is_completed && <XpChip attribute="wisdom" amount={50} />}
                     {plan.expired && !plan.is_completed && (
                       <span className="badge badge-high">Overdue</span>
                     )}

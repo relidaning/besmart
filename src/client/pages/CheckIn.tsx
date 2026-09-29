@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { ClipboardCheck, Check } from 'lucide-react';
+import { ClipboardCheck, Check, Flame } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { ATTRIBUTES, ATTR_META, type Attribute } from '../lib/garden';
+import { PageHeader, StatTiles, XpChip, EmptyState } from '../components/PageKit';
+
+// Mirrors MIN_CHECKIN_XP in server/garden.ts.
+const checkinXp = (score: number | null) => Math.max(score || 0, 5);
 
 interface CheckinData {
   date: string;
@@ -23,6 +27,7 @@ interface CheckinTask {
   is_timeout: boolean;
   schedule_type: string;
   score: number | null;
+  category: Attribute;
 }
 
 interface Schedule {
@@ -61,12 +66,14 @@ export default function CheckIn() {
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [scheduleForm, setScheduleForm] = useState<{ name: string; type: string; score: number; category?: Attribute }>({ name: '', type: 'daily', score: 0 });
   const [completingId, setCompletingId] = useState<number | null>(null);
+  const [streak, setStreak] = useState(0);
 
   const fetchAll = () => {
     Promise.all([api.getTodayCheckins(), api.getSchedules(), api.getStreak()])
       .then(([checkinData, schedData, streakData]) => {
         setData(checkinData.data);
         setSchedules(schedData.data);
+        setStreak(streakData.data.streak);
       })
       .finally(() => setLoading(false));
   };
@@ -134,16 +141,16 @@ export default function CheckIn() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Check In</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">{data?.date}</p>
-        </div>
-        {tab === 'schedules' && (
+      <PageHeader
+        icon={ClipboardCheck}
+        iconClass="text-emerald-500"
+        title="Check In"
+        subtitle={data?.date && new Date(`${data.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+        actions={tab === 'schedules' && (
           <button onClick={() => { setEditingSchedule(null); setScheduleForm({ name: '', type: 'daily', score: 10 }); setShowScheduleForm(true); }}
             className="btn-primary text-sm">+ New</button>
         )}
-      </div>
+      />
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-xl p-1">
@@ -159,35 +166,29 @@ export default function CheckIn() {
 
       {/* ── Today tab ── */}
       {tab === 'today' && (<>
-      {/* Progress bar */}
+      {/* Stats */}
       {data && (() => {
         const dailyTasks = data.tasks.filter((t) => t.schedule_type === 'daily');
         const dailyTotal = dailyTasks.length;
         const dailyDone = dailyTasks.filter((t) => t.is_completed).length;
-        const dailyProgress = dailyTotal > 0 ? Math.round((dailyDone / dailyTotal) * 100) : 0;
+        const xpLeft = data.tasks.filter((t) => !t.is_completed).reduce((sum, t) => sum + checkinXp(t.score), 0);
         return (
-          <motion.div variants={listItem} className="card">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-500 dark:text-gray-400">Today's Progress</span>
-              <span className="text-sm font-bold text-brand-600 dark:text-brand-400">{dailyDone}/{dailyTotal}</span>
-            </div>
-            <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-3">
-              <motion.div
-                className="h-3 rounded-full bg-gradient-to-r from-brand-400 to-brand-500"
-                initial={{ width: 0 }}
-                animate={{ width: `${dailyProgress}%` }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
-              />
-            </div>
-          </motion.div>
+          <StatTiles stats={[
+            {
+              value: `${dailyDone}/${dailyTotal}`,
+              label: 'Daily Done',
+              valueClass: 'text-emerald-600 dark:text-emerald-400',
+              progress: dailyTotal > 0 ? (dailyDone / dailyTotal) * 100 : 0,
+            },
+            { value: <><Flame size={20} />{streak}</>, label: 'Day Streak', valueClass: 'text-orange-500' },
+            { value: xpLeft, label: 'XP to Earn', valueClass: 'text-brand-600 dark:text-brand-400' },
+          ]} />
         );
       })()}
 
       {/* Tasks */}
       {!data || data.tasks.length === 0 ? (
-        <motion.div variants={listItem} className="card text-center py-12">
-          <div className="flex justify-center mb-4 text-gray-300 dark:text-gray-700"><ClipboardCheck size={48} /></div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No check-in tasks for today</h3>
+        <EmptyState icon={ClipboardCheck} title="No check-in tasks for today">
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
             Tasks are auto-generated from your schedules. Add some daily schedules to get started.
           </p>
@@ -195,7 +196,7 @@ export default function CheckIn() {
             className="btn-primary text-sm">
             + Add Schedule
           </button>
-        </motion.div>
+        </EmptyState>
       ) : (
         <>
           {(() => {
@@ -228,7 +229,7 @@ export default function CheckIn() {
                         <span className="font-medium text-gray-900 dark:text-gray-100">{task.schedule_name}</span>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={`badge ${typeBadges[task.schedule_type] || ''}`}>{task.schedule_type}</span>
-                          {task.score && <span className="text-xs text-gray-400 dark:text-gray-500">{task.score} pts</span>}
+                          <XpChip attribute={task.category} amount={checkinXp(task.score)} />
                           <span className="text-xs text-gray-300 dark:text-gray-600">{task.task_date}</span>
                         </div>
                       </div>
