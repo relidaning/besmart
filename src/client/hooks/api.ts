@@ -130,6 +130,8 @@ export const api = {
 
   // Growth Garden
   getGardenSummary: () => request<any>('/garden/summary'),
+  getGardenPlants: () => request<any>('/garden/plants'),
+  plantGardenSeed: (id: number) => request<any>(`/garden/seeds/${id}/plant`, { method: 'POST' }),
 
   // Music
   getMusicCatalog: () => request<any>('/music/catalog'),

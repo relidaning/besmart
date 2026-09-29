@@ -286,6 +286,32 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 9: the garden's plants. One row per XP-earning completion (planted
+  // automatically, removed with its XP), plus rare trees planted from seeds
+  // (source_type 'seed', source_id = reward id from shared/gardenSpecies.ts).
+  // initGarden() plants the history once.
+  if (version < 9) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS garden_plants (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          species TEXT NOT NULL,
+          attribute TEXT,
+          source_type TEXT NOT NULL,
+          source_id INTEGER NOT NULL,
+          label TEXT,
+          crit INTEGER NOT NULL DEFAULT 0,
+          day TEXT NOT NULL,
+          planted_at TEXT NOT NULL,
+          UNIQUE(user_id, source_type, source_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_garden_plants_user_day ON garden_plants(user_id, day);
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (9)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'

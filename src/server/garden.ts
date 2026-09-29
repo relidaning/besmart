@@ -1,5 +1,9 @@
 import db from './database.js';
 import { localDate, effectiveDate } from './date.js';
+import {
+  SPECIES, ACHIEVEMENT_SEEDS, MILESTONE_EVERY, MILESTONE_SPECIES, commonSpeciesFor, nextUnlock, milestoneRewardId,
+  type Reward,
+} from '../shared/gardenSpecies.js';
 
 // Growth Garden: every meaningful completion earns XP in one of four attributes.
 // xp_events is append-only (one row per source item), so totals are always a
@@ -55,6 +59,12 @@ export interface XpAward {
   crit: boolean;
   capped?: boolean;
   levelUp?: number;
+  /** The plant this completion put in the garden. */
+  plant?: string;
+  /** A common species this level-up unlocked. */
+  unlocked?: string;
+  /** A rare seed this level-up earned (every MILESTONE_EVERY levels). */
+  seed?: string;
 }
 
 export function awardXp(
@@ -86,11 +96,122 @@ export function awardXp(
   ).run(userId, attribute, amount, sourceType, Number(sourceId), effectiveDate(), new Date().toISOString());
 
   const after = levelFor(attributeTotal(userId, attribute)).level;
-  return { attribute, amount, crit, ...(after > before ? { levelUp: after } : {}) };
+  const species = commonSpeciesFor(attribute, after);
+  plant(userId, species, attribute, sourceType, Number(sourceId), sourceLabel(sourceType, Number(sourceId)),
+    crit, effectiveDate(), new Date().toISOString());
+
+  const award: XpAward = { attribute, amount, crit, plant: SPECIES[species].name };
+  if (after > before) {
+    award.levelUp = after;
+    if (species !== commonSpeciesFor(attribute, before)) award.unlocked = SPECIES[species].name;
+    if (Math.floor(after / MILESTONE_EVERY) > Math.floor(before / MILESTONE_EVERY)) {
+      award.seed = SPECIES[MILESTONE_SPECIES[attribute]].name;
+    }
+  }
+  return award;
 }
 
 export function revokeXp(sourceType: SourceType, sourceId: number | string) {
   db.prepare('DELETE FROM xp_events WHERE source_type = ? AND source_id = ?').run(sourceType, Number(sourceId));
+  db.prepare('DELETE FROM garden_plants WHERE source_type = ? AND source_id = ?').run(sourceType, Number(sourceId));
+}
+
+// ── Plants ──────────────────────────────────────────────────────────────────
+
+function plant(
+  userId: number, species: string, attribute: Attribute | null, sourceType: string, sourceId: number,
+  label: string | null, crit: boolean, day: string, plantedAt: string,
+) {
+  db.prepare(`
+    INSERT OR IGNORE INTO garden_plants (user_id, species, attribute, source_type, source_id, label, crit, day, planted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(userId, species, attribute, sourceType, sourceId, label, crit ? 1 : 0, day, plantedAt);
+}
+
+// What planted it, shown when the plant is tapped.
+function sourceLabel(sourceType: string, id: number): string | null {
+  const q: Record<string, string> = {
+    checkin: 'SELECT s.name AS l FROM checkin_tasks t JOIN checkin_schedules s ON s.id = t.schedule_id WHERE t.id = ?',
+    todo: 'SELECT title AS l FROM todos WHERE id = ?',
+    review: 'SELECT c.name AS l FROM review_records r JOIN review_courses c ON c.id = r.course_id WHERE r.id = ?',
+    plan_task: 'SELECT name AS l FROM plan_tasks WHERE id = ?',
+    plan: 'SELECT name AS l FROM study_plans WHERE id = ?',
+  };
+  if (!q[sourceType]) return null;
+  return ((db.prepare(q[sourceType]).get(id) as any)?.l as string | undefined)?.slice(0, 200) ?? null;
+}
+
+// Plant the whole history once, with each plant's species set by the attribute's
+// level at the time it was earned, so older corners of the garden are humbler.
+function backfillPlants() {
+  const events = db.prepare(
+    'SELECT user_id, attribute, amount, source_type, source_id, day, created_at FROM xp_events ORDER BY day, created_at, id'
+  ).all() as any[];
+  const running = new Map<string, number>();
+  db.transaction(() => {
+    for (const e of events) {
+      const key = `${e.user_id}:${e.attribute}`;
+      const xp = (running.get(key) ?? 0) + e.amount;
+      running.set(key, xp);
+      plant(e.user_id, commonSpeciesFor(e.attribute, levelFor(xp).level), e.attribute, e.source_type, e.source_id,
+        sourceLabel(e.source_type, e.source_id), false, e.day, e.created_at);
+    }
+  })();
+}
+
+// Seeds earned: one per unlocked achievement, one per MILESTONE_EVERY levels in each attribute.
+function earnedRewards(summary: ReturnType<typeof gardenSummary>): Reward[] {
+  const rewards: Reward[] = [];
+  for (const a of summary.achievements) {
+    const seed = ACHIEVEMENT_SEEDS[a.id];
+    if (seed && a.progress >= a.goal) rewards.push({ id: seed.id, species: seed.species, reason: a.title, achievement: a.id });
+  }
+  for (const a of summary.attributes) {
+    for (let lv = MILESTONE_EVERY; lv <= a.level; lv += MILESTONE_EVERY) {
+      rewards.push({
+        id: milestoneRewardId(a.attribute, lv), species: MILESTONE_SPECIES[a.attribute],
+        reason: `${a.attribute[0].toUpperCase()}${a.attribute.slice(1)} level ${lv}`, milestone: { attribute: a.attribute, level: lv },
+      });
+    }
+  }
+  return rewards;
+}
+
+function availableSeeds(userId: number, summary: ReturnType<typeof gardenSummary>) {
+  const planted = new Set((db.prepare(
+    "SELECT source_id FROM garden_plants WHERE user_id = ? AND source_type = 'seed'"
+  ).all(userId) as any[]).map((r) => r.source_id));
+  return earnedRewards(summary).filter((r) => !planted.has(r.id));
+}
+
+export function gardenPlants(userId: number) {
+  const summary = gardenSummary(userId);
+  const plants = db.prepare(
+    'SELECT id, species, attribute, source_type, label, crit, day, planted_at FROM garden_plants WHERE user_id = ? ORDER BY planted_at, id'
+  ).all(userId) as any[];
+  return {
+    plants: plants.map((p) => ({ ...p, crit: Boolean(p.crit) })),
+    seeds: availableSeeds(userId, summary),
+    ladder: summary.attributes.map((a) => ({
+      attribute: a.attribute,
+      level: a.level,
+      current: commonSpeciesFor(a.attribute, a.level),
+      next: nextUnlock(a.attribute, a.level),
+    })),
+    today: effectiveDate(),
+  };
+}
+
+export function plantSeed(userId: number, rewardId: number) {
+  const seed = availableSeeds(userId, gardenSummary(userId)).find((r) => r.id === rewardId);
+  if (!seed) return null;
+  plant(userId, seed.species, seed.milestone?.attribute ?? null, 'seed', seed.id, seed.reason, false,
+    effectiveDate(), new Date().toISOString());
+  return seed;
+}
+
+export function seedCount(userId: number) {
+  return availableSeeds(userId, gardenSummary(userId)).length;
 }
 
 // Turn existing history into XP so the garden starts from everything already done.
@@ -159,10 +280,10 @@ function backfillXp() {
 // One-time backfill (tracked in garden_state so over-cap reviews skipped live
 // aren't re-awarded on every restart).
 export function initGarden() {
-  const done = db.prepare("SELECT value FROM garden_state WHERE key = 'backfilled'").get();
-  if (done) return;
-  backfillXp();
-  db.prepare("INSERT INTO garden_state (key, value) VALUES ('backfilled', ?)").run(new Date().toISOString());
+  const flag = (key: string) => db.prepare('SELECT value FROM garden_state WHERE key = ?').get(key);
+  const set = (key: string) => db.prepare('INSERT INTO garden_state (key, value) VALUES (?, ?)').run(key, new Date().toISOString());
+  if (!flag('backfilled')) { backfillXp(); set('backfilled'); }
+  if (!flag('plants_backfilled')) { backfillPlants(); set('plants_backfilled'); }
 }
 
 // Kind streak: any XP on a day keeps it alive. Every 7 active days in a row earns

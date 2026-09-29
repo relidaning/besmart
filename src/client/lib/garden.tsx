@@ -18,6 +18,9 @@ export interface XpAward {
   crit: boolean;
   capped?: boolean;
   levelUp?: number;
+  plant?: string;
+  unlocked?: string;
+  seed?: string;
 }
 
 const SOUND_KEY = 'besmart-garden-sound';
@@ -91,7 +94,7 @@ export function celebrate(award: XpAward | null | undefined, label?: string) {
   if (award.amount <= 0) return;
 
   toast(
-    `${label ? `${label} · ` : ''}${award.crit ? 'Critical · ' : ''}+${award.amount} ${meta.label} XP`,
+    `${label ? `${label} · ` : ''}${award.crit ? 'Critical · ' : ''}+${award.amount} ${meta.label} XP${award.plant ? ` · ${award.crit ? 'golden ' : ''}${award.plant} planted` : ''}`,
     {
       duration: 2600,
       icon: <span className="dot !w-2.5 !h-2.5" style={{ background: meta.hex }} />,
@@ -102,7 +105,8 @@ export function celebrate(award: XpAward | null | undefined, label?: string) {
   if (award.levelUp) {
     confetti(70, ['#a854f7', '#1fa874', '#3987e5', '#fabf40']);
     chime([523, 659, 784, 1047]);
-    toast(`${meta.label} reached level ${award.levelUp}`, { duration: 4000, style: { fontWeight: 700 } });
+    const extras = [award.unlocked && `${award.unlocked} unlocked`, award.seed && `${award.seed} seed earned`].filter(Boolean);
+    toast(`${meta.label} reached level ${award.levelUp}${extras.length ? ` · ${extras.join(' · ')}` : ''}`, { duration: 4500, style: { fontWeight: 700 } });
   } else if (award.crit) {
     confetti(40, [meta.hex, '#fabf40', '#edf0f5']);
     chime([659, 880, 1175]);

@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Moon, Sun, ChevronRight } from 'lucide-react';
+import { Moon, Sun, ChevronRight, Shield, Sprout } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useEffect, useState } from 'react';
 import AttributeBar from '../components/AttributeBar';
 import { PageHeader, CardHead } from '../components/PageKit';
-import type { GardenSummary } from './Garden';
+import { Achievements, YearOfGrowth, type GardenSummary } from '../components/GardenStats';
 
 interface ScoreRecord {
   id: number;
@@ -203,15 +203,30 @@ export default function Dashboard() {
 
           {/* Growth Garden */}
           {garden && (
-            <motion.div variants={item}>
-              <Link to="/garden" className="card block">
-                <CardHead
-                  title="Growth Garden"
-                  meta={<>+{garden.todayXp} XP today{garden.streak.current > 0 && ` · ${garden.streak.current}d streak`}<ChevronRight size={12} /></>}
-                />
-                <div className="space-y-3">
-                  {garden.attributes.map((a) => <AttributeBar key={a.attribute} a={a} compact />)}
-                </div>
+            <motion.div variants={item} className="card">
+              <CardHead
+                title="Growth"
+                meta={<>
+                  +{garden.todayXp} XP today · {garden.streak.current}d streak
+                  {garden.streak.shields > 0 && (
+                    <span className="inline-flex items-center gap-0.5" title="Streak shields: a missed day uses one instead of breaking your streak">
+                      · <Shield size={10} />{garden.streak.shields}
+                    </span>
+                  )}
+                </>}
+              />
+              <div className="space-y-4">
+                {garden.attributes.map((a) => <AttributeBar key={a.attribute} a={a} />)}
+              </div>
+              <Link to="/garden"
+                className="row mt-4 flex items-center gap-2.5 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
+                <Sprout size={15} className="text-[#1fa874] flex-shrink-0" />
+                <span className="flex-1 min-w-0 text-[12px] text-gray-700 dark:text-gray-300">
+                  {garden.seedsAvailable
+                    ? <><b className="text-brand-600 dark:text-brand-400">{garden.seedsAvailable} rare seed{garden.seedsAvailable > 1 ? 's' : ''}</b> waiting to be planted</>
+                    : 'Visit your garden'}
+                </span>
+                <ChevronRight size={14} className="text-gray-400 dark:text-gray-600" />
               </Link>
             </motion.div>
           )}
@@ -247,6 +262,9 @@ export default function Dashboard() {
             />
             <ScoreChart scores={scores} />
           </motion.div>
+
+          {garden && <YearOfGrowth data={garden} />}
+          {garden && <Achievements data={garden} />}
         </div>
       </div>
     </motion.div>

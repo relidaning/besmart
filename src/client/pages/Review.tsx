@@ -6,7 +6,7 @@ import { Trophy, FileText, ExternalLink, ChevronRight, RefreshCw, Search, Brain 
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { PageHeader, StatTiles, XpChip } from '../components/PageKit';
-import type { GardenSummary } from './Garden';
+import type { GardenSummary } from '../components/GardenStats';
 
 interface ReviewRecord {
   id: number;
