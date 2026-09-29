@@ -16,6 +16,8 @@ import { requireAuth } from './middleware/auth.js';
 import { scheduleJob } from './scheduler.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { musicRoutes } from './routes/music.js';
+import { gardenRoutes } from './routes/garden.js';
+import { initGarden } from './garden.js';
 import { MUSIC_DIR } from './musicLibrary.js';
 import { initWebPush, sendDailyReviewReminders } from './push.js';
 
@@ -28,6 +30,7 @@ app.use(cors());
 app.use(express.json());
 
 initializeDatabase();
+initGarden();
 syncVaultForAllConfiguredUsers();
 startVaultWatchers();
 initWebPush();
@@ -94,6 +97,7 @@ app.use('/api/reviews', requireAuth, reviewRoutes);
 app.use('/api/todos', requireAuth, todoRoutes);
 app.use('/api/dashboard', requireAuth, dashboardRoutes);
 app.use('/api/music', requireAuth, musicRoutes);
+app.use('/api/garden', requireAuth, gardenRoutes);
 
 // Locally-downloaded public-domain music (see scripts/download-music.mjs) served straight
 // from disk. The .library.json state file lives alongside the mp3s but express.static

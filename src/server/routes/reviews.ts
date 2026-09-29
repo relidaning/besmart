@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import db from '../database.js';
 import { localDate } from '../date.js';
+import { awardXp, REVIEW_XP } from '../garden.js';
 
 export const reviewRoutes = Router();
 
@@ -387,7 +388,8 @@ reviewRoutes.post('/records/:id/complete', (req, res) => {
     'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date, ease_factor, interval_days) VALUES (?, 0, ?, ?, ?, ?)'
   ).run(record.course_id, record.reviewed_times + 1, localDate(nextDate), ef, interval);
 
-  res.json({ success: true });
+  const xp = awardXp(userId, 'review', record.id, 'wisdom', REVIEW_XP[rating] ?? REVIEW_XP.ok);
+  res.json({ success: true, xp });
 });
 
 // ── Record detail ─────────────────────────────────────────────────────────────

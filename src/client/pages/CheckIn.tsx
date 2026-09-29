@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { ClipboardCheck, Check } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { ATTRIBUTES, ATTR_META, type Attribute } from '../lib/garden';
 
 interface CheckinData {
   date: string;
@@ -29,6 +30,7 @@ interface Schedule {
   name: string;
   type: string;
   score: number;
+  category: Attribute;
   is_active: boolean;
   created_at: string | null;
 }
@@ -57,7 +59,7 @@ export default function CheckIn() {
   const [tab, setTab] = useState<'today' | 'schedules'>('today');
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
-  const [scheduleForm, setScheduleForm] = useState({ name: '', type: 'daily', score: 0 });
+  const [scheduleForm, setScheduleForm] = useState<{ name: string; type: string; score: number; category?: Attribute }>({ name: '', type: 'daily', score: 0 });
   const [completingId, setCompletingId] = useState<number | null>(null);
 
   const fetchAll = () => {
@@ -286,13 +288,14 @@ export default function CheckIn() {
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className={`badge ${typeBadges[s.type] || ''}`}>{s.type}</span>
                     <span className="text-xs text-gray-400 dark:text-gray-500">{s.score} pts</span>
+                    <span className={`text-xs ${ATTR_META[s.category].text}`}>{ATTR_META[s.category].emoji} {ATTR_META[s.category].label}</span>
                   </div>
                 </div>
                 <button onClick={() => handleToggleActive(s)}
                   className={`text-xs px-2 py-1 rounded ${s.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'}`}>
                   {s.is_active ? 'On' : 'Off'}
                 </button>
-                <button onClick={() => { setEditingSchedule(s); setScheduleForm({ name: s.name, type: s.type, score: s.score }); setShowScheduleForm(true); }}
+                <button onClick={() => { setEditingSchedule(s); setScheduleForm({ name: s.name, type: s.type, score: s.score, category: s.category }); setShowScheduleForm(true); }}
                   className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">Edit</button>
                 <button onClick={() => handleDeleteSchedule(s.id)} className="text-xs text-red-400 hover:text-red-600">Del</button>
               </motion.div>
@@ -331,6 +334,16 @@ export default function CheckIn() {
                   <option value="monthly">Monthly</option>
                   <option value="seasonly">Seasonly</option>
                   <option value="yearly">Yearly</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Growth area</label>
+                <select className="input" value={scheduleForm.category ?? ''}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, category: (e.target.value || undefined) as Attribute | undefined })}>
+                  {!editingSchedule && <option value="">Auto (guess from name)</option>}
+                  {ATTRIBUTES.map((a) => (
+                    <option key={a} value={a}>{ATTR_META[a].emoji} {ATTR_META[a].label}</option>
+                  ))}
                 </select>
               </div>
               <div>

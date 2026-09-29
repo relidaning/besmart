@@ -15,6 +15,7 @@ const Review = lazy(() => import('./pages/Review'));
 const ReviewContent = lazy(() => import('./pages/ReviewContent'));
 const Todos = lazy(() => import('./pages/Todos'));
 const MusicLibrary = lazy(() => import('./pages/MusicLibrary'));
+const Garden = lazy(() => import('./pages/Garden'));
 const Login = lazy(() => import('./pages/Login'));
 const Signup = lazy(() => import('./pages/Signup'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
@@ -74,6 +75,7 @@ function App() {
             <Route path="review/course/:id" element={<ReviewContent />} />
             <Route path="todos" element={<Todos />} />
             <Route path="music" element={<MusicLibrary />} />
+            <Route path="garden" element={<Garden />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

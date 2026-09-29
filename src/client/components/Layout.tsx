@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { Bell, BellOff, Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw, FolderOpen, LogOut, Sun, Moon, MonitorSmartphone } from 'lucide-react';
+import { Bell, BellOff, Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw, FolderOpen, Sprout, LogOut, Sun, Moon, MonitorSmartphone } from 'lucide-react';
 import { api, clearApiCache } from '../hooks/api';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
@@ -43,6 +43,7 @@ const navItems = [
   { path: '/todos', icon: <ListTodo size={20} />, label: 'Todos' },
   { path: '/review', icon: <RefreshCw size={20} />, label: 'Review' },
   { path: '/plans', icon: <FolderOpen size={20} />, label: 'Plans' },
+  { path: '/garden', icon: <Sprout size={20} />, label: 'Garden' },
 ];
 
 export default function Layout() {
@@ -220,7 +221,7 @@ export default function Layout() {
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors ${
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-colors ${
                   isActive ? 'text-brand-600 dark:text-brand-400' : 'text-gray-400 dark:text-gray-500'
                 }`}
               >

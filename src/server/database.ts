@@ -259,6 +259,33 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 8: Growth Garden. xp_events is backfilled from history by initGarden()
+  // in garden.ts; checkin_schedules.category is nullable (NULL = inferred from name).
+  if (version < 8) {
+    db.transaction(() => {
+      addColIfMissing('checkin_schedules', 'category', 'TEXT');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS xp_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          attribute TEXT NOT NULL CHECK(attribute IN ('wisdom','health','capability','wealth')),
+          amount INTEGER NOT NULL,
+          source_type TEXT NOT NULL,
+          source_id INTEGER NOT NULL,
+          day TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE(source_type, source_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_xp_events_user_day ON xp_events(user_id, day);
+        CREATE TABLE IF NOT EXISTS garden_state (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        );
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (8)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'

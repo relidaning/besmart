@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FolderOpen, ClipboardCheck, RefreshCw, ListTodo, Flame, Moon, Sun, PartyPopper, Zap } from 'lucide-react';
+import { FolderOpen, ClipboardCheck, RefreshCw, ListTodo, Flame, Moon, Sun, PartyPopper, Zap, Sprout, ChevronRight } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useEffect, useState } from 'react';
+import AttributeBar from '../components/AttributeBar';
+import type { GardenSummary } from './Garden';
 
 interface ScoreRecord {
   id: number;
@@ -72,6 +74,7 @@ const item = {
 export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [scores, setScores] = useState<ScoreRecord[]>([]);
+  const [garden, setGarden] = useState<GardenSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const { text: greetingText, Icon: GreetingIcon } = getGreeting();
 
@@ -83,6 +86,7 @@ export default function Dashboard() {
 
     Promise.all([
       api.getStats().then((r) => setStats(r.data)),
+      api.getGardenSummary().then((r) => setGarden(r.data)).catch(() => {}),
       api.getScores(start, end).then((r) => {
         const sorted = [...r.data].sort((a: ScoreRecord, b: ScoreRecord) =>
           a.score_date.localeCompare(b.score_date)
@@ -156,6 +160,29 @@ export default function Dashboard() {
           </div>
         </Link>
       </motion.div>
+
+      {/* Growth Garden */}
+      {garden && (
+        <motion.div variants={item}>
+          <Link to="/garden" className="card block">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <Sprout size={18} className="text-emerald-500" /> Growth Garden
+              </h2>
+              <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-2">
+                <span className="text-brand-600 dark:text-brand-400 font-semibold">+{garden.todayXp} XP today</span>
+                {garden.streak.current > 0 && (
+                  <span className="text-orange-500 font-semibold flex items-center"><Flame size={12} />{garden.streak.current}</span>
+                )}
+                <ChevronRight size={14} />
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-3">
+              {garden.attributes.map((a) => <AttributeBar key={a.attribute} a={a} compact />)}
+            </div>
+          </Link>
+        </motion.div>
+      )}
 
       {/* Four module cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

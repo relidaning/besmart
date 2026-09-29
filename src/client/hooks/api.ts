@@ -1,4 +1,5 @@
 import { useAuth } from '../store/auth';
+import { celebrate } from '../lib/garden';
 
 const BASE = '/api';
 
@@ -44,8 +45,12 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   } else {
     const resource = url.split('/')[1];
     for (const k of _cache.keys()) {
-      if (k.split('?')[0].split('/')[1] === resource) _cache.delete(k);
+      const r = k.split('?')[0].split('/')[1];
+      // Any completion can move XP, so garden/dashboard views are always stale after a mutation.
+      if (r === resource || r === 'garden' || r === 'dashboard') _cache.delete(k);
     }
+    celebrate(data?.xp);
+    celebrate(data?.bonus);
   }
 
   return data;
@@ -122,6 +127,9 @@ export const api = {
   uncompleteTodo: (id: number) => request<any>(`/todos/${id}/uncomplete`, { method: 'POST' }),
   deleteTodo: (id: number) => request<any>(`/todos/${id}`, { method: 'DELETE' }),
   getTodoStats: () => request<any>('/todos/stats/overview'),
+
+  // Growth Garden
+  getGardenSummary: () => request<any>('/garden/summary'),
 
   // Music
   getMusicCatalog: () => request<any>('/music/catalog'),
