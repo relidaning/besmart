@@ -23,6 +23,14 @@
     letter-spacing: -0.01em;
   }
 
+  /* iOS zooms the page into any field under 16px when it's focused, which lifts
+     the layout and leaves it pannable. Phones get 16px fields (as in floatingsphere). */
+  @media (pointer: coarse) {
+    input, textarea, select {
+      font-size: 16px !important;
+    }
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
