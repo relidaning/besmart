@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -76,6 +76,50 @@ function fmtGap(days: number) {
   if (days < 30) return `${days}d`;
   if (days < 365) return `${Math.round(days / 30)}mo`;
   return `${Math.round((days / 365) * 10) / 10}y`;
+}
+
+// ── Vault images ──────────────────────────────────────────────────────────────
+
+const IMAGE_EMBED = /!\[\[([^\]|]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif))(?:\|([^\]]*))?\]\]/gi;
+const escAttr = (v: string) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+// Obsidian's ![[image.png|300]] as an <img>; ![](file.png) is already one.
+function embedImages(md: string) {
+  return md.replace(IMAGE_EMBED, (_, name: string, size?: string) => {
+    const width = size?.match(/^\s*(\d+)/)?.[1];
+    return `<img src="${escAttr(encodeURI(name.trim()))}" alt="${escAttr(name.trim())}"${width ? ` width="${width}"` : ''}>`;
+  });
+}
+
+// The note being shown, so an image link can resolve relative to it.
+const NotePathContext = createContext<string | null>(null);
+
+// Vault images need the auth header, so they're fetched and shown as blob URLs.
+function VaultImage({ src, alt, node: _node, ...rest }: any) {
+  const note = useContext(NotePathContext);
+  const external = !src || /^(https?:|data:|blob:)/i.test(src);
+  const [url, setUrl] = useState<string | null>(external ? src : null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (external) { setUrl(src); return; }
+    let link = src as string;
+    try { link = decodeURI(link); } catch { /* not encoded */ }
+    let objectUrl: string | null = null;
+    let alive = true;
+    setFailed(false);
+    fetch(`/api/reviews/vault/image?src=${encodeURIComponent(link)}&note=${encodeURIComponent(note ?? '')}`, {
+      headers: { Authorization: `Bearer ${useAuth.getState().token ?? ''}` },
+    })
+      .then((r) => (r.ok ? r.blob() : Promise.reject()))
+      .then((b) => { if (!alive) return; objectUrl = URL.createObjectURL(b); setUrl(objectUrl); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [src, note, external]);
+
+  if (failed) return <span className="text-xs text-gray-400 dark:text-gray-500">[image not found: {alt || src}]</span>;
+  if (!url) return <span className="inline-block w-full h-32 rounded-lg bg-gray-100 dark:bg-white/[0.05] animate-pulse" />;
+  return <img src={url} alt={alt ?? ''} loading="lazy" className="max-w-full h-auto rounded-lg my-3" {...rest} />;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -171,7 +215,7 @@ export default function ReviewContent() {
     const stripped = rawContent.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
     // Split on fenced code blocks; only transform even-indexed segments (non-code)
     const parts = stripped.split(/(^```[\s\S]*?^```)/m);
-    return parts.map((p, i) => i % 2 === 0 ? p.replace(/==([^=\n]+)==/g, '<mark>$1</mark>') : p).join('');
+    return parts.map((p, i) => i % 2 === 0 ? embedImages(p.replace(/==([^=\n]+)==/g, '<mark>$1</mark>')) : p).join('');
   }, [rawContent]);
 
   const headings = useMemo(() => extractHeadings(content), [content]);
@@ -180,6 +224,7 @@ export default function ReviewContent() {
   const hCountRef = useRef(0);
   hCountRef.current = 0;
   const mdComponents = {
+    img: VaultImage,
     h1: ({ children, ...p }: any) => <h1 id={`h-${hCountRef.current++}`} {...p}>{children}</h1>,
     h2: ({ children, ...p }: any) => <h2 id={`h-${hCountRef.current++}`} {...p}>{children}</h2>,
     h3: ({ children, ...p }: any) => <h3 id={`h-${hCountRef.current++}`} {...p}>{children}</h3>,
@@ -287,9 +332,11 @@ export default function ReviewContent() {
               prose-table:block prose-table:overflow-x-auto
               prose-blockquote:border-brand-300 dark:prose-blockquote:border-brand-700 prose-blockquote:text-gray-500 dark:prose-blockquote:text-gray-400
               prose-li:text-gray-600 dark:prose-li:text-gray-300 prose-strong:text-gray-800 dark:prose-strong:text-gray-100 prose-hr:border-gray-200 dark:prose-hr:border-gray-800">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={mdComponents}>
-                {content}
-              </ReactMarkdown>
+              <NotePathContext.Provider value={paths[0] ?? null}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={mdComponents}>
+                  {content}
+                </ReactMarkdown>
+              </NotePathContext.Provider>
             </div>
           ) : (
             <div className="text-center py-16 text-gray-400 dark:text-gray-500 text-sm">No content available.</div>

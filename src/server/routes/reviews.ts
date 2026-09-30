@@ -534,6 +534,62 @@ reviewRoutes.get('/vault/content', (req, res) => {
   }
 });
 
+// ── Vault images ──────────────────────────────────────────────────────────────
+// Notes embed images as ![[name.png]] or ![](path.png). Like Obsidian, a link is tried
+// relative to the note, then to the vault root, then matched by filename anywhere
+// (attachments live in attachs/).
+
+const IMAGE_TYPES: Record<string, string> = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+  '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp', '.avif': 'image/avif',
+};
+const imageIndex = new Map<string, { at: number; files: string[] }>();
+
+function vaultImages(root: string): string[] {
+  const hit = imageIndex.get(root);
+  if (hit && Date.now() - hit.at < 60_000) return hit.files;
+  const files: string[] = [];
+  const walk = (rel: string) => {
+    try {
+      for (const e of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
+        if (e.name.startsWith('.')) continue;
+        const r = rel ? `${rel}/${e.name}` : e.name;
+        if (e.isDirectory()) walk(r);
+        else if (IMAGE_TYPES[path.extname(e.name).toLowerCase()]) files.push(r);
+      }
+    } catch { /* unreadable folder */ }
+  };
+  walk('');
+  imageIndex.set(root, { at: Date.now(), files });
+  return files;
+}
+
+reviewRoutes.get('/vault/image', (req, res) => {
+  const cfg = getUserVaultConfig(req.user!.id);
+  const src = req.query.src, note = req.query.note;
+  if (!cfg || typeof src !== 'string' || !src) return res.status(404).end();
+  const root = path.resolve(cfg.vaultRoot);
+  const link = src.replace(/^\.\//, '');
+  if (!IMAGE_TYPES[path.extname(link).toLowerCase()]) return res.status(400).end();
+
+  const inVault = (p: string) => p.startsWith(root + path.sep) && fs.existsSync(p) && fs.statSync(p).isFile();
+  const tries = [
+    typeof note === 'string' ? path.resolve(root, path.dirname(note), link) : null,
+    path.resolve(root, link),
+  ].filter((p): p is string => !!p);
+  let file = tries.find(inVault);
+  if (!file) {
+    const base = path.basename(link).toLowerCase();
+    const found = vaultImages(root).filter((r) => path.basename(r).toLowerCase() === base);
+    const best = found.find((r) => r.endsWith(link)) ?? found[0];
+    if (best) file = path.resolve(root, best);
+  }
+  if (!file || !inVault(file)) return res.status(404).end();
+  res.type(IMAGE_TYPES[path.extname(file).toLowerCase()]);
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  res.sendFile(file);
+});
+
 reviewRoutes.post('/vault/import', (req, res) => {
   const userId = req.user!.id;
   const cfg = getUserVaultConfig(userId);
