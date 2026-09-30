@@ -12,7 +12,7 @@ export type Attribute = 'wisdom' | 'health' | 'capability' | 'wealth';
 // How the client draws a species (see client/lib/gardenArt.ts).
 export type PlantKind =
   | 'sprout' | 'spike' | 'bloom' | 'bell' | 'sunflower' | 'fern'
-  | 'bush' | 'tree' | 'pine' | 'blossom' | 'willow' | 'bamboo' | 'palm';
+  | 'bush' | 'tree' | 'pine' | 'cypress' | 'blossom' | 'willow' | 'bamboo';
 
 export interface Species {
   id: string;
@@ -25,10 +25,16 @@ export interface Species {
   rare?: boolean;
   /** Relative height at full growth (1 = a common flower). */
   size: number;
+  /** Keeps its foliage all winter (pines, cypresses, boxwood, olive, bamboo…). */
+  evergreen?: boolean;
+  /** Foliage color in autumn; deciduous plants default to a yellow-orange. */
+  autumn?: string;
 }
 
-const S = (id: string, name: string, kind: PlantKind, color: string, leaf: string, size: number, rare = false): Species =>
-  ({ id, name, kind, color, leaf, size, ...(rare ? { rare } : {}) });
+const S = (id: string, name: string, kind: PlantKind, color: string, leaf: string, size: number, rare = false,
+  extra: Partial<Species> = {}): Species =>
+  ({ id, name, kind, color, leaf, size, ...(rare ? { rare } : {}), ...extra });
+const EVERGREEN = { evergreen: true };
 
 export const SPECIES: Record<string, Species> = Object.fromEntries([
   // Tier 0: everyone starts here.
@@ -37,40 +43,40 @@ export const SPECIES: Record<string, Species> = Object.fromEntries([
   S('lavender', 'Lavender', 'spike', '#a78bfa', '#6f9e7a', 0.9),
   S('iris', 'Iris', 'bloom', '#8b5cf6', '#4f9a6a', 1.05),
   S('lilac', 'Lilac', 'bush', '#c4a1ff', '#3f8a5a', 1.45),
-  S('jacaranda', 'Jacaranda', 'tree', '#a78bfa', '#3c7a52', 2.1),
+  S('jacaranda', 'Jacaranda', 'tree', '#a78bfa', '#3c7a52', 2.1, false, { autumn: '#d4a017' }),
   // Health (green)
   S('clover', 'Clover', 'bloom', '#f5f5f4', '#34a86a', 0.7),
   S('fern', 'Fern', 'fern', '#1fa874', '#1fa874', 1.0),
-  S('boxwood', 'Boxwood', 'bush', '#86efac', '#1f8a55', 1.35),
-  S('olive', 'Olive Tree', 'tree', '#d9f99d', '#5b8a4a', 2.0),
+  S('boxwood', 'Boxwood', 'bush', '#86efac', '#1f8a55', 1.35, false, EVERGREEN),
+  S('olive', 'Olive Tree', 'tree', '#d9f99d', '#5b8a4a', 2.0, false, EVERGREEN),
   // Capability (blue)
   S('bluebell', 'Bluebell', 'bell', '#60a5fa', '#3f8f63', 0.85),
   S('cornflower', 'Cornflower', 'bloom', '#3987e5', '#4a9466', 1.0),
   S('hydrangea', 'Hydrangea', 'bush', '#7ab3f5', '#2f7d57', 1.4),
-  S('spruce', 'Blue Spruce', 'pine', '#7ab3f5', '#3b7f8f', 2.1),
+  S('spruce', 'Blue Spruce', 'pine', '#7ab3f5', '#3b7f8f', 2.1, false, EVERGREEN),
   // Wealth (amber)
   S('buttercup', 'Buttercup', 'bloom', '#fde047', '#4d9a5c', 0.75),
   S('sunflower', 'Sunflower', 'sunflower', '#fabf40', '#4a8f4f', 1.3),
   S('marigold', 'Marigold', 'bush', '#f59e0b', '#3f8a4f', 1.35),
-  S('ginkgo', 'Ginkgo', 'tree', '#facc15', '#a3a83a', 2.0),
+  S('ginkgo', 'Ginkgo', 'tree', '#facc15', '#7fa83a', 2.0, false, { autumn: '#facc15' }),
   // Rare: from seeds only.
-  S('oak', 'Young Oak', 'tree', '#4d9a5c', '#3f7f4a', 2.6, true),
-  S('ancient-oak', 'Ancient Oak', 'tree', '#3f8a4f', '#2f6b3d', 3.4, true),
-  S('maple', 'Red Maple', 'tree', '#ef4444', '#b45309', 2.7, true),
+  S('oak', 'Young Oak', 'tree', '#4d9a5c', '#3f7f4a', 2.6, true, { autumn: '#b45309' }),
+  S('ancient-oak', 'Ancient Oak', 'tree', '#3f8a4f', '#2f6b3d', 3.4, true, { autumn: '#a16207' }),
+  S('maple', 'Red Maple', 'tree', '#ef4444', '#4d9a5c', 2.7, true, { autumn: '#dc2626' }),
   S('cherry', 'Cherry Blossom', 'blossom', '#f9a8d4', '#6b4f3a', 2.8, true),
   S('willow', 'Weeping Willow', 'willow', '#86c77a', '#5f9e55', 3.0, true),
-  S('bamboo', 'Bamboo Grove', 'bamboo', '#8fd694', '#5fae6a', 2.8, true),
-  S('redwood', 'Redwood', 'pine', '#2f6b4f', '#1f5a40', 3.6, true),
+  S('bamboo', 'Bamboo Grove', 'bamboo', '#8fd694', '#5fae6a', 2.8, true, EVERGREEN),
+  S('redwood', 'Redwood', 'pine', '#2f6b4f', '#1f5a40', 3.6, true, EVERGREEN),
   S('bodhi', 'Bodhi Tree', 'tree', '#c4a1ff', '#3f7f52', 3.0, true),
-  S('golden-ginkgo', 'Golden Ginkgo', 'tree', '#fabf40', '#e0a823', 3.0, true),
+  S('golden-ginkgo', 'Golden Ginkgo', 'tree', '#fabf40', '#8fb34a', 3.0, true, { autumn: '#fbbf24' }),
   S('magnolia', 'Magnolia', 'blossom', '#fdf2f8', '#5b4636', 2.6, true),
   S('flame-tree', 'Flame Tree', 'blossom', '#f97316', '#6b4f3a', 2.7, true),
-  S('palm', 'Palm', 'palm', '#4d9a5c', '#3f8a4f', 2.9, true),
-  S('pine', 'Mountain Pine', 'pine', '#3f8a5f', '#2f6b4a', 2.9, true),
+    S('pine', 'Mountain Pine', 'pine', '#3f8a5f', '#2f6b4a', 2.9, true, EVERGREEN),
+  S('cypress', 'Italian Cypress', 'cypress', '#2f6b4a', '#2a5e40', 3.2, true, EVERGREEN),
   S('moon-tree', 'Moon Tree', 'blossom', '#dbeafe', '#475569', 3.0, true),
-  S('olive-grand', 'Old Olive', 'tree', '#bef264', '#4d7c3a', 3.0, true),
+  S('olive-grand', 'Old Olive', 'tree', '#bef264', '#4d7c3a', 3.0, true, EVERGREEN),
   S('rainbow-eucalyptus', 'Rainbow Eucalyptus', 'tree', '#34d399', '#2f7d57', 3.2, true),
-  S('jade', 'Jade Tree', 'tree', '#6ee7b7', '#2f7d57', 2.8, true),
+  S('jade', 'Jade Tree', 'tree', '#6ee7b7', '#2f7d57', 2.8, true, EVERGREEN),
 ].map((s) => [s.id, s]));
 
 // Common species per attribute, unlocked at these attribute levels.
@@ -124,7 +130,7 @@ export const MILESTONE_EVERY = 5;
 export const MILESTONE_SPECIES: Record<Attribute, string> = {
   wisdom: 'moon-tree',
   health: 'olive-grand',
-  capability: 'palm',
+  capability: 'cypress',
   wealth: 'jade',
 };
 const ATTR_INDEX: Record<Attribute, number> = { wisdom: 0, health: 1, capability: 2, wealth: 3 };

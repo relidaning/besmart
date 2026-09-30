@@ -141,22 +141,24 @@ function sourceLabel(sourceType: string, id: number): string | null {
   return ((db.prepare(q[sourceType]).get(id) as any)?.l as string | undefined)?.slice(0, 200) ?? null;
 }
 
-// Plant the whole history once, with each plant's species set by the attribute's
-// level at the time it was earned, so older corners of the garden are humbler.
-function backfillPlants() {
-  const events = db.prepare(
-    'SELECT user_id, attribute, amount, source_type, source_id, day, created_at FROM xp_events ORDER BY day, created_at, id'
-  ).all() as any[];
-  const running = new Map<string, number>();
+// Fresh start (2026-09-30): the user didn't want history filling the garden, or
+// seeds handed out for achievements earned before the garden existed. Once, this
+// clears every plant and records each user's already-earned rewards as a
+// baseline that never yields seeds. The garden grows only from here on.
+function freshStart() {
   db.transaction(() => {
-    for (const e of events) {
-      const key = `${e.user_id}:${e.attribute}`;
-      const xp = (running.get(key) ?? 0) + e.amount;
-      running.set(key, xp);
-      plant(e.user_id, commonSpeciesFor(e.attribute, levelFor(xp).level), e.attribute, e.source_type, e.source_id,
-        sourceLabel(e.source_type, e.source_id), false, e.day, e.created_at);
+    db.prepare('DELETE FROM garden_plants').run();
+    const users = db.prepare('SELECT DISTINCT user_id FROM xp_events').all() as { user_id: number }[];
+    for (const { user_id } of users) {
+      const ids = earnedRewards(gardenSummary(user_id)).map((r) => r.id);
+      db.prepare('INSERT OR REPLACE INTO garden_state (key, value) VALUES (?, ?)').run(`seed_baseline:${user_id}`, JSON.stringify(ids));
     }
   })();
+}
+
+function seedBaseline(userId: number): Set<number> {
+  const row = db.prepare('SELECT value FROM garden_state WHERE key = ?').get(`seed_baseline:${userId}`) as any;
+  try { return new Set(row ? JSON.parse(row.value) : []); } catch { return new Set(); }
 }
 
 // Seeds earned: one per unlocked achievement, one per MILESTONE_EVERY levels in each attribute.
@@ -181,7 +183,8 @@ function availableSeeds(userId: number, summary: ReturnType<typeof gardenSummary
   const planted = new Set((db.prepare(
     "SELECT source_id FROM garden_plants WHERE user_id = ? AND source_type = 'seed'"
   ).all(userId) as any[]).map((r) => r.source_id));
-  return earnedRewards(summary).filter((r) => !planted.has(r.id));
+  const baseline = seedBaseline(userId);
+  return earnedRewards(summary).filter((r) => !planted.has(r.id) && !baseline.has(r.id));
 }
 
 export function gardenPlants(userId: number) {
@@ -283,7 +286,7 @@ export function initGarden() {
   const flag = (key: string) => db.prepare('SELECT value FROM garden_state WHERE key = ?').get(key);
   const set = (key: string) => db.prepare('INSERT INTO garden_state (key, value) VALUES (?, ?)').run(key, new Date().toISOString());
   if (!flag('backfilled')) { backfillXp(); set('backfilled'); }
-  if (!flag('plants_backfilled')) { backfillPlants(); set('plants_backfilled'); }
+  if (!flag('garden_fresh_start')) { freshStart(); set('garden_fresh_start'); }
 }
 
 // Kind streak: any XP on a day keeps it alive. Every 7 active days in a row earns

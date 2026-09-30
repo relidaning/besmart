@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { api } from '../hooks/api';
 import { useTheme } from '../contexts/ThemeContext';
 import { ATTR_META, setSoundEnabled, soundEnabled } from '../lib/garden';
-import { GROUND, drawPlant, growthFor } from '../lib/gardenArt';
+import { GROUND, GROW_DAYS, autumnColor, drawPlant, growthFor, seasonOf, type Season } from '../lib/gardenArt';
 import {
   ACHIEVEMENT_SEEDS, COMMON_LADDER, MILESTONE_EVERY, MILESTONE_SPECIES, SPECIES, TIER_LEVELS,
   type Attribute, type Reward,
@@ -67,9 +67,17 @@ function periodStart(period: Period, today: string) {
   return '';
 }
 
-function ageDays(day: string, today: string) {
-  return Math.max(0, Math.round((+new Date(`${today}T12:00:00`) - +new Date(`${day}T12:00:00`)) / 86_400_000));
+// Fractional days since planting, so growth moves through the day.
+function ageDays(p: Plant) {
+  const t = Date.parse(p.planted_at.includes('T') ? p.planted_at : `${p.day}T12:00:00`);
+  return Math.max(0, (Date.now() - (isNaN(t) ? Date.parse(`${p.day}T12:00:00`) : t)) / 86_400_000);
 }
+
+const SEASONS: { id: Season; label: string }[] = [
+  { id: 'spring', label: 'Spring' }, { id: 'summer', label: 'Summer' }, { id: 'autumn', label: 'Autumn' }, { id: 'winter', label: 'Winter' },
+];
+
+interface Particle { x: number; y: number; vx: number; vy: number; r: number; rot: number; spin: number; color: string; phase: number }
 
 function fmtDay(day: string) {
   return new Date(`${day}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -90,9 +98,9 @@ function shuffledSlots(count: number, key: string) {
 
 const easeOutBack = (t: number) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
 
-function GardenCanvas({ plants, today, layoutKey, highlight, onPick }: {
+function GardenCanvas({ plants, season, layoutKey, highlight, onPick }: {
   plants: Plant[];
-  today: string;
+  season: Season;
   layoutKey: string;
   highlight: number | null;
   onPick: (p: Plant | null) => void;
@@ -127,71 +135,127 @@ function GardenCanvas({ plants, today, layoutKey, highlight, onPick }: {
     const tw = (W * 0.94) / n, th = tw / 2;
     const wall = Math.min(22, Math.max(6, tw * 0.5));
     const unit = Math.min(64, tw * 0.95);
-    const heights = placed.map(({ p }) => {
+    const grown = placed.map(({ p }) => {
       const sp = SPECIES[p.species] ?? SPECIES.sprout;
-      return unit * sp.size * growthFor(sp, ageDays(p.day, today));
+      const g = growthFor(sp, ageDays(p));
+      return { sp, young: g.young, h: unit * sp.size * g.scale };
     });
-    const topPad = Math.max(24, ...heights.map((h, k) => h - (placed[k].i + placed[k].j) * th / 2)) + 6;
+    const topPad = Math.max(40, ...grown.map((g, k) => g.h - (placed[k].i + placed[k].j) * th / 2)) + 6;
     const H = topPad + n * th + wall + 6;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = W * dpr;
     canvas.height = H * dpr;
     canvas.style.height = `${H}px`;
     const ctx = canvas.getContext('2d')!;
-    const g = dark ? GROUND.dark : GROUND.light;
+    // The static scene is painted to an offscreen canvas; frames blit it and add particles.
+    const scene = document.createElement('canvas');
+    scene.width = canvas.width;
+    scene.height = canvas.height;
+    const sctx = scene.getContext('2d')!;
+    const g = GROUND[season][dark ? 'dark' : 'light'];
     const ox = W / 2, oy = topPad;
     const L = { x: ox - (n * tw) / 2, y: oy + (n * th) / 2 }, R = { x: ox + (n * tw) / 2, y: oy + (n * th) / 2 };
     const B = { x: ox, y: oy + n * th };
-
-    const order = placed.map((pl, k) => ({ ...pl, h: heights[k], k }))
+    const order = placed.map((pl, k) => ({ ...pl, ...grown[k], k }))
       .sort((a, b) => a.i + a.j - (b.i + b.j) || a.i - b.i);
     const many = placed.length > 180;
-    const start = performance.now();
-    let raf = 0;
+    const pos = (o: { i: number; j: number }) => ({ x: ox + ((o.i - o.j) * tw) / 2, y: oy + ((o.i + o.j + 1) * th) / 2 });
 
-    const frame = (now: number) => {
-      const t = Math.min(1, (now - start) / 900);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-
-      // island: two soil walls and the grass top
-      ctx.fillStyle = g.left;
-      ctx.beginPath(); ctx.moveTo(L.x, L.y); ctx.lineTo(B.x, B.y); ctx.lineTo(B.x, B.y + wall); ctx.lineTo(L.x, L.y + wall); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = g.right;
-      ctx.beginPath(); ctx.moveTo(R.x, R.y); ctx.lineTo(B.x, B.y); ctx.lineTo(B.x, B.y + wall); ctx.lineTo(R.x, R.y + wall); ctx.closePath(); ctx.fill();
-      const grad = ctx.createLinearGradient(0, oy, 0, B.y);
+    const paintScene = (t: number) => {
+      sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      sctx.clearRect(0, 0, W, H);
+      sctx.fillStyle = g.left;
+      sctx.beginPath(); sctx.moveTo(L.x, L.y); sctx.lineTo(B.x, B.y); sctx.lineTo(B.x, B.y + wall); sctx.lineTo(L.x, L.y + wall); sctx.closePath(); sctx.fill();
+      sctx.fillStyle = g.right;
+      sctx.beginPath(); sctx.moveTo(R.x, R.y); sctx.lineTo(B.x, B.y); sctx.lineTo(B.x, B.y + wall); sctx.lineTo(R.x, R.y + wall); sctx.closePath(); sctx.fill();
+      const grad = sctx.createLinearGradient(0, oy, 0, B.y);
       grad.addColorStop(0, g.topEdge);
       grad.addColorStop(1, g.top);
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(R.x, R.y); ctx.lineTo(B.x, B.y); ctx.lineTo(L.x, L.y); ctx.closePath(); ctx.fill();
+      sctx.fillStyle = grad;
+      sctx.beginPath(); sctx.moveTo(ox, oy); sctx.lineTo(R.x, R.y); sctx.lineTo(B.x, B.y); sctx.lineTo(L.x, L.y); sctx.closePath(); sctx.fill();
       if (tw > 9) {
-        ctx.strokeStyle = g.line;
-        ctx.lineWidth = 1;
+        sctx.strokeStyle = g.line;
+        sctx.lineWidth = 1;
         for (let k = 1; k < n; k++) {
-          ctx.beginPath(); ctx.moveTo(ox + (k * tw) / 2, oy + (k * th) / 2); ctx.lineTo(L.x + (k * tw) / 2, L.y + (k * th) / 2); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(ox - (k * tw) / 2, oy + (k * th) / 2); ctx.lineTo(R.x - (k * tw) / 2, R.y + (k * th) / 2); ctx.stroke();
+          sctx.beginPath(); sctx.moveTo(ox + (k * tw) / 2, oy + (k * th) / 2); sctx.lineTo(L.x + (k * tw) / 2, L.y + (k * th) / 2); sctx.stroke();
+          sctx.beginPath(); sctx.moveTo(ox - (k * tw) / 2, oy + (k * th) / 2); sctx.lineTo(R.x - (k * tw) / 2, R.y + (k * th) / 2); sctx.stroke();
         }
       }
-
       const hits: typeof hitRef.current = [];
       for (const o of order) {
-        const sp = SPECIES[o.p.species] ?? SPECIES.sprout;
-        const x = ox + ((o.i - o.j) * tw) / 2;
-        const y = oy + ((o.i + o.j + 1) * th) / 2;
+        const { x, y } = pos(o);
         const delay = many ? 0 : (o.k / Math.max(1, placed.length)) * 0.45;
-        let s = easeOutBack(Math.min(1, Math.max(0, (t - delay) / 0.55)));
-        if (o.p.id === highlight) s *= 1 + 0.12 * Math.sin(Math.min(1, t) * Math.PI);
-        const h = o.h * s;
+        let sc = easeOutBack(Math.min(1, Math.max(0, (t - delay) / 0.55)));
+        if (o.p.id === highlight) sc *= 1 + 0.12 * Math.sin(Math.min(1, t) * Math.PI);
+        const h = o.h * sc;
         if (h < 0.5) continue;
-        drawPlant(ctx, sp, x, y, h, { seed: o.p.id, crit: o.p.crit, dark });
+        drawPlant(sctx, o.sp, x, y, h, { seed: o.p.id, crit: o.p.crit, dark, season, young: o.young });
         hits.push({ plant: o.p, x0: x - Math.max(h * 0.4, tw / 2), x1: x + Math.max(h * 0.4, tw / 2), y0: y - h, y1: y + th / 2 });
       }
       hitRef.current = hits;
-      if (t < 1) raf = requestAnimationFrame(frame);
+    };
+
+    // Seasonal particles: petals in spring, leaves in autumn, snow in winter.
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const particles: Particle[] = [];
+    const sources = order.filter((o) => !o.young && !o.sp.evergreen && o.h > unit * 0.9);
+    const spawn = (initial: boolean): Particle | null => {
+      if (season === 'winter') {
+        return { x: Math.random() * W, y: initial ? Math.random() * H : -4, vx: 0, vy: 9 + Math.random() * 10, r: 1 + Math.random() * 1.6, rot: 0, spin: 0, color: 'rgba(241,245,249,0.9)', phase: Math.random() * 6 };
+      }
+      if (season === 'summer') return null;
+      if (season === 'autumn' && !sources.length) return null;
+      const src = season === 'autumn' ? sources[Math.floor(Math.random() * sources.length)] : null;
+      const at = src ? pos(src) : { x: Math.random() * W, y: topPad * 0.5 };
+      const color = src ? autumnColor(src.sp, src.p.id) : Math.random() < 0.5 ? '#f9a8d4' : '#fdf2f8';
+      const top = src ? at.y - src.h * (0.5 + Math.random() * 0.3) : at.y;
+      return { x: at.x + (Math.random() - 0.5) * (src ? src.h * 0.5 : W), y: initial ? top + Math.random() * 30 : top, vx: 0, vy: 6 + Math.random() * 6,
+        r: season === 'autumn' ? Math.max(1.6, unit * 0.06) : Math.max(1.2, unit * 0.045), rot: Math.random() * 6, spin: (Math.random() - 0.5) * 2, color, phase: Math.random() * 6 };
+    };
+    const target = reduced ? 0 : season === 'winter' ? 70 : season === 'autumn' ? Math.min(28, sources.length * 3) : season === 'spring' ? 14 : 0;
+    for (let k = 0; k < target; k++) { const p = spawn(true); if (p) particles.push(p); }
+
+    const floorAt = (x: number) => { // island top edge under x, so leaves settle on the grass
+      const dx = Math.abs(x - ox) / ((n * tw) / 2);
+      return dx > 1 ? H : oy + (n * th) / 2 + (n * th) / 2 * (1 - dx) - 2;
+    };
+
+    const start = performance.now();
+    let last = start;
+    let raf = 0;
+    const frame = (now: number) => {
+      const t = Math.min(1, (now - start) / 900);
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (t < 1 || now - start < 1000) paintScene(t);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(scene, 0, 0);
+      if (particles.length) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        for (let k = particles.length - 1; k >= 0; k--) {
+          const p = particles[k];
+          p.phase += dt * 1.6;
+          p.x += (Math.sin(p.phase) * (season === 'winter' ? 6 : 14) + p.vx) * dt;
+          p.y += p.vy * dt;
+          p.rot += p.spin * dt;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          if (season === 'winter') ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          else ctx.ellipse(p.x, p.y, p.r, p.r * 0.45, p.rot, 0, Math.PI * 2);
+          ctx.fill();
+          if (p.y > floorAt(p.x) || p.y > H) {
+            particles.splice(k, 1);
+            const np = spawn(false);
+            if (np) particles.push(np);
+          }
+        }
+      }
+      if (t < 1 || particles.length) raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [layout, width, dark, today, highlight]);
+  }, [layout, width, dark, season, highlight]);
 
   function pick(e: React.MouseEvent<HTMLCanvasElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -222,7 +286,7 @@ function PlantIcon({ species, size = 36, locked = false }: { species: string; si
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, size, size);
     const sp = SPECIES[species];
-    drawPlant(ctx, sp, size / 2, size * 0.9, size * 0.82, { seed: 7, dark: resolvedTheme === 'dark' });
+    drawPlant(ctx, sp, size / 2, size * 0.9, size * 0.82, { seed: 7, dark: resolvedTheme === 'dark', season: 'summer' });
   }, [species, size, resolvedTheme]);
   return <canvas ref={ref} style={{ width: size, height: size }} className={locked ? 'opacity-30 grayscale' : ''} />;
 }
@@ -234,6 +298,8 @@ export default function Garden() {
   const [highlight, setHighlight] = useState<number | null>(null);
   const [planting, setPlanting] = useState<number | null>(null);
   const [sound, setSound] = useState(soundEnabled());
+  const nowSeason = seasonOf(new Date());
+  const [season, setSeason] = useState<Season>(nowSeason);
   const autoPeriod = useRef(false);
 
   const load = () => api.getGardenPlants().then((r: { data: GardenData }) => setData(r.data));
@@ -265,6 +331,7 @@ export default function Garden() {
   const rarePlanted = new Map<string, number>();
   data.plants.forEach((p) => { if (SPECIES[p.species]?.rare) rarePlanted.set(p.species, (rarePlanted.get(p.species) ?? 0) + 1); });
   const pickedSp = picked ? SPECIES[picked.species] : null;
+  const pickedYoung = picked && pickedSp ? growthFor(pickedSp, ageDays(picked)).young : false;
 
   async function plantSeed(seed: Reward) {
     setPlanting(seed.id);
@@ -297,7 +364,7 @@ export default function Garden() {
       <PageHeader
         icon={Sprout}
         title="Growth Garden"
-        subtitle={`${data.plants.length.toLocaleString()} plants · everything you finish grows here`}
+        subtitle={data.plants.length ? `${data.plants.length.toLocaleString()} plants · everything you finish grows here` : 'Everything you finish from now on grows here'}
         actions={
           <button
             onClick={() => { setSoundEnabled(!sound); setSound(!sound); }}
@@ -317,6 +384,16 @@ export default function Garden() {
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-1 px-1 mb-2 text-[11px] text-gray-500">
+          {SEASONS.map((x) => (
+            <button key={x.id} onClick={() => setSeason(x.id)}
+              className={`rounded-md px-2 py-0.5 transition-colors ${season === x.id
+                ? 'bg-gray-100 text-gray-900 font-bold dark:bg-white/[0.08] dark:text-gray-100'
+                : 'hover:text-gray-800 dark:hover:text-gray-200'}`}>
+              {x.label}{x.id === nowSeason ? ' ·now' : ''}
+            </button>
+          ))}
+        </div>
         <div className="flex items-baseline justify-between px-1 mb-1">
           <span className="text-[11px] text-gray-500">
             {period === 'today' ? fmtDay(data.today) : period === 'all' ? 'Since the beginning' : `Since ${fmtDay(periodStart(period, data.today))}`}
@@ -326,7 +403,7 @@ export default function Garden() {
         <div className="relative">
           <GardenCanvas
             plants={shown}
-            today={data.today}
+            season={season}
             layoutKey={`${period}:${periodStart(period, data.today)}`}
             highlight={highlight}
             onPick={setPicked}
@@ -343,7 +420,7 @@ export default function Garden() {
               <PlantIcon species={picked.species} size={36} />
               <div className="min-w-0 flex-1">
                 <div className="text-[13px] font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                  {picked.crit ? `Golden ${pickedSp.name}` : pickedSp.name}
+                  {picked.crit ? 'Golden ' : ''}{pickedSp.name}{pickedYoung ? ' sapling' : ''}
                   {picked.attribute && <AttrDot attribute={picked.attribute} />}
                 </div>
                 <div className="text-[11px] text-gray-500 truncate">
@@ -353,7 +430,7 @@ export default function Garden() {
             </>
           ) : (
             <span className="text-[11px] text-gray-500">
-              Tap a plant to see what planted it. Plants grow for three weeks, rare trees for two months; critical hits grow golden.
+              Tap a plant to see what planted it. Saplings grow to full size in {GROW_DAYS.common} days ({GROW_DAYS.rare} for rare trees); critical hits grow golden.
             </span>
           )}
         </div>

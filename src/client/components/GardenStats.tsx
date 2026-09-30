@@ -144,7 +144,7 @@ export function Achievements({ data }: { data: GardenSummary }) {
                     <p className="text-[11px] text-gray-500">
                       {done ? 'Unlocked.' : `Progress: ${a.progress.toLocaleString()} of ${a.goal.toLocaleString()} (${Math.floor((a.progress / a.goal) * 100)}%).`}
                     </p>
-                    {seed && (
+                    {seed && !done && (
                       <p className="text-[11px] text-gray-500">
                         Reward: a <b className="text-gray-700 dark:text-gray-300">{SPECIES[seed.species].name}</b> seed to plant in your garden.
                       </p>
@@ -152,7 +152,7 @@ export function Achievements({ data }: { data: GardenSummary }) {
                   </div>
                 ) : (
                   <div className="text-[11px] text-gray-500 truncate">
-                    {a.description}{seed && <> · <span className="text-gray-600 dark:text-gray-400">{SPECIES[seed.species].name} seed</span></>}
+                    {a.description}{seed && !done && <> · <span className="text-gray-600 dark:text-gray-400">{SPECIES[seed.species].name} seed</span></>}
                   </div>
                 )}
                 {!done && <div className="mt-1.5"><Bar pct={(a.progress / a.goal) * 100} thin /></div>}
