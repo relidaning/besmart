@@ -1,12 +1,14 @@
 import db from './database.js';
-import { localDate } from './date.js';
+import { localDate, effectiveDate } from './date.js';
 
 const REVIEW_INTERVALS = [1, 3, 7, 15, 30, 60, 120, 240];
 
 export function scheduleJob() {
-  const now = new Date();
-  const today = localDate(now);
-  const prev = new Date(now);
+  // The app's day runs until DAY_START_HOUR (06:00), not midnight: check-ins done at
+  // 01:00 belong to the day before. Using calendar dates here closed "yesterday" at
+  // midnight and froze its score before those late check-ins landed.
+  const today = effectiveDate();
+  const prev = new Date(`${today}T12:00:00`);
   prev.setDate(prev.getDate() - 1);
   const yesterday = localDate(prev);
 
@@ -52,11 +54,12 @@ export function scheduleJob() {
         db.prepare('UPDATE checkin_tasks SET is_timeout = 1 WHERE id = ?').run(t.id);
       }
 
-      // Record yesterday's earned score (sum of completed task scores — daily + non-daily)
+      // Record yesterday's earned score (sum of completed task scores — daily + non-daily).
+      // Recomputed on every run, so a late completion or undo still corrects it.
       const existingScore = db.prepare(
         'SELECT id FROM scores WHERE score_date = ? AND user_id = ?'
-      ).get(yesterday, user_id);
-      if (!existingScore) {
+      ).get(yesterday, user_id) as { id: number } | undefined;
+      {
         const earned = (db.prepare(`
           SELECT COALESCE(SUM(s.score), 0) as total
           FROM checkin_tasks t
@@ -66,8 +69,12 @@ export function scheduleJob() {
               OR (t.schedule_type != 'daily' AND t.is_completed = 1 AND DATE(t.completed_at) = ?))
         `).get(user_id, yesterday, yesterday) as any).total;
 
-        db.prepare('INSERT INTO scores (score_date, score, user_id) VALUES (?, ?, ?)')
-          .run(yesterday, earned, user_id);
+        if (existingScore) {
+          db.prepare('UPDATE scores SET score = ? WHERE id = ?').run(earned, existingScore.id);
+        } else {
+          db.prepare('INSERT INTO scores (score_date, score, user_id) VALUES (?, ?, ?)')
+            .run(yesterday, earned, user_id);
+        }
       }
 
       // Ensure non-daily tasks exist if no uncompleted ones

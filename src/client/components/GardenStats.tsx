@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Award, Brain, CalendarCheck, CalendarRange, CheckCheck, Crown, Flag, Flame, Hammer, Scale, Sprout,
@@ -113,19 +113,21 @@ export function YearOfGrowth({ data }: { data: GardenSummary }) {
 }
 
 export function Achievements({ data }: { data: GardenSummary }) {
+  const [open, setOpen] = useState<string | null>(null);
   const unlocked = data.achievements.filter((a) => a.progress >= a.goal);
   const locked = data.achievements.filter((a) => a.progress < a.goal)
     .sort((a, b) => b.progress / b.goal - a.progress / a.goal);
   return (
     <motion.div variants={item} className="card">
-      <CardHead title="Achievements" meta={`${unlocked.length}/${data.achievements.length} unlocked`} />
+      <CardHead title="Achievements" meta={`${unlocked.length}/${data.achievements.length} unlocked · tap for details`} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
         {[...unlocked, ...locked].map((a) => {
           const done = a.progress >= a.goal;
           const Icon = ACHIEVEMENT_ICON[a.id] ?? Award;
           const seed = ACHIEVEMENT_SEEDS[a.id];
           return (
-            <div key={a.id} className={`row flex items-center gap-3 ${done ? '' : 'opacity-70'}`}>
+            <button key={a.id} onClick={() => setOpen(open === a.id ? null : a.id)} aria-expanded={open === a.id}
+              className={`row flex items-start gap-3 text-left transition-colors hover:bg-gray-100 dark:hover:bg-white/[0.06] ${done ? '' : 'opacity-80'} ${open === a.id ? 'sm:col-span-2 !opacity-100' : ''}`}>
               <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 border ${done
                 ? 'border-brand-400/60 bg-brand-400/[0.12] text-brand-600 dark:text-brand-400'
                 : 'border-gray-200 dark:border-white/[0.08] text-gray-400 dark:text-gray-600'}`}>
@@ -136,12 +138,26 @@ export function Achievements({ data }: { data: GardenSummary }) {
                   <span className="text-[13px] font-bold text-gray-900 dark:text-gray-100 truncate">{a.title}</span>
                   <span className="text-[11px] text-gray-500 whitespace-nowrap">{done ? 'done' : `${a.progress}/${a.goal}`}</span>
                 </div>
-                <div className="text-[11px] text-gray-500 truncate">
-                  {a.description}{seed && <> · <span className="text-gray-600 dark:text-gray-400">{SPECIES[seed.species].name} seed</span></>}
-                </div>
+                {open === a.id ? (
+                  <div className="mt-1 space-y-1 text-[12px] leading-snug text-gray-600 dark:text-gray-300">
+                    <p>{a.description}.</p>
+                    <p className="text-[11px] text-gray-500">
+                      {done ? 'Unlocked.' : `Progress: ${a.progress.toLocaleString()} of ${a.goal.toLocaleString()} (${Math.floor((a.progress / a.goal) * 100)}%).`}
+                    </p>
+                    {seed && (
+                      <p className="text-[11px] text-gray-500">
+                        Reward: a <b className="text-gray-700 dark:text-gray-300">{SPECIES[seed.species].name}</b> seed to plant in your garden.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-gray-500 truncate">
+                    {a.description}{seed && <> · <span className="text-gray-600 dark:text-gray-400">{SPECIES[seed.species].name} seed</span></>}
+                  </div>
+                )}
                 {!done && <div className="mt-1.5"><Bar pct={(a.progress / a.goal) * 100} thin /></div>}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
