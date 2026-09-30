@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { ListTodo, Trophy, Check, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
+import { ListTodo, Trophy, Check, AlertTriangle, ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../hooks/api';
 import { PageHeader, StatTiles, XpChip, EmptyState } from '../components/PageKit';
 
@@ -32,6 +32,8 @@ const priorityConfig = {
   medium: { label: 'Medium' },
   low: { label: 'Low' },
 };
+
+const ICON_BTN = 'w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-200 dark:hover:bg-white/[0.06] transition-colors disabled:opacity-25 disabled:pointer-events-none';
 
 // Mirrors the todo XP table in server/garden.ts.
 const TODO_XP: Record<Todo['priority'], number> = { high: 15, medium: 10, low: 5 };
@@ -345,39 +347,39 @@ export default function Todos() {
                       {todo.description && (
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{todo.description}</p>
                       )}
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
-                        {!todo.completed && <XpChip attribute="capability" amount={TODO_XP[todo.priority]} />}
-                        {todo.due_date && (
-                          <span className={`flex items-center gap-0.5 text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
-                            {isOverdue && <AlertTriangle size={11} />}
-                            {isOverdue ? 'Overdue: ' : 'Due: '}{todo.due_date}
-                          </span>
-                        )}
-                        {todo.completed && todo.completed_at && (
-                          <span className="text-xs text-gray-400 dark:text-gray-500">Done: {todo.completed_at.split('T')[0]}</span>
-                        )}
+                      {/* Meta left, compact actions right: no separate button row. */}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 flex-1">
+                          {!todo.completed && <XpChip attribute="capability" amount={TODO_XP[todo.priority]} />}
+                          {todo.due_date && (
+                            <span className={`flex items-center gap-0.5 text-[11px] ${isOverdue ? 'text-[#d64545] dark:text-[#ec8a8a] font-medium' : 'text-gray-500'}`}>
+                              {isOverdue && <AlertTriangle size={11} />}
+                              {isOverdue ? 'Overdue ' : 'Due '}{todo.due_date}
+                            </span>
+                          )}
+                          {todo.completed && todo.completed_at && (
+                            <span className="text-[11px] text-gray-500">Done {todo.completed_at.split('T')[0]}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center -mr-1.5 flex-shrink-0">
+                          <button onClick={() => handlePriorityChange(todo, 1)} disabled={todo.priority === 'high'}
+                            title="Prioritize" aria-label="Prioritize" className={ICON_BTN}>
+                            <ChevronUp size={15} />
+                          </button>
+                          <button onClick={() => handlePriorityChange(todo, -1)} disabled={todo.priority === 'low'}
+                            title="De-prioritize" aria-label="De-prioritize" className={ICON_BTN}>
+                            <ChevronDown size={15} />
+                          </button>
+                          <button onClick={() => openForm(todo)} title="Edit" aria-label="Edit" className={ICON_BTN}>
+                            <Pencil size={13} />
+                          </button>
+                          <button onClick={() => handleDelete(todo.id)} title="Delete" aria-label="Delete"
+                            className={`${ICON_BTN} hover:!text-[#d64545] dark:hover:!text-[#ec8a8a]`}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-white/[0.08] justify-center items-center">
-                    <button
-                      onClick={() => handlePriorityChange(todo, 1)}
-                      disabled={todo.priority === 'high'}
-                      title="Prioritize"
-                      className="btn-ghost text-xs disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <ChevronUp size={14} />
-                    </button>
-                    <button
-                      onClick={() => handlePriorityChange(todo, -1)}
-                      disabled={todo.priority === 'low'}
-                      title="De-prioritize"
-                      className="btn-ghost text-xs disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <ChevronDown size={14} />
-                    </button>
-                    <button onClick={() => openForm(todo)} className="btn-ghost text-xs">Edit</button>
-                    <button onClick={() => handleDelete(todo.id)} className="btn-ghost text-xs text-red-400">Delete</button>
                   </div>
                 </div>
               </motion.div>
