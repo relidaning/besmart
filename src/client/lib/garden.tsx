@@ -18,7 +18,7 @@ export interface XpAward {
   crit: boolean;
   capped?: boolean;
   levelUp?: number;
-  plant?: string;
+  garden?: string;
   unlocked?: string;
   seed?: string;
 }
@@ -35,7 +35,7 @@ export function setSoundEnabled(on: boolean) {
 
 let audio: AudioContext | null = null;
 
-function chime(notes: number[]) {
+export function chime(notes: number[]) {
   if (!soundEnabled()) return;
   try {
     audio ??= new AudioContext();
@@ -56,7 +56,7 @@ function chime(notes: number[]) {
   } catch { /* audio unavailable */ }
 }
 
-function confetti(count: number, colors: string[]) {
+export function confetti(count: number, colors: string[]) {
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
   const originX = window.innerWidth / 2;
   const originY = window.innerHeight * 0.45;
@@ -88,13 +88,13 @@ export function celebrate(award: XpAward | null | undefined, label?: string) {
   if (!award) return;
   const meta = ATTR_META[award.attribute];
   if (award.capped) {
-    toast('Daily review XP cap reached', { id: 'xp-cap' });
+    toast(`Daily review XP cap reached${award.garden ? ` · ${award.garden}` : ''}`, { id: 'xp-cap' });
     return;
   }
   if (award.amount <= 0) return;
 
   toast(
-    `${label ? `${label} · ` : ''}${award.crit ? 'Critical · ' : ''}+${award.amount} ${meta.label} XP${award.plant ? ` · ${award.crit ? 'golden ' : ''}${award.plant} planted` : ''}`,
+    `${label ? `${label} · ` : ''}${award.crit ? 'Critical · ' : ''}+${award.amount} ${meta.label} XP${award.garden ? ` · ${award.garden}` : ''}`,
     {
       duration: 2600,
       icon: <span className="dot !w-2.5 !h-2.5" style={{ background: meta.hex }} />,

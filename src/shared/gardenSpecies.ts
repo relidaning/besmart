@@ -138,3 +138,35 @@ const ATTR_INDEX: Record<Attribute, number> = { wisdom: 0, health: 1, capability
 export function milestoneRewardId(attribute: Attribute, level: number) {
   return 100 + ATTR_INDEX[attribute] * 100 + level; // 105, 110, … per attribute
 }
+
+// ── Plants are notes ────────────────────────────────────────────────────────
+// Every note you create in the vault (as a review course) plants a sapling.
+// Its color family follows the note's folder; the species within the family
+// depends on your Wisdom level when it's planted.
+
+export function familyForNote(path: string | null | undefined): Attribute {
+  const p = path ?? '';
+  if (/^0_dev\/(0_)?AI\//i.test(p)) return 'wisdom';   // AI/ML/DL: purple
+  if (p.startsWith('0_dev/')) return 'capability';        // other dev: blue
+  if (p.startsWith('1_English/')) return 'wealth';        // English: amber
+  return 'health';                                        // everything else: green
+}
+
+export const FAMILY_LABEL: Record<Attribute, string> = {
+  wisdom: 'AI notes', capability: 'Dev notes', wealth: 'English notes', health: 'Other notes',
+};
+
+// Machine-written notes don't get plants (they still get reviewed).
+export const NO_PLANT_PREFIXES = ['claude-maxer/'];
+
+export const GROWTH = {
+  review: { again: 8, hard: 15, ok: 25, easy: 30 } as Record<string, number>,
+  water: 5,        // per watered plant
+  waterPlants: 3,  // plants watered by one finished check-in / todo / plan task
+  full: 100,       // growth at full size
+  fullRare: 150,
+};
+
+export function growthTarget(species: string) {
+  return SPECIES[species]?.rare ? GROWTH.fullRare : GROWTH.full;
+}

@@ -131,6 +131,8 @@ export const api = {
   // Growth Garden
   getGardenSummary: () => request<any>('/garden/summary'),
   getGardenPlants: () => request<any>('/garden/plants'),
+  getGardenEvents: (params: { before?: number; plant?: number; limit?: number } = {}) =>
+    request<any>(`/garden/events?${new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]))}`),
   plantGardenSeed: (id: number) => request<any>(`/garden/seeds/${id}/plant`, { method: 'POST' }),
 
   // Music

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { gardenSummary, gardenPlants, plantSeed, seedCount } from '../garden.js';
+import { gardenSummary, gardenPlants, gardenEvents, plantSeed, seedCount } from '../garden.js';
 
 export const gardenRoutes = Router();
 
@@ -9,6 +9,12 @@ gardenRoutes.get('/summary', (req, res) => {
 
 gardenRoutes.get('/plants', (req, res) => {
   res.json({ data: gardenPlants(req.user!.id) });
+});
+
+// The garden journal: newest first; ?before=<id> pages, ?plant=<id> filters to one plant.
+gardenRoutes.get('/events', (req, res) => {
+  const num = (v: unknown) => (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : undefined);
+  res.json({ data: gardenEvents(req.user!.id, { before: num(req.query.before), plantId: num(req.query.plant), limit: num(req.query.limit) }) });
 });
 
 gardenRoutes.post('/seeds/:id/plant', (req, res) => {

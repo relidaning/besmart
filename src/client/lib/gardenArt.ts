@@ -409,12 +409,12 @@ export function drawPlant(
   }
 }
 
-// Growth: flowers reach full size in 3 days, rare trees in 7. The first fifth of
-// that is a sapling; after that the plant takes its own shape and keeps growing.
-export const GROW_DAYS = { common: 3, rare: 7 };
-export function growthFor(sp: Species, ageDays: number) {
-  const g = Math.min(1, Math.max(0, ageDays / (sp.rare ? GROW_DAYS.rare : GROW_DAYS.common)));
-  return { scale: 0.3 + 0.7 * g, young: g < 0.2 };
+// Growth comes from events (planting, watering, reviews), not the clock: a plant is
+// a sapling until it has 10% of its target growth, then takes its species shape
+// and keeps growing to full size at `target` (100, or 150 for rare trees).
+export function growthFor(growth: number, target: number) {
+  const g = Math.min(1, Math.max(0, growth / target));
+  return { scale: 0.3 + 0.7 * g, young: g < 0.1, pct: g };
 }
 
 export const GROUND: Record<Season, Record<'dark' | 'light', { top: string; topEdge: string; line: string; left: string; right: string }>> = {

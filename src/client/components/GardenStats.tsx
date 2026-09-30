@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Award, Brain, CalendarCheck, CalendarRange, CheckCheck, Crown, Flag, Flame, Hammer, Scale, Sprout,
   Sunrise, TreePine, Zap, type LucideIcon,
@@ -7,6 +8,8 @@ import {
 import { ACHIEVEMENT_SEEDS, SPECIES } from '../../shared/gardenSpecies';
 import type { AttributeLevel } from './AttributeBar';
 import { Bar, CardHead } from './PageKit';
+import PlantIcon from './PlantIcon';
+import { chime, confetti } from '../lib/garden';
 
 // Growth Garden statistics, shown on Home (the Garden page is only the garden).
 
@@ -112,22 +115,133 @@ export function YearOfGrowth({ data }: { data: GardenSummary }) {
   );
 }
 
+// The achievement pop-up: springs in over a dimmed page. Unlocked ones get a
+// glowing medal with rotating rays, confetti and a chime; locked ones fill a
+// progress ring and count up to where you are, with the seed they'll earn.
+function AchievementModal({ a, onClose }: { a: Achievement; onClose: () => void }) {
+  const done = a.progress >= a.goal;
+  const Icon = ACHIEVEMENT_ICON[a.id] ?? Award;
+  const seed = ACHIEVEMENT_SEEDS[a.id];
+  const pct = Math.min(1, a.progress / a.goal);
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (done) {
+      confetti(60, ['#fabf40', '#fde68a', '#a854f7', '#1fa874', '#3987e5']);
+      chime([659, 784, 988, 1319]);
+    }
+    const start = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / 1100);
+      setCount(Math.round(a.progress * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('keydown', onKey); };
+  }, [a.id]);
+
+  const R = 46, C = 2 * Math.PI * R;
+  return createPortal(
+    <motion.div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-[#050609]/70 p-6 backdrop-blur-[3px]"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.55, y: 40, rotate: -4, opacity: 0 }}
+        animate={{ scale: 1, y: 0, rotate: 0, opacity: 1 }}
+        exit={{ scale: 0.8, y: 20, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+        className={`relative w-full max-w-xs overflow-hidden rounded-[22px] border bg-white p-6 text-center shadow-2xl shadow-black/40 dark:bg-gray-900 ${done
+          ? 'border-brand-400/70' : 'border-gray-200/70 dark:border-white/[0.1]'}`}
+      >
+        <button onClick={onClose} aria-label="Close" className="absolute right-3 top-2 text-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+
+        <div className="relative mx-auto mb-4 h-32 w-32">
+          {done && (
+            <motion.div
+              className="absolute -inset-8 rounded-full opacity-70"
+              style={{ background: 'repeating-conic-gradient(from 0deg, rgba(250,191,64,0.35) 0deg 10deg, transparent 10deg 30deg)',
+                maskImage: 'radial-gradient(circle, black 30%, transparent 70%)', WebkitMaskImage: 'radial-gradient(circle, black 30%, transparent 70%)' }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 14, repeat: Infinity, ease: 'linear' }}
+            />
+          )}
+          <svg viewBox="0 0 112 112" className="absolute inset-0 h-full w-full -rotate-90">
+            <circle cx="56" cy="56" r={R} fill="none" strokeWidth="7" className="stroke-gray-200 dark:stroke-white/[0.08]" />
+            <motion.circle
+              cx="56" cy="56" r={R} fill="none" strokeWidth="7" strokeLinecap="round"
+              stroke={done ? '#fabf40' : '#a854f7'}
+              strokeDasharray={C}
+              initial={{ strokeDashoffset: C }}
+              animate={{ strokeDashoffset: C * (1 - pct) }}
+              transition={{ duration: 1.1, ease: [0.2, 0.8, 0.2, 1] }}
+            />
+          </svg>
+          <motion.div
+            className={`absolute inset-[18px] flex items-center justify-center rounded-full ${done
+              ? 'bg-gradient-to-br from-brand-300 to-brand-500 text-ink shadow-[0_0_40px_rgba(250,191,64,0.55)]'
+              : 'bg-gray-100 text-gray-400 dark:bg-white/[0.05] dark:text-gray-500'}`}
+            initial={{ scale: 0.2, rotate: -90 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 220, damping: 12, delay: 0.1 }}
+          >
+            <Icon size={38} strokeWidth={2.2} />
+          </motion.div>
+        </div>
+
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+          <div className={`text-[11px] font-bold uppercase tracking-[0.18em] ${done ? 'text-brand-600 dark:text-brand-400' : 'text-gray-500'}`}>
+            {done ? 'Achievement unlocked' : 'In progress'}
+          </div>
+          <h3 className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">{a.title}</h3>
+          <p className="mt-1.5 text-[13px] leading-snug text-gray-600 dark:text-gray-300">{a.description}.</p>
+          <div className="mt-3 text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100">
+            {count.toLocaleString()}<span className="text-sm font-normal text-gray-500"> / {a.goal.toLocaleString()}</span>
+          </div>
+          {!done && <div className="text-[11px] text-gray-500">{(a.goal - a.progress).toLocaleString()} to go · {Math.floor(pct * 100)}%</div>}
+        </motion.div>
+
+        {seed && !done && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.45 }}
+            className="row mt-4 flex items-center gap-3 text-left"
+          >
+            <PlantIcon species={seed.species} size={52} />
+            <div className="min-w-0">
+              <div className="text-[11px] text-gray-500">Reward</div>
+              <div className="text-[13px] font-bold text-gray-900 dark:text-gray-100">{SPECIES[seed.species].name} seed</div>
+              <div className="text-[11px] text-gray-500">a rare tree for your garden</div>
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
+    </motion.div>,
+    document.body,
+  );
+}
+
 export function Achievements({ data }: { data: GardenSummary }) {
   const [open, setOpen] = useState<string | null>(null);
   const unlocked = data.achievements.filter((a) => a.progress >= a.goal);
   const locked = data.achievements.filter((a) => a.progress < a.goal)
     .sort((a, b) => b.progress / b.goal - a.progress / a.goal);
+  const openA = data.achievements.find((a) => a.id === open) ?? null;
   return (
     <motion.div variants={item} className="card">
-      <CardHead title="Achievements" meta={`${unlocked.length}/${data.achievements.length} unlocked · tap for details`} />
+      <CardHead title="Achievements" meta={`${unlocked.length}/${data.achievements.length} unlocked · tap one`} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
         {[...unlocked, ...locked].map((a) => {
           const done = a.progress >= a.goal;
           const Icon = ACHIEVEMENT_ICON[a.id] ?? Award;
           const seed = ACHIEVEMENT_SEEDS[a.id];
           return (
-            <button key={a.id} onClick={() => setOpen(open === a.id ? null : a.id)} aria-expanded={open === a.id}
-              className={`row flex items-start gap-3 text-left transition-colors hover:bg-gray-100 dark:hover:bg-white/[0.06] ${done ? '' : 'opacity-80'} ${open === a.id ? 'sm:col-span-2 !opacity-100' : ''}`}>
+            <motion.button key={a.id} onClick={() => setOpen(a.id)} whileTap={{ scale: 0.96 }}
+              className={`row flex items-center gap-3 text-left transition-colors hover:bg-gray-100 dark:hover:bg-white/[0.06] ${done ? '' : 'opacity-80'}`}>
               <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 border ${done
                 ? 'border-brand-400/60 bg-brand-400/[0.12] text-brand-600 dark:text-brand-400'
                 : 'border-gray-200 dark:border-white/[0.08] text-gray-400 dark:text-gray-600'}`}>
@@ -138,29 +252,16 @@ export function Achievements({ data }: { data: GardenSummary }) {
                   <span className="text-[13px] font-bold text-gray-900 dark:text-gray-100 truncate">{a.title}</span>
                   <span className="text-[11px] text-gray-500 whitespace-nowrap">{done ? 'done' : `${a.progress}/${a.goal}`}</span>
                 </div>
-                {open === a.id ? (
-                  <div className="mt-1 space-y-1 text-[12px] leading-snug text-gray-600 dark:text-gray-300">
-                    <p>{a.description}.</p>
-                    <p className="text-[11px] text-gray-500">
-                      {done ? 'Unlocked.' : `Progress: ${a.progress.toLocaleString()} of ${a.goal.toLocaleString()} (${Math.floor((a.progress / a.goal) * 100)}%).`}
-                    </p>
-                    {seed && !done && (
-                      <p className="text-[11px] text-gray-500">
-                        Reward: a <b className="text-gray-700 dark:text-gray-300">{SPECIES[seed.species].name}</b> seed to plant in your garden.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-[11px] text-gray-500 truncate">
-                    {a.description}{seed && !done && <> · <span className="text-gray-600 dark:text-gray-400">{SPECIES[seed.species].name} seed</span></>}
-                  </div>
-                )}
+                <div className="text-[11px] text-gray-500 truncate">
+                  {a.description}{seed && !done && <> · <span className="text-gray-600 dark:text-gray-400">{SPECIES[seed.species].name} seed</span></>}
+                </div>
                 {!done && <div className="mt-1.5"><Bar pct={(a.progress / a.goal) * 100} thin /></div>}
               </div>
-            </button>
+            </motion.button>
           );
         })}
       </div>
+      <AnimatePresence>{openA && <AchievementModal key={openA.id} a={openA} onClose={() => setOpen(null)} />}</AnimatePresence>
     </motion.div>
   );
 }

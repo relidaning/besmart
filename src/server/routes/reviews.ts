@@ -4,6 +4,7 @@ import path from 'path';
 import db from '../database.js';
 import { localDate } from '../date.js';
 import { review as fsrsReview, intervalFor, fuzzInterval, previewIntervals, retrievability, GRADE, type MemoryState } from '../fsrs.js';
+import { plantForCourse, growFromReview } from '../garden.js';
 import { awardXp, REVIEW_XP } from '../garden.js';
 
 export const reviewRoutes = Router();
@@ -163,6 +164,7 @@ export function scheduleVaultNote(userId: number, vaultRoot: string, relPath: st
   db.prepare(
     'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date, ease_factor, interval_days) VALUES (?, 0, 0, ?, 2.5, 1)'
   ).run(result.lastInsertRowid, localDate(tomorrow));
+  plantForCourse(userId, Number(result.lastInsertRowid), 'created'); // a new note plants a sapling
   return true;
 }
 
@@ -408,7 +410,10 @@ reviewRoutes.post('/records/:id/complete', (req, res) => {
   ).run(record.course_id, record.reviewed_times + 1, localDate(nextDate), interval);
 
   const xp = awardXp(userId, 'review', record.id, 'wisdom', REVIEW_XP[rating as keyof typeof REVIEW_XP] ?? REVIEW_XP.ok);
-  res.json({ success: true, xp, next: { days: interval, date: localDate(nextDate) } });
+  // The note's plant grows (it's planted now if the note predates the garden).
+  const grew = growFromReview(userId, record.course_id, record.id, rating);
+  if (xp && grew) xp.garden = grew;
+  res.json({ success: true, xp, grew, next: { days: interval, date: localDate(nextDate) } });
 });
 
 // ── Record detail ─────────────────────────────────────────────────────────────
@@ -498,6 +503,7 @@ reviewRoutes.post('/courses', (req, res) => {
     db.prepare(
       'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date, ease_factor, interval_days) VALUES (?, 0, 0, ?, 2.5, 1)'
     ).run(courseId, localDate(firstReview));
+    plantForCourse(userId, Number(courseId), 'created');
 
     return db.prepare('SELECT * FROM review_courses WHERE id = ?').get(courseId);
   });
@@ -675,6 +681,7 @@ reviewRoutes.post('/vault/import', (req, res) => {
       db.prepare(
         'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date, ease_factor, interval_days) VALUES (?, 0, 0, ?, 2.5, 1)'
       ).run(result.lastInsertRowid, localDate(tomorrow));
+      plantForCourse(userId, Number(result.lastInsertRowid), 'created');
       return { id: result.lastInsertRowid, name };
     })
   )();

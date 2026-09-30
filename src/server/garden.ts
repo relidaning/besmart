@@ -1,8 +1,8 @@
 import db from './database.js';
 import { localDate, effectiveDate } from './date.js';
 import {
-  SPECIES, ACHIEVEMENT_SEEDS, MILESTONE_EVERY, MILESTONE_SPECIES, commonSpeciesFor, nextUnlock, milestoneRewardId,
-  type Reward,
+  SPECIES, ACHIEVEMENT_SEEDS, MILESTONE_EVERY, MILESTONE_SPECIES, GROWTH, NO_PLANT_PREFIXES,
+  commonSpeciesFor, nextUnlock, milestoneRewardId, familyForNote, growthTarget, type Reward,
 } from '../shared/gardenSpecies.js';
 
 // Growth Garden: every meaningful completion earns XP in one of four attributes.
@@ -59,8 +59,8 @@ export interface XpAward {
   crit: boolean;
   capped?: boolean;
   levelUp?: number;
-  /** The plant this completion put in the garden. */
-  plant?: string;
+  /** What this completion did in the garden ("watered 3 plants", "Lilac grew"). */
+  garden?: string;
   /** A common species this level-up unlocked. */
   unlocked?: string;
   /** A rare seed this level-up earned (every MILESTONE_EVERY levels). */
@@ -96,14 +96,17 @@ export function awardXp(
   ).run(userId, attribute, amount, sourceType, Number(sourceId), effectiveDate(), new Date().toISOString());
 
   const after = levelFor(attributeTotal(userId, attribute)).level;
-  const species = commonSpeciesFor(attribute, after);
-  plant(userId, species, attribute, sourceType, Number(sourceId), sourceLabel(sourceType, Number(sourceId)),
-    crit, effectiveDate(), new Date().toISOString());
-
-  const award: XpAward = { attribute, amount, crit, plant: SPECIES[species].name };
+  const award: XpAward = { attribute, amount, crit };
+  // Reviews grow their note's plant (reviews.ts); everything else waters the garden.
+  if (sourceType !== 'review') {
+    const watered = waterGarden(userId, sourceType, Number(sourceId));
+    if (watered) award.garden = `watered ${watered} plant${watered > 1 ? 's' : ''}`;
+  }
   if (after > before) {
     award.levelUp = after;
-    if (species !== commonSpeciesFor(attribute, before)) award.unlocked = SPECIES[species].name;
+    if (attribute === 'wisdom' && commonSpeciesFor('wisdom', after) !== commonSpeciesFor('wisdom', before)) {
+      award.unlocked = 'better plants';
+    }
     if (Math.floor(after / MILESTONE_EVERY) > Math.floor(before / MILESTONE_EVERY)) {
       award.seed = SPECIES[MILESTONE_SPECIES[attribute]].name;
     }
@@ -113,32 +116,100 @@ export function awardXp(
 
 export function revokeXp(sourceType: SourceType, sourceId: number | string) {
   db.prepare('DELETE FROM xp_events WHERE source_type = ? AND source_id = ?').run(sourceType, Number(sourceId));
-  db.prepare('DELETE FROM garden_plants WHERE source_type = ? AND source_id = ?').run(sourceType, Number(sourceId));
+  // Un-completing takes its water back.
+  db.prepare("DELETE FROM garden_events WHERE kind = 'water' AND source_type = ? AND source_id = ?").run(sourceType, Number(sourceId));
 }
 
 // ── Plants ──────────────────────────────────────────────────────────────────
+// A plant is a vault note: planted when the note becomes a review course (or,
+// for notes older than the garden, at its first review), watered by finished
+// check-ins/todos/plan tasks, and grown by reviewing the note. Growth is the sum
+// of the plant's garden_events, which double as the journal.
 
-function plant(
-  userId: number, species: string, attribute: Attribute | null, sourceType: string, sourceId: number,
-  label: string | null, crit: boolean, day: string, plantedAt: string,
+function logEvent(
+  userId: number, plantId: number | null, kind: 'plant' | 'seed' | 'water' | 'review', amount: number,
+  sourceType: string | null, sourceId: number | null, label: string,
 ) {
   db.prepare(`
-    INSERT OR IGNORE INTO garden_plants (user_id, species, attribute, source_type, source_id, label, crit, day, planted_at)
+    INSERT INTO garden_events (user_id, plant_id, kind, amount, source_type, source_id, label, day, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(userId, species, attribute, sourceType, sourceId, label, crit ? 1 : 0, day, plantedAt);
+  `).run(userId, plantId, kind, amount, sourceType, sourceId, label.slice(0, 240), effectiveDate(), new Date().toISOString());
 }
 
-// What planted it, shown when the plant is tapped.
+function insertPlant(userId: number, species: string, attribute: Attribute | null, sourceType: string, sourceId: number, label: string) {
+  const r = db.prepare(`
+    INSERT OR IGNORE INTO garden_plants (user_id, species, attribute, source_type, source_id, label, crit, day, planted_at)
+    VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+  `).run(userId, species, attribute, sourceType, sourceId, label, effectiveDate(), new Date().toISOString());
+  return r.changes ? Number(r.lastInsertRowid) : null;
+}
+
+function notePlant(courseId: number) {
+  return db.prepare("SELECT id, species FROM garden_plants WHERE source_type = 'note' AND source_id = ?").get(courseId) as
+    { id: number; species: string } | undefined;
+}
+
+/** Plant a sapling for a review course's note. Returns the plant, or null for machine-written notes. */
+export function plantForCourse(userId: number, courseId: number, why: 'created' | 'first-review') {
+  const existing = notePlant(courseId);
+  if (existing) return existing;
+  const course = db.prepare('SELECT name, vault_path, vault_paths FROM review_courses WHERE id = ? AND user_id = ?')
+    .get(courseId, userId) as any;
+  if (!course) return null;
+  let path: string | null = course.vault_path;
+  if (!path && course.vault_paths) { try { path = JSON.parse(course.vault_paths)[0] ?? null; } catch { /* malformed */ } }
+  if (path && NO_PLANT_PREFIXES.some((pre) => path!.startsWith(pre))) return null;
+
+  const family = familyForNote(path);
+  const species = commonSpeciesFor(family, levelFor(attributeTotal(userId, 'wisdom')).level);
+  const id = insertPlant(userId, species, family, 'note', courseId, course.name);
+  if (id === null) return notePlant(courseId) ?? null;
+  logEvent(userId, id, 'plant', 0, 'course', courseId,
+    why === 'created' ? `New note "${course.name}" planted a ${SPECIES[species].name}` : `First review of "${course.name}" planted a ${SPECIES[species].name}`);
+  return { id, species };
+}
+
+/** Reviewing a note grows its plant. Returns e.g. "Lilac grew +25". */
+export function growFromReview(userId: number, courseId: number, recordId: number, rating: string): string | null {
+  const plant = plantForCourse(userId, courseId, 'first-review');
+  if (!plant) return null;
+  const amount = GROWTH.review[rating] ?? GROWTH.review.ok;
+  const name = (db.prepare('SELECT name FROM review_courses WHERE id = ?').get(courseId) as any)?.name ?? 'a note';
+  const word = { again: 'Forgot', hard: 'Hard', ok: 'Good', easy: 'Easy' }[rating] ?? 'Good';
+  logEvent(userId, plant.id, 'review', amount, 'review', recordId, `Reviewed "${name}" (${word})`);
+  return `${SPECIES[plant.species].name} grew +${amount}`;
+}
+
+// Water the plants that have gone longest without water (still growing ones first).
+function waterGarden(userId: number, sourceType: string, sourceId: number): number {
+  const plants = db.prepare(`
+    SELECT p.id, p.species,
+      COALESCE((SELECT SUM(amount) FROM garden_events e WHERE e.plant_id = p.id), 0) AS growth,
+      (SELECT MAX(created_at) FROM garden_events e WHERE e.plant_id = p.id AND e.kind = 'water') AS watered
+    FROM garden_plants p WHERE p.user_id = ?
+  `).all(userId) as any[];
+  const chosen = plants
+    .map((p) => ({ ...p, done: p.growth >= growthTarget(p.species) }))
+    .sort((a, b) => Number(a.done) - Number(b.done) || (a.watered ?? '').localeCompare(b.watered ?? '') || Math.random() - 0.5)
+    .slice(0, GROWTH.waterPlants);
+  const what = sourceLabel(sourceType, sourceId);
+  const via = { checkin: 'Check-in', todo: 'Todo', plan_task: 'Plan task', plan: 'Finished plan' }[sourceType] ?? sourceType;
+  for (const p of chosen) {
+    logEvent(userId, p.id, 'water', GROWTH.water, sourceType, sourceId, `${via} "${what ?? '…'}" watered it`);
+  }
+  return chosen.length;
+}
+
+// What watered it, for the journal.
 function sourceLabel(sourceType: string, id: number): string | null {
   const q: Record<string, string> = {
     checkin: 'SELECT s.name AS l FROM checkin_tasks t JOIN checkin_schedules s ON s.id = t.schedule_id WHERE t.id = ?',
     todo: 'SELECT title AS l FROM todos WHERE id = ?',
-    review: 'SELECT c.name AS l FROM review_records r JOIN review_courses c ON c.id = r.course_id WHERE r.id = ?',
     plan_task: 'SELECT name AS l FROM plan_tasks WHERE id = ?',
     plan: 'SELECT name AS l FROM study_plans WHERE id = ?',
   };
   if (!q[sourceType]) return null;
-  return ((db.prepare(q[sourceType]).get(id) as any)?.l as string | undefined)?.slice(0, 200) ?? null;
+  return ((db.prepare(q[sourceType]).get(id) as any)?.l as string | undefined)?.slice(0, 120) ?? null;
 }
 
 // Fresh start (2026-09-30): the user didn't want history filling the garden, or
@@ -189,27 +260,44 @@ function availableSeeds(userId: number, summary: ReturnType<typeof gardenSummary
 
 export function gardenPlants(userId: number) {
   const summary = gardenSummary(userId);
-  const plants = db.prepare(
-    'SELECT id, species, attribute, source_type, label, crit, day, planted_at FROM garden_plants WHERE user_id = ? ORDER BY planted_at, id'
-  ).all(userId) as any[];
+  const plants = db.prepare(`
+    SELECT p.id, p.species, p.attribute, p.source_type, p.source_id, p.label, p.crit, p.day, p.planted_at,
+      COALESCE((SELECT SUM(amount) FROM garden_events e WHERE e.plant_id = p.id), 0) AS growth,
+      (SELECT COUNT(*) FROM garden_events e WHERE e.plant_id = p.id AND e.kind = 'review') AS reviews,
+      (SELECT COUNT(*) FROM garden_events e WHERE e.plant_id = p.id AND e.kind = 'water') AS waterings
+    FROM garden_plants p WHERE p.user_id = ? ORDER BY p.planted_at, p.id
+  `).all(userId) as any[];
+  const wisdom = summary.attributes.find((a) => a.attribute === 'wisdom')!.level;
   return {
-    plants: plants.map((p) => ({ ...p, crit: Boolean(p.crit) })),
+    plants: plants.map((p) => ({ ...p, crit: Boolean(p.crit), target: growthTarget(p.species) })),
     seeds: availableSeeds(userId, summary),
-    ladder: summary.attributes.map((a) => ({
-      attribute: a.attribute,
-      level: a.level,
-      current: commonSpeciesFor(a.attribute, a.level),
-      next: nextUnlock(a.attribute, a.level),
+    wisdomLevel: wisdom,
+    ladder: (['wisdom', 'capability', 'wealth', 'health'] as Attribute[]).map((family) => ({
+      attribute: family,
+      level: wisdom,
+      current: commonSpeciesFor(family, wisdom),
+      next: nextUnlock(family, wisdom),
     })),
     today: effectiveDate(),
   };
 }
 
+export function gardenEvents(userId: number, opts: { before?: number; plantId?: number; limit?: number }) {
+  const limit = Math.min(100, Math.max(1, opts.limit ?? 40));
+  const rows = db.prepare(`
+    SELECT e.id, e.plant_id, e.kind, e.amount, e.label, e.day, e.created_at, p.species
+    FROM garden_events e LEFT JOIN garden_plants p ON p.id = e.plant_id
+    WHERE e.user_id = ? AND (? IS NULL OR e.id < ?) AND (? IS NULL OR e.plant_id = ?)
+    ORDER BY e.id DESC LIMIT ?
+  `).all(userId, opts.before ?? null, opts.before ?? null, opts.plantId ?? null, opts.plantId ?? null, limit) as any[];
+  return rows;
+}
+
 export function plantSeed(userId: number, rewardId: number) {
   const seed = availableSeeds(userId, gardenSummary(userId)).find((r) => r.id === rewardId);
   if (!seed) return null;
-  plant(userId, seed.species, seed.milestone?.attribute ?? null, 'seed', seed.id, seed.reason, false,
-    effectiveDate(), new Date().toISOString());
+  const id = insertPlant(userId, seed.species, seed.milestone?.attribute ?? null, 'seed', seed.id, seed.reason);
+  if (id) logEvent(userId, id, 'seed', 0, 'seed', seed.id, `Planted a ${SPECIES[seed.species].name} seed (for ${seed.reason})`);
   return seed;
 }
 

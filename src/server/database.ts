@@ -345,6 +345,33 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 11: garden journal. A plant's growth is the sum of its events:
+  // planted when its vault note becomes a review course, watered by finished
+  // check-ins/todos/plan tasks, grown by reviewing its note. Also the log the
+  // Garden page shows.
+  if (version < 11) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS garden_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          plant_id INTEGER,
+          kind TEXT NOT NULL CHECK(kind IN ('plant','seed','water','review')),
+          amount REAL NOT NULL DEFAULT 0,
+          source_type TEXT,
+          source_id INTEGER,
+          label TEXT,
+          day TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_garden_events_user ON garden_events(user_id, id);
+        CREATE INDEX IF NOT EXISTS idx_garden_events_plant ON garden_events(plant_id);
+        CREATE INDEX IF NOT EXISTS idx_garden_events_source ON garden_events(source_type, source_id);
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (11)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'
