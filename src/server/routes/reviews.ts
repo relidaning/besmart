@@ -226,6 +226,28 @@ export function deleteCourseForNote(userId: number, relPath: string): boolean {
   return true;
 }
 
+// Deleting a course in the app also removes its note from the vault. It's moved to
+// the vault's .trash folder (Obsidian's "move to Obsidian trash") rather than
+// erased, so it can be restored; Nextcloud's trash is a second safety net.
+// Only an exact vault_path is touched, never a fuzzy match, and only inside the vault.
+function trashVaultNote(vaultRoot: string, relPath: string): string | null {
+  const root = path.resolve(vaultRoot);
+  const src = path.resolve(root, relPath);
+  if (!src.startsWith(root + path.sep) || !src.endsWith('.md') || !fs.existsSync(src)) return null;
+  const trash = path.join(root, '.trash');
+  if (!fs.existsSync(trash)) {
+    fs.mkdirSync(trash);
+    // The container runs as root; hand the folder to the vault's owner so Obsidian
+    // and the Nextcloud client can still empty it.
+    try { const st = fs.statSync(root); fs.chownSync(trash, st.uid, st.gid); } catch { /* best effort */ }
+  }
+  const base = path.basename(src, '.md');
+  let dest = path.join(trash, `${base}.md`);
+  for (let n = 2; fs.existsSync(dest); n++) dest = path.join(trash, `${base} ${n}.md`);
+  fs.renameSync(src, dest);
+  return path.relative(root, dest);
+}
+
 export function syncVaultForUser(userId: number): { missing: number; restored: number } {
   const config = getUserVaultConfig(userId);
   if (!config) return { missing: 0, restored: 0 };
@@ -529,14 +551,20 @@ reviewRoutes.put('/courses/:id', (req, res) => {
 
 reviewRoutes.delete('/courses/:id', (req, res) => {
   const userId = req.user!.id;
-  const existing = db.prepare('SELECT id FROM review_courses WHERE id = ? AND user_id = ?').get(req.params.id, userId);
+  const existing = db.prepare('SELECT id, vault_path FROM review_courses WHERE id = ? AND user_id = ?').get(req.params.id, userId) as any;
   if (!existing) return res.status(404).json({ error: 'Course not found' });
 
-  // The app never changes vault notes: this deletes the course (and its plant) only.
+  const keepNote = req.query.keepNote === '1';
+  let trashed: string | null = null;
+  const cfg = getUserVaultConfig(userId);
+  if (!keepNote && cfg && existing.vault_path) {
+    try { trashed = trashVaultNote(cfg.vaultRoot, existing.vault_path); }
+    catch (err) { return res.status(500).json({ error: `Couldn't move the note to .trash: ${(err as Error).message}` }); }
+  }
   db.prepare('DELETE FROM review_records WHERE course_id = ?').run(req.params.id);
   db.prepare('DELETE FROM review_courses WHERE id = ?').run(req.params.id);
   removePlantForCourse(Number(req.params.id));
-  res.json({ success: true });
+  res.json({ success: true, trashed });
 });
 
 // ── Course detail ─────────────────────────────────────────────────────────────

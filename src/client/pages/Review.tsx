@@ -179,11 +179,13 @@ export default function Review() {
     setShowForm(true);
   };
 
+  // Deleting a course also moves its vault note to the vault's .trash folder (server side).
   const handleDelete = async (record: ReviewRecord) => {
-    if (!confirm(`Delete "${record.course_name}" and its review history? The note in your vault is not touched.`)) return;
+    const note = record.vault_path ? `\n\nThe note "${record.vault_path}" will be moved to your vault's .trash folder (restorable).` : '';
+    if (!confirm(`Delete "${record.course_name}" and its review history?${note}`)) return;
     try {
-      await api.deleteCourse(record.course_id);
-      toast.success('Deleted');
+      const r = await api.deleteCourse(record.course_id);
+      toast.success(r.trashed ? 'Deleted · note moved to .trash' : 'Deleted');
       fetchAll();
     } catch (err: any) { toast.error(err.message); }
   };
