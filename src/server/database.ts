@@ -312,6 +312,39 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 10: FSRS memory state per review course (see fsrs.ts). Seeded from
+  // the SM-2 history: stability = the interval SM-2 had scheduled, difficulty from
+  // its ease factor (1.3 → 9, 3.5 → 2). Courses never reviewed stay NULL (new).
+  if (version < 10) {
+    db.transaction(() => {
+      addColIfMissing('review_courses', 'fsrs_stability', 'REAL');
+      addColIfMissing('review_courses', 'fsrs_difficulty', 'REAL');
+      addColIfMissing('review_courses', 'fsrs_last_review', 'TEXT');
+      addColIfMissing('review_courses', 'fsrs_reps', 'INTEGER NOT NULL DEFAULT 0');
+      addColIfMissing('review_courses', 'fsrs_lapses', 'INTEGER NOT NULL DEFAULT 0');
+      const courses = db.prepare(`
+        SELECT c.id,
+          (SELECT MAX(reviewed_date) FROM review_records WHERE course_id = c.id AND is_reviewed = 1) AS last,
+          (SELECT COUNT(*) FROM review_records WHERE course_id = c.id AND is_reviewed = 1) AS reps,
+          (SELECT planned_date FROM review_records WHERE course_id = c.id AND is_reviewed = 0 ORDER BY planned_date LIMIT 1) AS next,
+          (SELECT ease_factor FROM review_records WHERE course_id = c.id ORDER BY is_reviewed ASC, id DESC LIMIT 1) AS ef
+        FROM review_courses c
+      `).all() as any[];
+      const set = db.prepare(
+        'UPDATE review_courses SET fsrs_stability = ?, fsrs_difficulty = ?, fsrs_last_review = ?, fsrs_reps = ? WHERE id = ?'
+      );
+      const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+      for (const c of courses) {
+        if (!c.last) continue;
+        const stability = c.next ? Math.max(1, days(c.last, c.next)) : 1;
+        const ef = c.ef ?? 2.5;
+        const difficulty = Math.min(10, Math.max(1, 9 - ((ef - 1.3) * 7) / 2.2));
+        set.run(stability, Math.round(difficulty * 100) / 100, c.last, c.reps, c.id);
+      }
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (10)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'

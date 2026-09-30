@@ -13,7 +13,7 @@ export const ATTRIBUTES = ['wisdom', 'health', 'capability', 'wealth'] as const;
 export type Attribute = (typeof ATTRIBUTES)[number];
 export type SourceType = 'checkin' | 'todo' | 'review' | 'plan_task' | 'plan';
 
-export const REVIEW_XP = { hard: 12, ok: 8, easy: 6 } as const;
+export const REVIEW_XP = { again: 12, hard: 12, ok: 8, easy: 6 } as const;
 export const TODO_XP = { high: 15, medium: 10, low: 5 } as const;
 export const PLAN_TASK_XP = 15;
 export const PLAN_XP = 50;

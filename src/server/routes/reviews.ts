@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import db from '../database.js';
 import { localDate } from '../date.js';
+import { review as fsrsReview, intervalFor, fuzzInterval, previewIntervals, retrievability, GRADE, type MemoryState } from '../fsrs.js';
 import { awardXp, REVIEW_XP } from '../garden.js';
 
 export const reviewRoutes = Router();
@@ -12,19 +13,13 @@ const VAULT_SYNC_EXCLUDE = ['0_lidaning']; // top-level dirs excluded from bulk 
 
 // ── SM-2 ──────────────────────────────────────────────────────────────────────
 
-function sm2(rating: 'hard' | 'ok' | 'easy', intervalDays: number, ef: number) {
-  let newEf = ef;
-  let newInterval: number;
-  if (rating === 'hard') {
-    newEf = Math.max(1.3, ef - 0.2);
-    newInterval = Math.max(1, Math.round(intervalDays * 0.5));
-  } else if (rating === 'ok') {
-    newInterval = Math.max(1, Math.round(intervalDays * ef * 0.85));
-  } else {
-    newEf = Math.min(3.5, ef + 0.15);
-    newInterval = Math.max(1, Math.round(intervalDays * ef));
-  }
-  return { interval: newInterval, ef: Math.round(newEf * 100) / 100 };
+// FSRS memory state for a course, and days since its last review.
+function memoryOf(course: any, today: string): { state: MemoryState | null; elapsed: number } {
+  if (course.fsrs_stability == null || !course.fsrs_last_review) return { state: null, elapsed: 0 };
+  return {
+    state: { stability: course.fsrs_stability, difficulty: course.fsrs_difficulty ?? 5 },
+    elapsed: Math.max(0, Math.round((Date.parse(today) - Date.parse(course.fsrs_last_review)) / 86_400_000)),
+  };
 }
 
 // ── Vault helpers ─────────────────────────────────────────────────────────────
@@ -330,7 +325,9 @@ reviewRoutes.get('/due', (req, res) => {
            r.ease_factor, r.interval_days,
            c.vault_path, c.vault_paths, c.vault_match_status, c.is_postponed
     ${dueWhere}
-    ORDER BY c.is_postponed ASC, ${DUE_TOPIC_TIER}, r.planned_date ASC
+    ORDER BY c.is_postponed ASC, ${DUE_TOPIC_TIER},
+      (c.fsrs_last_review IS NULL) ASC, -- within a topic, notes already learned (and now fading) before new ones
+      r.planned_date ASC
     LIMIT ?
   `).all(userId, today, search, search, today, DUE_DAILY_LIMIT) as any[];
 
@@ -373,19 +370,31 @@ reviewRoutes.get('/due', (req, res) => {
 
 reviewRoutes.post('/records/:id/complete', (req, res) => {
   const userId = req.user!.id;
-  const { rating = 'ok' } = req.body as { rating?: 'hard' | 'ok' | 'easy' };
+  const { rating = 'ok' } = req.body as { rating?: string };
+  const grade = GRADE[rating];
+  if (!grade) return res.status(400).json({ error: 'rating must be again, hard, ok or easy' });
 
   const record = db.prepare(`
-    SELECT r.* FROM review_records r
+    SELECT r.*, c.fsrs_stability, c.fsrs_difficulty, c.fsrs_last_review, c.fsrs_reps, c.fsrs_lapses
+    FROM review_records r
     JOIN review_courses c ON r.course_id = c.id
     WHERE r.id = ? AND c.user_id = ?
   `).get(req.params.id, userId) as any;
   if (!record) return res.status(404).json({ error: 'Record not found' });
 
+  // FSRS: update the course's memory state from this rating and the time since
+  // its last review, then schedule the next review for when recall is predicted
+  // to drop to 90%. "Again" (forgot) brings it back tomorrow.
   const today = localDate(new Date());
-  const { interval, ef } = sm2(rating, record.interval_days ?? 1, record.ease_factor ?? 2.5);
+  const { state, elapsed } = memoryOf(record, today);
+  const next = fsrsReview(state, elapsed, grade);
+  const interval = grade === 1 ? 1 : fuzzInterval(intervalFor(next.stability), record.course_id * 31 + record.fsrs_reps);
 
   db.prepare('UPDATE review_records SET is_reviewed = 1, reviewed_date = ? WHERE id = ?').run(today, req.params.id);
+  db.prepare(`
+    UPDATE review_courses SET fsrs_stability = ?, fsrs_difficulty = ?, fsrs_last_review = ?,
+      fsrs_reps = fsrs_reps + 1, fsrs_lapses = fsrs_lapses + ? WHERE id = ?
+  `).run(next.stability, next.difficulty, today, grade === 1 && state ? 1 : 0, record.course_id);
 
   // Self-heal: a course should have at most one pending record at a time. Stray
   // duplicates (from historical double-scheduling) would otherwise pop right back
@@ -395,11 +404,11 @@ reviewRoutes.post('/records/:id/complete', (req, res) => {
   const nextDate = new Date();
   nextDate.setDate(nextDate.getDate() + interval);
   db.prepare(
-    'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date, ease_factor, interval_days) VALUES (?, 0, ?, ?, ?, ?)'
-  ).run(record.course_id, record.reviewed_times + 1, localDate(nextDate), ef, interval);
+    'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date, ease_factor, interval_days) VALUES (?, 0, ?, ?, NULL, ?)'
+  ).run(record.course_id, record.reviewed_times + 1, localDate(nextDate), interval);
 
-  const xp = awardXp(userId, 'review', record.id, 'wisdom', REVIEW_XP[rating] ?? REVIEW_XP.ok);
-  res.json({ success: true, xp });
+  const xp = awardXp(userId, 'review', record.id, 'wisdom', REVIEW_XP[rating as keyof typeof REVIEW_XP] ?? REVIEW_XP.ok);
+  res.json({ success: true, xp, next: { days: interval, date: localDate(nextDate) } });
 });
 
 // ── Record detail ─────────────────────────────────────────────────────────────
@@ -408,7 +417,8 @@ reviewRoutes.get('/records/:id/detail', (req, res) => {
   const userId = req.user!.id;
   const record = db.prepare(`
     SELECT r.*, c.name as course_name, c.description as course_description,
-           c.vault_path, c.vault_paths, c.vault_match_status
+           c.vault_path, c.vault_paths, c.vault_match_status,
+           c.fsrs_stability, c.fsrs_difficulty, c.fsrs_last_review, c.fsrs_reps, c.fsrs_lapses
     FROM review_records r
     JOIN review_courses c ON r.course_id = c.id
     WHERE r.id = ? AND c.user_id = ?
@@ -428,6 +438,16 @@ reviewRoutes.get('/records/:id/detail', (req, res) => {
     title: liveTitle,
     vault_name: cfg?.vaultName ?? '',
     obsidian_uris: cfg ? buildObsidianUris(paths, cfg.vaultName) : [],
+    memory: (() => {
+      const { state, elapsed } = memoryOf(record, localDate(new Date()));
+      return {
+        // Next gap each rating button would give, and today's predicted recall.
+        preview: previewIntervals(state, elapsed),
+        recall: state ? retrievability(elapsed, state.stability) : null,
+        reps: record.fsrs_reps ?? 0,
+        lapses: record.fsrs_lapses ?? 0,
+      };
+    })(),
   });
 });
 

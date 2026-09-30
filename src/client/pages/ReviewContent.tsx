@@ -62,6 +62,21 @@ function extractHeadings(md: string): Heading[] {
     });
 }
 
+// FSRS ratings (server/fsrs.ts): each button shows the gap it would schedule.
+type Rating = 'again' | 'hard' | 'ok' | 'easy';
+const RATINGS: { id: Rating; label: string; cls: string }[] = [
+  { id: 'again', label: 'Forgot', cls: 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100 dark:bg-[#e66666]/[0.12] dark:text-[#ec8a8a] dark:border-[#e66666]/50 dark:hover:bg-[#e66666]/[0.2]' },
+  { id: 'hard', label: 'Hard', cls: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 dark:bg-[#d95926]/[0.12] dark:text-[#ec8a5f] dark:border-[#d95926]/50 dark:hover:bg-[#d95926]/[0.2]' },
+  { id: 'ok', label: 'Good', cls: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-brand-400/[0.12] dark:text-brand-400 dark:border-brand-400/50 dark:hover:bg-brand-400/[0.2]' },
+  { id: 'easy', label: 'Easy', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-[#1fa874]/[0.12] dark:text-[#4fd6a0] dark:border-[#1fa874]/50 dark:hover:bg-[#1fa874]/[0.2]' },
+];
+
+function fmtGap(days: number) {
+  if (days < 30) return `${days}d`;
+  if (days < 365) return `${Math.round(days / 30)}mo`;
+  return `${Math.round((days / 365) * 10) / 10}y`;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ReviewContent() {
@@ -135,13 +150,14 @@ export default function ReviewContent() {
     return () => obs.disconnect();
   }, [data]);
 
-  const handleRating = async (rating: 'hard' | 'ok' | 'easy') => {
+  const handleRating = async (rating: Rating) => {
     if (!data?.record) return;
     setRatingLoading(true);
     try {
       const r = await api.completeReview(data.record.id, rating);
       if (posKey) localStorage.removeItem(posKey);
-      if (!r.xp) toast.success('Reviewed'); // otherwise the XP toast confirms it
+      // The XP toast confirms the review; this one says when it comes back.
+      toast(rating === 'again' ? 'Back tomorrow to relearn' : `Next review in ${fmtGap(r.next?.days ?? 1)}`, { id: 'review-next' });
       navigate('/review');
     } catch (err: any) { toast.error(err.message); }
     setRatingLoading(false);
@@ -292,17 +308,18 @@ export default function ReviewContent() {
           {/* Rating footer */}
           {isRecord && data?.record && (
             <div className="mt-10 pt-5 border-t border-gray-100 dark:border-white/[0.08]">
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 text-center">How well did you recall?</p>
-              <div className="flex gap-2">
-                {(['hard', 'ok', 'easy'] as const).map((r) => (
-                  <button key={r} onClick={() => handleRating(r)} disabled={ratingLoading}
-                    className={`flex-1 h-11 rounded-xl border text-sm font-bold transition-colors disabled:opacity-40 ${r === 'hard'
-                      ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100 dark:bg-[#e66666]/[0.12] dark:text-[#ec8a8a] dark:border-[#e66666]/50 dark:hover:bg-[#e66666]/[0.2]'
-                      : r === 'ok'
-                        ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-brand-400/[0.12] dark:text-brand-400 dark:border-brand-400/50 dark:hover:bg-brand-400/[0.2]'
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-[#1fa874]/[0.12] dark:text-[#4fd6a0] dark:border-[#1fa874]/50 dark:hover:bg-[#1fa874]/[0.2]'
-                      }`}>
-                    {r === 'hard' ? 'Hard' : r === 'ok' ? 'OK' : 'Easy'}
+              <p className="text-xs text-gray-500 mb-1 text-center">How well did you recall it?</p>
+              <p className="text-[11px] text-gray-500 mb-3 text-center">
+                {data.memory?.recall != null
+                  ? `Predicted recall today: ${Math.round(data.memory.recall * 100)}% · reviewed ${data.memory.reps}×${data.memory.lapses ? ` · forgot ${data.memory.lapses}×` : ''}`
+                  : 'First review of this note'}
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {RATINGS.map((r) => (
+                  <button key={r.id} onClick={() => handleRating(r.id)} disabled={ratingLoading}
+                    className={`h-14 rounded-xl border flex flex-col items-center justify-center transition-colors disabled:opacity-40 ${r.cls}`}>
+                    <span className="text-sm font-bold">{r.label}</span>
+                    <span className="text-[11px] opacity-80">{fmtGap(data.memory?.preview?.[r.id] ?? 1)}</span>
                   </button>
                 ))}
               </div>

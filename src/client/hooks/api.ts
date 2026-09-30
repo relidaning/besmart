@@ -96,7 +96,7 @@ export const api = {
 
   // Reviews
   getDueReviews: (search?: string) => request<any>(`/reviews/due${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-  completeReview: (id: number, rating: 'hard' | 'ok' | 'easy') =>
+  completeReview: (id: number, rating: 'again' | 'hard' | 'ok' | 'easy') =>
     request<any>(`/reviews/records/${id}/complete`, { method: 'POST', body: JSON.stringify({ rating }) }),
   getCourses: () => request<any>('/reviews/courses'),
   createCourse: (data: any) => request<any>('/reviews/courses', { method: 'POST', body: JSON.stringify(data) }),

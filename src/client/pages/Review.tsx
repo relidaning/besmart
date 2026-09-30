@@ -165,17 +165,17 @@ export default function Review() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editing) { await api.updateCourse(editing.course_id, form); toast.success('Updated'); }
-      else { await api.createCourse(form); toast.success('Course created! First review tomorrow.'); }
+      // Courses come from the vault only; the form just edits one.
+      if (!editing) return;
+      await api.updateCourse(editing.course_id, form);
+      toast.success('Updated');
       setShowForm(false); setEditing(null); fetchAll();
     } catch (err: any) { toast.error(err.message); }
   };
 
-  const openForm = (record?: ReviewRecord) => {
-    setEditing(record ?? null);
-    setForm(record
-      ? { name: record.course_name, description: record.course_description, is_postponed: record.is_postponed }
-      : { name: '', description: '', is_postponed: false });
+  const openForm = (record: ReviewRecord) => {
+    setEditing(record);
+    setForm({ name: record.course_name, description: record.course_description, is_postponed: record.is_postponed });
     setShowForm(true);
   };
 
@@ -210,7 +210,6 @@ export default function Review() {
             ? `Showing ${dueRecords.length} of ${dueTotal} due`
             : `${dueRecords.length} due for review`
           : 'Spaced repetition for lasting memory'}
-        actions={<button onClick={() => openForm()} className="btn-primary text-sm">+ New Course</button>}
       />
 
       <StatTiles stats={[
@@ -356,7 +355,7 @@ export default function Review() {
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
-            <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editing ? 'Edit Course' : 'New Course'}</h2>
+            <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">Edit Course</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
@@ -371,7 +370,7 @@ export default function Review() {
                   placeholder="What did you learn? (optional)" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="submit" className="btn-primary flex-1">{editing ? 'Save' : 'Create'}</button>
+                <button type="submit" className="btn-primary flex-1">Save</button>
                 <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
               </div>
             </form>
