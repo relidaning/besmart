@@ -10,7 +10,7 @@ import { awardXp, REVIEW_XP } from '../garden.js';
 export const reviewRoutes = Router();
 
 const DEFAULT_VAULT_PATH = process.env.VAULT_PATH ?? '';
-const VAULT_SYNC_EXCLUDE = ['0_lidaning']; // top-level dirs excluded from bulk sync
+import { isExcludedVaultPath } from '../../shared/vaultRules.js';
 
 // ── SM-2 ──────────────────────────────────────────────────────────────────────
 
@@ -40,6 +40,7 @@ function scanVault(base: string, rel: string): string[] {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.name.startsWith('.')) continue;
       const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (isExcludedVaultPath(entryRel)) continue; // never review sources (vaultRules.ts)
       if (entry.isDirectory()) results.push(...scanVault(base, entryRel));
       else if (entry.name.endsWith('.md')) results.push(entryRel);
     }
@@ -143,6 +144,7 @@ function serializeCourse(c: any) {
 // ── Vault sync ────────────────────────────────────────────────────────────────
 
 export function scheduleVaultNote(userId: number, vaultRoot: string, relPath: string): boolean {
+  if (isExcludedVaultPath(relPath)) return false;
   const existing = db.prepare(
     'SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?'
   ).get(userId, relPath);
@@ -254,7 +256,7 @@ export function syncVaultForUser(userId: number): { missing: number; restored: n
   const { vaultRoot } = config;
 
   const fileSet = new Set(
-    scanVault(vaultRoot, '').filter((p) => !VAULT_SYNC_EXCLUDE.includes(p.split('/')[0]))
+    scanVault(vaultRoot, '')
   );
 
   // Detect missing (file gone) and restored (file came back) for exact-path courses
@@ -691,8 +693,12 @@ reviewRoutes.post('/vault/import', (req, res) => {
   const cfg = getUserVaultConfig(userId);
   if (!cfg) return res.status(400).json({ error: 'No vault configured' });
 
-  const { paths } = req.body as { paths: string[] };
-  if (!paths?.length) return res.status(400).json({ error: 'paths required' });
+  const { paths: requested } = req.body as { paths: string[] };
+  if (!Array.isArray(requested) || !requested.length) return res.status(400).json({ error: 'paths required' });
+  // Only notes inside the vault, and never from the excluded folders.
+  const paths = requested.filter((p) => typeof p === 'string' && p.endsWith('.md') && !p.startsWith('/')
+    && !p.split('/').includes('..') && !isExcludedVaultPath(p));
+  if (!paths.length) return res.status(400).json({ error: 'No importable notes (excluded folders and paths outside the vault are skipped)' });
 
   const today = localDate(new Date());
   const tomorrow = new Date();

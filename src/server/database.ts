@@ -1,4 +1,5 @@
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
+import { isExcludedVaultPath } from '../shared/vaultRules.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -399,6 +400,31 @@ export function initializeDatabase() {
       `);
       db.prepare("DELETE FROM garden_plants WHERE source_type = 'seed'").run(); // seeds are gone: achievements unlock tree species
       db.prepare('INSERT INTO schema_migrations (version) VALUES (12)').run();
+    })();
+  }
+
+  // Migration 13: root-level notes and 0_lidaning, claude-maxer, attachs are not review sources
+  // (shared/vaultRules.ts). Remove review courses from those folders, with their
+  // records and garden plants. Only app data: the notes themselves are untouched.
+  if (version < 13) {
+    db.transaction(() => {
+      const courses = (db.prepare('SELECT id, vault_path, vault_paths FROM review_courses').all() as any[])
+        .filter((c) => {
+          let p: string | null = c.vault_path;
+          if (!p && c.vault_paths) { try { p = JSON.parse(c.vault_paths)[0] ?? null; } catch { /* malformed */ } }
+          return isExcludedVaultPath(p);
+        });
+      for (const c of courses) {
+        const plant = db.prepare("SELECT id FROM garden_plants WHERE source_type = 'note' AND source_id = ?").get(c.id) as any;
+        if (plant) {
+          db.prepare('DELETE FROM garden_events WHERE plant_id = ?').run(plant.id);
+          db.prepare('DELETE FROM garden_plants WHERE id = ?').run(plant.id);
+        }
+        db.prepare('DELETE FROM review_records WHERE course_id = ?').run(c.id);
+        db.prepare('DELETE FROM review_courses WHERE id = ?').run(c.id);
+      }
+      if (courses.length) console.log(`[migration 13] removed ${courses.length} review courses from excluded vault folders`);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (13)').run();
     })();
   }
 

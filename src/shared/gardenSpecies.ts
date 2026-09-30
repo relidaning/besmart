@@ -148,9 +148,6 @@ export const FAMILY_LABEL: Record<Attribute, string> = {
   wisdom: 'AI notes', capability: 'Dev notes', wealth: 'English notes', health: 'Other notes',
 };
 
-// Machine-written notes don't get plants (they still get reviewed).
-export const NO_PLANT_PREFIXES = ['claude-maxer/'];
-
 export const GROWTH = {
   review: { again: 8, hard: 15, ok: 25, easy: 30 } as Record<string, number>,
   water: 5,        // per watered note plant

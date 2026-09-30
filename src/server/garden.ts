@@ -1,7 +1,8 @@
 import db from './database.js';
+import { isExcludedVaultPath } from '../shared/vaultRules.js';
 import { localDate, effectiveDate } from './date.js';
 import {
-  SPECIES, ACHIEVEMENT_TREES, MILESTONE_EVERY, MILESTONE_SPECIES, GROWTH, NO_PLANT_PREFIXES, STARTER_TREES, TREES,
+  SPECIES, ACHIEVEMENT_TREES, MILESTONE_EVERY, MILESTONE_SPECIES, GROWTH, STARTER_TREES, TREES,
   commonSpeciesFor, nextUnlock, familyForNote, isTree,
 } from '../shared/gardenSpecies.js';
 
@@ -167,7 +168,7 @@ export function plantForCourse(userId: number, courseId: number, why: 'created' 
   if (!course) return null;
   let path: string | null = course.vault_path;
   if (!path && course.vault_paths) { try { path = JSON.parse(course.vault_paths)[0] ?? null; } catch { /* malformed */ } }
-  if (path && NO_PLANT_PREFIXES.some((pre) => path!.startsWith(pre))) return null;
+  if (isExcludedVaultPath(path)) return null;
 
   const family = familyForNote(path);
   const species = commonSpeciesFor(family, levelFor(attributeTotal(userId, 'wisdom')).level);

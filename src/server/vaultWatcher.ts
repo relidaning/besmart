@@ -4,14 +4,14 @@ import path from 'path';
 import db from './database.js';
 import { scheduleVaultNote, ensureScheduleForNote, deleteCourseForNote } from './routes/reviews.js';
 
-const VAULT_SYNC_EXCLUDE = ['0_lidaning'];
+import { isExcludedVaultPath } from '../shared/vaultRules.js';
 
 // Grace window after a note disappears before we delete its review schedule.
 // A move fires unlink(old) + add(new); the add handler re-links within this window.
 const DELETE_GRACE_MS = 5000;
 
 function isExcluded(rel: string): boolean {
-  return VAULT_SYNC_EXCLUDE.includes(rel.split('/')[0]);
+  return isExcludedVaultPath(rel);
 }
 
 function markMissing(userId: number, relPath: string) {
