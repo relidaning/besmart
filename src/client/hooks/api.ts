@@ -15,7 +15,8 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
+// `quiet` skips the XP toast, for callers that show it themselves with more detail.
+async function request<T>(url: string, options?: RequestInit, { quiet = false } = {}): Promise<T> {
   const method = (options?.method ?? 'GET').toUpperCase();
 
   if (method === 'GET') {
@@ -49,7 +50,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
       // Any completion can move XP, so garden/dashboard views are always stale after a mutation.
       if (r === resource || r === 'garden' || r === 'dashboard') _cache.delete(k);
     }
-    celebrate(data?.xp);
+    if (!quiet) celebrate(data?.xp);
     celebrate(data?.bonus, 'Check-in done'); // the "Complete 5 todos" check-in ticked itself
   }
 
@@ -97,7 +98,7 @@ export const api = {
   // Reviews
   getDueReviews: (search?: string) => request<any>(`/reviews/due${search ? `?search=${encodeURIComponent(search)}` : ''}`),
   completeReview: (id: number, rating: 'again' | 'hard' | 'ok' | 'easy') =>
-    request<any>(`/reviews/records/${id}/complete`, { method: 'POST', body: JSON.stringify({ rating }) }),
+    request<any>(`/reviews/records/${id}/complete`, { method: 'POST', body: JSON.stringify({ rating }) }, { quiet: true }),
   getCourses: () => request<any>('/reviews/courses'),
   createCourse: (data: any) => request<any>('/reviews/courses', { method: 'POST', body: JSON.stringify(data) }),
   updateCourse: (id: number, data: any) => request<any>(`/reviews/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

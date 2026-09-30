@@ -30,6 +30,7 @@ import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typesc
 import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import toast from 'react-hot-toast';
+import { celebrate } from '../lib/garden';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useAuth } from '../store/auth';
@@ -156,8 +157,9 @@ export default function ReviewContent() {
     try {
       const r = await api.completeReview(data.record.id, rating);
       if (posKey) localStorage.removeItem(posKey);
-      // The XP toast confirms the review; this one says when it comes back.
-      toast(rating === 'again' ? 'Back tomorrow to relearn' : `Next review in ${fmtGap(r.next?.days ?? 1)}`, { id: 'review-next' });
+      // One toast: the XP it earned and when it comes back.
+      const next = rating === 'again' ? 'back tomorrow' : `next in ${fmtGap(r.next?.days ?? 1)}`;
+      if (!celebrate(r.xp, undefined, next)) toast(next[0].toUpperCase() + next.slice(1), { id: 'review-next' });
       navigate('/review');
     } catch (err: any) { toast.error(err.message); }
     setRatingLoading(false);

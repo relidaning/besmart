@@ -83,18 +83,20 @@ export function confetti(count: number, colors: string[]) {
 }
 
 // Called by the API client for every mutation response carrying `xp` / `bonus`.
-// `label` names what earned it when that isn't the item just completed (e.g. a bonus check-in).
-export function celebrate(award: XpAward | null | undefined, label?: string) {
-  if (!award) return;
+// `label` names what earned it when that isn't the item just completed (e.g. a bonus check-in),
+// and `note` is appended to the toast (a review's next due date). Returns whether it showed a toast.
+export function celebrate(award: XpAward | null | undefined, label?: string, note?: string): boolean {
+  if (!award) return false;
   const meta = ATTR_META[award.attribute];
+  const tail = `${award.garden ? ` · ${award.garden}` : ''}${note ? ` · ${note}` : ''}`;
   if (award.capped) {
-    toast(`Daily review XP cap reached${award.garden ? ` · ${award.garden}` : ''}`, { id: 'xp-cap' });
-    return;
+    toast(`Daily review XP cap reached${tail}`, { id: 'xp-cap' });
+    return true;
   }
-  if (award.amount <= 0) return;
+  if (award.amount <= 0) return false;
 
   toast(
-    `${label ? `${label} · ` : ''}${award.crit ? 'Critical · ' : ''}+${award.amount} ${meta.label} XP${award.garden ? ` · ${award.garden}` : ''}`,
+    `${label ? `${label} · ` : ''}${award.crit ? 'Critical · ' : ''}+${award.amount} ${meta.label} XP${tail}`,
     {
       duration: 2600,
       icon: <span className="dot !w-2.5 !h-2.5" style={{ background: meta.hex }} />,
@@ -114,4 +116,5 @@ export function celebrate(award: XpAward | null | undefined, label?: string) {
     confetti(16, [meta.hex, '#fabf40']);
     chime([784, 1047]);
   }
+  return true;
 }
