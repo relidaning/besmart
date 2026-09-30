@@ -102,17 +102,27 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-// Stable pseudo-random slot order per period, so plants keep their places.
-function shuffledSlots(count: number, key: string) {
-  let h = 2166136261;
-  for (const c of key) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
-  const slots = Array.from({ length: count }, (_, i) => i);
-  for (let i = count - 1; i > 0; i--) {
-    h = Math.imul(h ^ (h >>> 13), 1274126177);
-    const j = (h >>> 0) % (i + 1);
-    [slots[i], slots[j]] = [slots[j], slots[i]];
-  }
-  return slots;
+// One garden: every plant has a fixed tile, filled in planting order row by row
+// (snaking), so a period's plants sit together. A period view shows only its plants
+// and crops the island to their tiles, so Today is close up and Month is wider.
+function gardenLayout(all: Plant[], shown: Plant[], whole: boolean) {
+  const N = Math.max(4, Math.ceil(Math.sqrt(all.length * 1.3)));
+  const tile = new Map<number, [number, number]>();
+  [...all]
+    .sort((a, b) => a.planted_at.localeCompare(b.planted_at) || a.id - b.id)
+    .forEach((p, k) => {
+      const j = Math.floor(k / N), c = k % N;
+      tile.set(p.id, [j % 2 ? N - 1 - c : c, j]);
+    });
+  const cells = shown.flatMap((p) => { const t = tile.get(p.id); return t ? [{ p, i: t[0], j: t[1] }] : []; });
+  if (cells.length === 0) return { n: 4, placed: [] };
+  if (whole) return { n: N, placed: cells };
+  const is = cells.map((c) => c.i), js = cells.map((c) => c.j);
+  const i0 = Math.min(...is), j0 = Math.min(...js);
+  const wi = Math.max(...is) - i0 + 1, wj = Math.max(...js) - j0 + 1;
+  const n = Math.max(3, wi, wj);
+  const oi = Math.floor((n - wi) / 2), oj = Math.floor((n - wj) / 2);
+  return { n, placed: cells.map((c) => ({ p: c.p, i: c.i - i0 + oi, j: c.j - j0 + oj })) };
 }
 
 const easeOutBack = (t: number) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
@@ -125,8 +135,10 @@ interface Particle { x: number; y: number; vy: number; r: number; rot: number; s
 // it and animate seasonal particles on top. Pinch or ctrl/⌘-scroll to zoom,
 // drag to pan when zoomed, double-tap to zoom in / reset.
 
-function GardenCanvas({ plants, season, layoutKey, highlight, onPick }: {
+function GardenCanvas({ plants, all, whole, season, layoutKey, highlight, onPick }: {
   plants: Plant[];
+  all: Plant[];
+  whole: boolean; // the All view: the whole island, not cropped to the plants shown
   season: Season;
   layoutKey: string;
   highlight: number | null;
@@ -153,11 +165,7 @@ function GardenCanvas({ plants, season, layoutKey, highlight, onPick }: {
     return () => ro.disconnect();
   }, []);
 
-  const layout = useMemo(() => {
-    const n = Math.max(4, Math.ceil(Math.sqrt(plants.length * 1.3)));
-    const slots = shuffledSlots(n * n, layoutKey);
-    return { n, placed: plants.map((p, k) => ({ p, i: slots[k] % n, j: Math.floor(slots[k] / n) })) };
-  }, [plants, layoutKey]);
+  const layout = useMemo(() => gardenLayout(all, plants, whole), [all, plants, whole, layoutKey]);
 
   // A new layout starts un-zoomed.
   useEffect(() => { viewRef.current = { k: 1, x: 0, y: 0 }; setZoom(1); }, [layout]);
@@ -556,6 +564,8 @@ export default function Garden() {
         <div className="relative">
           <GardenCanvas
             plants={shown}
+            all={data.plants}
+            whole={period === 'all'}
             season={season}
             layoutKey={`${period}:${periodStart(period, data.today)}`}
             highlight={highlight}
@@ -615,7 +625,7 @@ export default function Garden() {
         <div className="grid gap-2 text-[12px] text-gray-600 dark:text-gray-300 sm:grid-cols-2">
           <div className="row flex gap-2.5"><Sprout size={16} className="text-[#1fa874] flex-shrink-0 mt-0.5" /><span><b>Write a note</b> in your vault: it plants a flower sapling in its folder's color. Older notes plant theirs at their first review.</span></div>
           <div className="row flex gap-2.5"><BookOpen size={16} className="text-[#a854f7] flex-shrink-0 mt-0.5" /><span><b>Review a note</b>: its plant grows a lot (+{GROWTH.review.again} to +{GROWTH.review.easy}). Full size at {GROWTH.full}.</span></div>
-          <div className="row flex gap-2.5"><Droplets size={16} className="text-[#3987e5] flex-shrink-0 mt-0.5" /><span><b>Finish a check-in or todo</b>: it waters the {GROWTH.waterPlants} thirstiest flowers (+{GROWTH.water}).</span></div>
+          <div className="row flex gap-2.5"><Droplets size={16} className="text-[#3987e5] flex-shrink-0 mt-0.5" /><span><b>Finish a check-in or todo</b>: it waters the {GROWTH.waterPlants} thirstiest flowers (+{GROWTH.water}, once a day each, up to +{GROWTH.waterMax} in all). Only reviews bring a flower to full size.</span></div>
           <div className="row flex gap-2.5"><TreeDeciduous size={16} className="text-[#4d9a5c] flex-shrink-0 mt-0.5" /><span><b>Create a study plan</b>: it plants the tree you pick. Every finished task grows it; finishing the plan brings it to full size, with fruit.</span></div>
         </div>
       </motion.div>

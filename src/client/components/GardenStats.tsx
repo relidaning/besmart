@@ -117,7 +117,7 @@ export function YearOfGrowth({ data }: { data: GardenSummary }) {
 // The achievement pop-up: springs in over a dimmed page. Unlocked ones get a
 // glowing medal with rotating rays, confetti and a chime; locked ones fill a
 // progress ring and count up to where you are, with the seed they'll earn.
-function AchievementModal({ a, onClose }: { a: Achievement; onClose: () => void }) {
+export function AchievementModal({ a, onClose }: { a: Achievement; onClose: () => void }) {
   const done = a.progress >= a.goal;
   const Icon = ACHIEVEMENT_ICON[a.id] ?? Award;
   const tree = ACHIEVEMENT_TREES[a.id];

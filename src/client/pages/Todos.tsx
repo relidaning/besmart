@@ -315,10 +315,15 @@ export default function Todos() {
 
             return (
               <motion.div key={todo.id} variants={listItem}>
-                <div className={`card ${todo.completed ? 'opacity-60 bg-gray-50 dark:bg-gray-900/60' : ''}`}>
+                {/* Tapping anywhere on the card completes it (or reopens it); the action buttons don't. */}
+                <div
+                  onClick={() => { if (completingId !== todo.id) handleToggle(todo); }}
+                  className={`card cursor-pointer select-none active:scale-[0.99] transition-transform ${todo.completed ? 'opacity-60 bg-gray-50 dark:bg-gray-900/60' : ''}`}
+                >
                   <div className="flex items-start gap-4">
                     <button
-                      onClick={() => handleToggle(todo)}
+                      onClick={(e) => { e.stopPropagation(); handleToggle(todo); }}
+                      aria-label={todo.completed ? 'Reopen' : 'Complete'}
                       disabled={completingId === todo.id}
                       className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                         todo.completed
@@ -336,20 +341,18 @@ export default function Todos() {
                       )}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-2">
-                        <span className={`badge badge-${todo.priority} flex-shrink-0 ${todo.completed ? 'opacity-60' : ''}`}>
-                          {config.label}
-                        </span>
-                        <h3 className={`font-medium min-w-0 break-words ${todo.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
-                          {todo.title}
-                        </h3>
-                      </div>
+                      <h3 className={`font-medium min-w-0 break-words ${todo.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
+                        {todo.title}
+                      </h3>
                       {todo.description && (
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{todo.description}</p>
                       )}
                       {/* Meta left, compact actions right: no separate button row. */}
                       <div className="flex items-center gap-2 mt-1.5">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 flex-1">
+                          <span className={`badge badge-${todo.priority} ${todo.completed ? 'opacity-60' : ''}`}>
+                            {config.label}
+                          </span>
                           {!todo.completed && <XpChip attribute="capability" amount={TODO_XP[todo.priority]} />}
                           {todo.due_date && (
                             <span className={`flex items-center gap-0.5 text-[11px] ${isOverdue ? 'text-[#d64545] dark:text-[#ec8a8a] font-medium' : 'text-gray-500'}`}>
@@ -361,7 +364,7 @@ export default function Todos() {
                             <span className="text-[11px] text-gray-500">Done {todo.completed_at.split('T')[0]}</span>
                           )}
                         </div>
-                        <div className="flex items-center -mr-1.5 flex-shrink-0">
+                        <div className="flex items-center -mr-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => handlePriorityChange(todo, 1)} disabled={todo.priority === 'high'}
                             title="Prioritize" aria-label="Prioritize" className={ICON_BTN}>
                             <ChevronUp size={15} />

@@ -149,8 +149,12 @@ export const FAMILY_LABEL: Record<Attribute, string> = {
 };
 
 export const GROWTH = {
-  review: { again: 8, hard: 15, ok: 25, easy: 30 } as Record<string, number>,
-  water: 5,        // per watered note plant
+  // Reviews are what grow a note's plant: about five Good reviews (months apart, with
+  // FSRS) take it to full size. Water only helps a little, so a busy day of check-ins
+  // can't mature a plant.
+  review: { again: 6, hard: 12, ok: 18, easy: 22 } as Record<string, number>,
+  water: 2,        // per watered note plant, at most once a day
+  waterMax: 20,    // most growth a plant can get from water in total
   waterPlants: 3,  // note plants watered by one finished check-in / todo
   full: 100,       // growth at full size; a tree's growth is its plan's share of finished tasks
 };

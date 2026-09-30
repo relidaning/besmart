@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { ClipboardCheck, Check, Flame } from 'lucide-react';
+import { ClipboardCheck, Check, Flame, NotebookPen } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { ATTRIBUTES, ATTR_META, type Attribute } from '../lib/garden';
@@ -63,6 +63,9 @@ export default function CheckIn() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'today' | 'schedules'>('today');
   const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [showDiary, setShowDiary] = useState(false);
+  const [diaryText, setDiaryText] = useState('');
+  const [savingDiary, setSavingDiary] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [scheduleForm, setScheduleForm] = useState<{ name: string; type: string; score: number; category?: Attribute }>({ name: '', type: 'daily', score: 0 });
   const [completingId, setCompletingId] = useState<number | null>(null);
@@ -96,6 +99,19 @@ export default function CheckIn() {
       toast.error(err.message);
     }
     setCompletingId(null);
+  };
+
+  const handleDiarySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!diaryText.trim()) return;
+    setSavingDiary(true);
+    try {
+      await api.addDiaryEntry(diaryText);
+      toast.success('Added to your diary');
+      setDiaryText('');
+      setShowDiary(false);
+    } catch (err: any) { toast.error(err.message); }
+    setSavingDiary(false);
   };
 
   const handleScheduleSubmit = async (e: React.FormEvent) => {
@@ -146,9 +162,13 @@ export default function CheckIn() {
         icon={ClipboardCheck}
         title="Check In"
         subtitle={data?.date && new Date(`${data.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-        actions={tab === 'schedules' && (
+        actions={tab === 'schedules' ? (
           <button onClick={() => { setEditingSchedule(null); setScheduleForm({ name: '', type: 'daily', score: 10 }); setShowScheduleForm(true); }}
             className="btn-primary text-sm">+ New</button>
+        ) : (
+          <button onClick={() => setShowDiary(true)} className="btn-primary text-sm flex items-center gap-1.5" title="Add a line to today's diary in your vault">
+            <NotebookPen size={15} /> Diary
+          </button>
         )}
       />
 
@@ -305,6 +325,30 @@ export default function CheckIn() {
       </>)}
 
       {/* Schedule form modal */}
+      {showDiary && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
+          onClick={(e) => { if (e.target === e.currentTarget && !savingDiary) setShowDiary(false); }}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
+          >
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">A moment of today</h2>
+            <p className="text-xs text-gray-500 mt-0.5 mb-3">Added to this month's diary note in your vault, with the time.</p>
+            <form onSubmit={handleDiarySubmit} className="space-y-3">
+              <textarea className="input min-h-[120px]" autoFocus value={diaryText} onChange={(e) => setDiaryText(e.target.value)}
+                placeholder="What happened, what you did, how it felt…" />
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowDiary(false)} disabled={savingDiary} className="btn-secondary text-sm">Cancel</button>
+                <button type="submit" disabled={savingDiary || !diaryText.trim()} className="btn-primary text-sm">{savingDiary ? 'Saving…' : 'Add to diary'}</button>
+              </div>
+            </form>
+          </motion.div>
+        </motion.div>
+      )}
+
       {showScheduleForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}

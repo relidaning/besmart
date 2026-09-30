@@ -1,12 +1,15 @@
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Bell, BellOff, Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw, FolderOpen, Sprout, LogOut, Sun, Moon, MonitorSmartphone } from 'lucide-react';
 import { api, clearApiCache } from '../hooks/api';
 import { checkForUpdate } from '../lib/autoUpdate';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import MusicPlayer from './MusicPlayer';
+
+// Its modal pulls in the garden art, so it loads in its own chunk.
+const AchievementWatcher = lazy(() => import('./AchievementWatcher'));
 
 const THEME_CYCLE = ['system', 'light', 'dark'] as const;
 const THEME_ICON = { system: MonitorSmartphone, light: Sun, dark: Moon };
@@ -50,7 +53,7 @@ const navItems = [
 // Top-bar title per route, so the current page stays named while scrolling.
 const SECTION_TITLE: [string, string][] = [
   ['/', 'Home'], ['/checkin', 'Check In'], ['/todos', 'Todos'], ['/review', 'Review'],
-  ['/plans', 'Study Plans'], ['/garden', 'Growth Garden'], ['/music', 'Music'],
+  ['/plans', 'Study Plans'], ['/garden', 'Garden'], ['/music', 'Music'],
 ];
 
 export default function Layout() {
@@ -154,16 +157,16 @@ export default function Layout() {
             <span className="font-bold text-gray-900 dark:text-gray-100 truncate">{section}</span>
           </div>
 
-          <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 flex-shrink-0">
             {streak > 0 && (
-              <div className="flex items-center gap-1 text-xs text-gray-500" title="Check-in streak">
+              <div className="flex items-center gap-0.5 text-xs text-gray-500 whitespace-nowrap" title="Check-in streak">
                 <Flame size={13} className="text-[#d95926]" />
                 <span>{streak}d</span>
               </div>
             )}
             {scoreToday !== null && (
-              <div className="text-xs text-gray-500" title="Check-in points today">
-                {scoreToday} pts
+              <div className="text-xs text-gray-500 whitespace-nowrap" title="Check-in points today">
+                {scoreToday}<span className="hidden sm:inline"> pts</span><span className="sm:hidden">p</span>
               </div>
             )}
 
@@ -228,6 +231,8 @@ export default function Layout() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {user && <Suspense fallback={null}><AchievementWatcher userId={user.id} /></Suspense>}
 
       {/* Bottom nav (mobile) */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/80 backdrop-blur-lg border-t border-gray-100 safe-area-bottom dark:bg-gray-950/80 dark:border-white/[0.08]">

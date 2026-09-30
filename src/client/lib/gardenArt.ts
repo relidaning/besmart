@@ -273,22 +273,26 @@ export function drawPlant(
       break;
     }
     case 'bush': {
-      const cy = y - h * 0.4;
+      // A low dome of leaf clumps sitting on the ground, about as wide as it is tall,
+      // so no single clump outweighs the plant. Autumn thins it to show bare twigs.
       const sparse = season === 'autumn' && !evergreen;
-      const puffs: [number, number, number][] = [[-0.22, 0.08, 0.28], [0.22, 0.08, 0.28], [0, -0.08, 0.33]];
+      const clumps: [number, number, number][] = [
+        [-0.26, -0.13, 0.12], [0.26, -0.13, 0.12], [0, -0.15, 0.13], [-0.14, -0.27, 0.14],
+        [0.14, -0.27, 0.14], [-0.22, -0.38, 0.1], [0.22, -0.38, 0.1], [0, -0.42, 0.14],
+      ];
       if (sparse) {
-        for (let k = 0; k < 5; k++) line(ctx, x, y, x + (k - 2) * h * 0.15, y - h * 0.6, h * 0.03, TRUNK);
+        for (let k = 0; k < 5; k++) line(ctx, x, y, x + (k - 2) * h * 0.12, y - h * (0.42 + (k % 2) * 0.1), h * 0.025, TRUNK);
       }
-      puffs.forEach(([dx, dy, rr], k) => {
-        if (sparse && k === 2) return;
-        circle(ctx, x + dx * h, cy + dy * h, h * rr * (sparse ? 0.8 : 1), leaf);
+      clumps.forEach(([dx, dy, rr], k) => {
+        if (sparse && k % 2) return;
+        circle(ctx, x + dx * h, y + dy * h, h * rr * (sparse ? 0.8 : 1), k % 3 === 0 ? mix(leaf, '#000000', 0.12) : leaf);
       });
-      const dots = season === 'summer' ? 9 : season === 'spring' ? 6 : 0;
+      const dots = season === 'summer' ? 11 : season === 'spring' ? 7 : 0;
       for (let k = 0; k < dots; k++) {
-        circle(ctx, x + (r() - 0.5) * h * 0.8, cy + (r() - 0.6) * h * 0.55, h * (season === 'spring' ? 0.04 : 0.07), season === 'spring' ? bud : sp.color);
+        circle(ctx, x + (r() - 0.5) * h * 0.6, y - h * (0.15 + r() * 0.35), h * (season === 'spring' ? 0.03 : 0.045), season === 'spring' ? bud : sp.color);
       }
       if (sparse) for (let k = 0; k < 3; k++) ellipse(ctx, x + (r() - 0.5) * h * 0.9, y - h * 0.02, h * 0.05, h * 0.02, r(), leaf);
-      if (snow) ellipse(ctx, x, cy - h * 0.34, h * 0.26, h * 0.07, 0, '#f1f5f9');
+      if (snow) ellipse(ctx, x, y - h * 0.52, h * 0.22, h * 0.06, 0, '#f1f5f9');
       break;
     }
     case 'tree': {

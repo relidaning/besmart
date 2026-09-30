@@ -25,7 +25,7 @@ function memoryOf(course: any, today: string): { state: MemoryState | null; elap
 
 // ── Vault helpers ─────────────────────────────────────────────────────────────
 
-function getUserVaultConfig(userId: number): { vaultRoot: string; vaultName: string } | null {
+export function getUserVaultConfig(userId: number): { vaultRoot: string; vaultName: string } | null {
   const user = db.prepare('SELECT vault_root, vault_name FROM users WHERE id = ?').get(userId) as any;
   const vaultRoot = user?.vault_root || DEFAULT_VAULT_PATH;
   if (!vaultRoot) return null;

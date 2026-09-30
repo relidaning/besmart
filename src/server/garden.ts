@@ -178,7 +178,7 @@ export function plantForCourse(userId: number, courseId: number, why: 'created' 
   return { id, species };
 }
 
-/** Reviewing a note grows its plant. Returns e.g. "Lilac grew +25". */
+/** Reviewing a note grows its plant. Returns e.g. "Lilac grew +18". */
 export function growFromReview(userId: number, courseId: number, recordId: number, rating: string): string | null {
   const plant = plantForCourse(userId, courseId, 'first-review');
   if (!plant) return null;
@@ -190,14 +190,18 @@ export function growFromReview(userId: number, courseId: number, recordId: numbe
 }
 
 // Water the note plants that have gone longest without water (still growing ones first).
+// A plant takes water once a day, and only until water has given it GROWTH.waterMax.
 function waterGarden(userId: number, sourceType: string, sourceId: number): number {
   const plants = db.prepare(`
     SELECT p.id,
       COALESCE((SELECT SUM(amount) FROM garden_events e WHERE e.plant_id = p.id), 0) AS growth,
-      (SELECT MAX(created_at) FROM garden_events e WHERE e.plant_id = p.id AND e.kind = 'water') AS watered
+      COALESCE((SELECT SUM(amount) FROM garden_events e WHERE e.plant_id = p.id AND e.kind = 'water'), 0) AS water,
+      (SELECT MAX(created_at) FROM garden_events e WHERE e.plant_id = p.id AND e.kind = 'water') AS watered,
+      EXISTS (SELECT 1 FROM garden_events e WHERE e.plant_id = p.id AND e.kind = 'water' AND e.day = ?) AS today
     FROM garden_plants p WHERE p.user_id = ? AND p.source_type = 'note'
-  `).all(userId) as any[];
+  `).all(effectiveDate(), userId) as any[];
   const chosen = plants
+    .filter((p) => !p.today && p.water < GROWTH.waterMax)
     .map((p) => ({ ...p, done: p.growth >= GROWTH.full }))
     .sort((a, b) => Number(a.done) - Number(b.done) || (a.watered ?? '').localeCompare(b.watered ?? '') || Math.random() - 0.5)
     .slice(0, GROWTH.waterPlants);

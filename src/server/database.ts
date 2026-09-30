@@ -473,6 +473,35 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 15: plants grew too fast (a day of check-ins matured a flower without a
+  // review). Re-apply the new rules to past events: water +2, once a plant a day, at
+  // most +20 per plant; reviews Forgot/Hard/Good/Easy 8/15/25/30 → 6/12/18/22.
+  if (version < 15) {
+    db.transaction(() => {
+      const water = db.prepare("SELECT id, plant_id, day FROM garden_events WHERE kind = 'water' ORDER BY plant_id, id").all() as any[];
+      const seen = new Set<string>();
+      const total = new Map<number, number>();
+      let dropped = 0;
+      for (const e of water) {
+        const key = `${e.plant_id}|${e.day}`;
+        const sum = total.get(e.plant_id) ?? 0;
+        if (seen.has(key) || sum + 2 > 20) {
+          db.prepare('DELETE FROM garden_events WHERE id = ?').run(e.id);
+          dropped++;
+          continue;
+        }
+        seen.add(key);
+        total.set(e.plant_id, sum + 2);
+        db.prepare('UPDATE garden_events SET amount = 2 WHERE id = ?').run(e.id);
+      }
+      for (const [from, to] of [[8, 6], [15, 12], [25, 18], [30, 22]]) {
+        db.prepare("UPDATE garden_events SET amount = ? WHERE kind = 'review' AND amount = ?").run(to, from);
+      }
+      console.log(`[migration 15] garden: ${water.length - dropped} water events kept at +2, ${dropped} dropped; review growth rescaled`);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (15)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'

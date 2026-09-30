@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import db from '../database.js';
 import { localDate, effectiveDate } from '../date.js';
+import fs from 'fs';
+import path from 'path';
 import { awardXp, revokeXp, scheduleCategory, isAttribute, MIN_CHECKIN_XP } from '../garden.js';
+import { getUserVaultConfig } from './reviews.js';
 
 export const checkinRoutes = Router();
 
@@ -220,3 +223,43 @@ export function computeStreak(userId: number): number {
   }
   return streak;
 }
+
+// ── Diary ─────────────────────────────────────────────────────────────────────
+// A short note about the day, appended to the vault's monthly diary
+// (0_lidaning/Diaries/YYYY/YYYY-MM.md) the way its other entries are written:
+// a "### YYYY-MM-DD" heading per day, then "- HH:MM text".
+
+const DIARY_DIR = process.env.DIARY_DIR ?? '0_lidaning/Diaries';
+
+checkinRoutes.post('/diary', (req, res) => {
+  const text: string = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  if (!text) return res.status(400).json({ error: 'Write something first' });
+  if (text.length > 4000) return res.status(400).json({ error: 'Too long (4000 characters at most)' });
+  const cfg = getUserVaultConfig(req.user!.id);
+  if (!cfg) return res.status(400).json({ error: 'No vault configured' });
+
+  const now = new Date();
+  const day = localDate(now);
+  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const rel = `${DIARY_DIR}/${day.slice(0, 4)}/${day.slice(0, 7)}.md`;
+  const file = path.join(cfg.vaultRoot, rel);
+  try {
+    const owner = fs.statSync(cfg.vaultRoot);
+    if (!fs.existsSync(path.dirname(file))) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      try { fs.chownSync(path.dirname(file), owner.uid, owner.gid); } catch { /* best effort */ }
+    }
+    const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : '';
+    // The last day heading in the note (older ones are numbered: "### ⁠5. 2026-09-22").
+    const lastDay = [...existing.matchAll(/^#{1,6}\s.*?(\d{4}-\d{2}-\d{2})\s*$/gm)].pop()?.[1];
+    const [first, ...rest] = text.split(/\r?\n/);
+    const entry = [`- ${time} ${first}`, ...rest.filter((l) => l.trim()).map((l) => `\t${l}`)].join('\n');
+    let add = lastDay === day ? '' : `${existing ? '\n' : ''}### ${day}\n\n`;
+    if (existing && !existing.endsWith('\n')) add = `\n${add}`;
+    fs.appendFileSync(file, `${add}${entry}\n`);
+    if (!existing) { try { fs.chownSync(file, owner.uid, owner.gid); } catch { /* best effort */ } }
+    res.json({ success: true, path: rel });
+  } catch (err) {
+    res.status(500).json({ error: `Couldn't write the diary: ${(err as Error).message}` });
+  }
+});

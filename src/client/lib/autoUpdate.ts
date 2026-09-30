@@ -8,6 +8,9 @@
 const ENTRY = /\/assets\/index-[\w-]+\.js/;
 const RESUME_WINDOW_MS = 5_000;
 const MIN_GAP_MS = 30_000;
+// After a long time in the background the resumed page holds stale data and dead
+// connections (a tap on a check-in just hung), so it reloads fresh instead.
+const LONG_AWAY_MS = 10 * 60_000;
 
 const running = document
   .querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/index-"]')
@@ -16,6 +19,7 @@ const running = document
 let stale = false;
 let lastFetch = 0;
 let resumedAt = Date.now();
+let hiddenAt = 0;
 
 function busy(): boolean {
   const el = document.activeElement;
@@ -43,13 +47,16 @@ export async function checkForUpdate(trigger: 'resume' | 'route' | 'poll') {
 export function startAutoUpdate() {
   if (!running) return; // dev server: the entry is /src/client/main.tsx, nothing to compare
   const onResume = () => {
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState !== 'visible') { hiddenAt = Date.now(); return; }
     resumedAt = Date.now();
+    if (hiddenAt && resumedAt - hiddenAt > LONG_AWAY_MS && !busy()) { location.reload(); return; }
+    hiddenAt = 0;
     navigator.serviceWorker?.getRegistration().then((r) => r?.update()).catch(() => {});
     checkForUpdate('resume');
   };
   document.addEventListener('visibilitychange', onResume);
   window.addEventListener('pageshow', onResume);
+  window.addEventListener('pagehide', () => { hiddenAt = Date.now(); });
   // Learn about a deploy while the app stays open; the reload itself waits for a page change.
   setInterval(() => checkForUpdate('poll'), 5 * 60_000);
 }
