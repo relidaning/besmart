@@ -73,7 +73,7 @@ Key files: `src/server/fsrs.ts`, `src/server/routes/reviews.ts` (completion, `me
 
 **Daily cap:** `DUE_DAILY_LIMIT = 20` in `reviews.ts`. `GET /reviews/due` runs a COUNT first (same WHERE clause), then fetches at most 20 oldest-due rows. Response shape: `{ data, total, limit }` — `total` is the real overdue count across all courses. Frontend shows "Showing 20 of N due" when `total > data.length`.
 
-**Due order:** `DUE_TOPIC_TIER` in `reviews.ts` puts AI/ML/DL notes first (`0_dev/0_AI/`, or the folder's old name `0_dev/AI/` in older courses' `vault_paths`), then the rest of `0_dev/`, then everything else. Within a tier, the oldest due comes first, and postponed courses still go last.
+**Due order:** latest notes first (course `created_at` DESC, which is when the vault note was added), postponed courses last. Changed 2026-09-30 at the user's request; before that the list was AI-first, oldest-due first. `DUE_TOPIC_TIER` in `reviews.ts` (AI/ML/DL notes in `0_dev/0_AI/` or the old `0_dev/AI/`, then the rest of `0_dev/`, then everything else) now only breaks ties between notes added at the same moment.
 
 Search on the due list is **server-side**: `GET /reviews/due?search=` filters by `c.name LIKE '%?%'`. The frontend uses the two-state debounce pattern (`query` + `debouncedQuery`, 400ms). The search input shows a clear (✕) button when non-empty.
 
