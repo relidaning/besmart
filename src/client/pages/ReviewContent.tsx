@@ -4,6 +4,9 @@ import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
 import c from 'react-syntax-highlighter/dist/esm/languages/prism/c';
@@ -77,6 +80,10 @@ function fmtGap(days: number) {
   if (days < 365) return `${Math.round(days / 30)}mo`;
   return `${Math.round((days / 365) * 10) / 10}y`;
 }
+
+// $…$ and $$…$$ math, as in Obsidian. Notes mix Chinese text into formulas, so KaTeX
+// isn't strict about it, and a formula it can't parse shows as red source, not an error.
+const KATEX_OPTIONS = { strict: false, throwOnError: false };
 
 // ── Vault images ──────────────────────────────────────────────────────────────
 
@@ -333,7 +340,7 @@ export default function ReviewContent() {
               prose-blockquote:border-brand-300 dark:prose-blockquote:border-brand-700 prose-blockquote:text-gray-500 dark:prose-blockquote:text-gray-400
               prose-li:text-gray-600 dark:prose-li:text-gray-300 prose-strong:text-gray-800 dark:prose-strong:text-gray-100 prose-hr:border-gray-200 dark:prose-hr:border-gray-800">
               <NotePathContext.Provider value={paths[0] ?? null}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={mdComponents}>
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeRaw, [rehypeKatex, KATEX_OPTIONS]]} components={mdComponents}>
                   {content}
                 </ReactMarkdown>
               </NotePathContext.Provider>

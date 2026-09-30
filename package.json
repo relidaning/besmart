@@ -24,6 +24,7 @@
     "express": "^4.22.1",
     "framer-motion": "^11.15.0",
     "jsonwebtoken": "^9.0.3",
+    "katex": "^0.18.9",
     "lucide-react": "^1.17.0",
     "nodemailer": "^8.0.9",
     "react": "^18.3.1",
@@ -32,8 +33,10 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.30.3",
     "react-syntax-highlighter": "^16.1.1",
+    "rehype-katex": "^7.0.1",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "web-push": "^3.6.7",
     "zustand": "^5.0.0"
   },
