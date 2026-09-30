@@ -85,6 +85,12 @@ function fmtGap(days: number) {
 // isn't strict about it, and a formula it can't parse shows as red source, not an error.
 const KATEX_OPTIONS = { strict: false, throwOnError: false };
 
+// Obsidian only reads $…$ as math when the dollars hug it: no space inside either one,
+// and no digit right after the closing one. Other dollars ("costs $5, or $10") are
+// escaped so remark-math leaves them as text. Inline code and $$ blocks pass through.
+const DOLLAR_TOKENS = /(`+)[\s\S]*?\1|\$\$[\s\S]*?\$\$|\$[^\s$](?:[^$\n]*?[^\s$\\])?\$(?!\d)|\\\$|\$/g;
+const escapeLoneDollars = (md: string) => md.replace(DOLLAR_TOKENS, (m) => (m === '$' ? '\\$' : m));
+
 // ── Vault images ──────────────────────────────────────────────────────────────
 
 const IMAGE_EMBED = /!\[\[([^\]|]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif))(?:\|([^\]]*))?\]\]/gi;
@@ -222,7 +228,7 @@ export default function ReviewContent() {
     const stripped = rawContent.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
     // Split on fenced code blocks; only transform even-indexed segments (non-code)
     const parts = stripped.split(/(^```[\s\S]*?^```)/m);
-    return parts.map((p, i) => i % 2 === 0 ? embedImages(p.replace(/==([^=\n]+)==/g, '<mark>$1</mark>')) : p).join('');
+    return parts.map((p, i) => i % 2 === 0 ? embedImages(escapeLoneDollars(p).replace(/==([^=\n]+)==/g, '<mark>$1</mark>')) : p).join('');
   }, [rawContent]);
 
   const headings = useMemo(() => extractHeadings(content), [content]);
