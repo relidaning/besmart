@@ -179,9 +179,15 @@ export default function Review() {
     setShowForm(true);
   };
 
-  const handleDelete = async (courseId: number) => {
-    if (!confirm('Delete this course and all its review records?')) return;
-    await api.deleteCourse(courseId); toast.success('Deleted'); fetchAll();
+  // Deleting a course also moves its vault note to the vault's .trash folder (server side).
+  const handleDelete = async (record: ReviewRecord) => {
+    const note = record.vault_path ? `\n\nThe note "${record.vault_path}" will be moved to your vault's .trash folder (restorable).` : '';
+    if (!confirm(`Delete "${record.course_name}" and its review history?${note}`)) return;
+    try {
+      const r = await api.deleteCourse(record.course_id);
+      toast.success(r.trashed ? 'Deleted · note moved to .trash' : 'Deleted');
+      fetchAll();
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const handleTogglePostpone = async (record: ReviewRecord) => {
@@ -335,7 +341,7 @@ export default function Review() {
                   <button onClick={(e) => { e.stopPropagation(); openForm(record); }}
                     className="btn-ghost text-xs !px-2 !py-1">Edit</button>
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(record.course_id); }}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(record); }}
                     className="btn-ghost text-xs !px-2 !py-1 !text-[#d64545] dark:!text-[#ec8a8a]"
                   >Delete</button>
                 </div>

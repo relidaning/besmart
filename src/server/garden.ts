@@ -274,6 +274,14 @@ function finishTree(userId: number, planId: number): string | null {
   return `${SPECIES[tree.species].name} is fully grown`;
 }
 
+/** A deleted review course (or a note deleted from the vault) takes its plant with it. */
+export function removePlantForCourse(courseId: number) {
+  const plant = plantBySource('note', courseId);
+  if (!plant) return;
+  db.prepare('DELETE FROM garden_events WHERE plant_id = ?').run(plant.id);
+  db.prepare('DELETE FROM garden_plants WHERE id = ?').run(plant.id);
+}
+
 /** A deleted plan takes its tree with it. */
 export function removeTreeForPlan(planId: number) {
   const tree = plantBySource('plan', planId);
