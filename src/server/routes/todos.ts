@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../database.js';
-import { localDate } from '../date.js';
+import { localDate, effectiveDate, effectiveDayBounds } from '../date.js';
 import { awardXp, revokeXp, scheduleCategory, MIN_CHECKIN_XP, TODO_XP, XpAward } from '../garden.js';
 
 export const todoRoutes = Router();
@@ -91,22 +91,24 @@ todoRoutes.post('/:id/complete', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Todo not found' });
 
   const now = new Date().toISOString();
-  const today = now.split('T')[0];
   db.prepare('UPDATE todos SET completed = 1, completed_at = ? WHERE id = ?').run(now, req.params.id);
   const xp = awardXp(userId, 'todo', existing.id, 'capability', TODO_XP[existing.priority as keyof typeof TODO_XP] ?? TODO_XP.medium);
   let bonus: XpAward | null = null;
 
+  // The app's day (06:00 to 06:00, like check-ins), as in /stats/overview.
   const completedToday = (db.prepare(
-    'SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 1 AND date(completed_at) = ?'
-  ).get(userId, today) as any).c;
+    'SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 1 AND completed_at >= ? AND completed_at < ?'
+  ).get(userId, ...effectiveDayBounds()) as any).c;
 
   if (completedToday >= 5) {
+    // Only today's "Complete 5 todos" check-in: without the date, every todo after the
+    // fifth ticked off an old day's unfinished one (a second toast and unearned XP).
     const checkinTask = db.prepare(`
       SELECT t.id, s.score, s.category, s.name FROM checkin_tasks t
       JOIN checkin_schedules s ON t.schedule_id = s.id
-      WHERE t.is_completed = 0 AND s.user_id = ? AND lower(s.name) LIKE '%5%todo%'
+      WHERE t.is_completed = 0 AND s.user_id = ? AND t.task_date = ? AND lower(s.name) LIKE '%5%todo%'
       LIMIT 1
-    `).get(userId) as any;
+    `).get(userId, effectiveDate()) as any;
     if (checkinTask) {
       db.prepare('UPDATE checkin_tasks SET is_completed = 1, completed_at = ? WHERE id = ?').run(now, checkinTask.id);
       bonus = awardXp(userId, 'checkin', checkinTask.id, scheduleCategory(checkinTask), Math.max(checkinTask.score || 0, MIN_CHECKIN_XP));
@@ -145,15 +147,11 @@ todoRoutes.get('/stats/overview', (req, res) => {
   const highPriority = (db.prepare(
     "SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 0 AND priority = 'high'"
   ).get(userId) as any).c;
-  // completed_at is a UTC ISO string, so count by the local day's UTC bounds;
-  // date(completed_at) would put 00:00–08:00 Shanghai completions on yesterday.
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
+  // completed_at is a UTC ISO string, so count by the day's UTC bounds (the app's
+  // 06:00 day, as check-ins use); date(completed_at) would be off by 8 hours.
   const completedToday = (db.prepare(
     'SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 1 AND completed_at >= ? AND completed_at < ?'
-  ).get(userId, dayStart.toISOString(), dayEnd.toISOString()) as any).c;
+  ).get(userId, ...effectiveDayBounds()) as any).c;
 
   res.json({
     data: { total, completed, pending, overdue, today: todayCount, highPriority, completedToday },
