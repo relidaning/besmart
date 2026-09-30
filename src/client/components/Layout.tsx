@@ -34,11 +34,13 @@ function ThemeToggle() {
 
 type PushStatus = 'idle' | 'subscribed' | 'denied' | 'unsupported';
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(base64);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+  const bytes = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
 }
 
 const navItems = [
@@ -80,13 +82,36 @@ export default function Layout() {
   useEffect(() => {
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
     if (Notification.permission === 'denied') { setPushStatus('denied'); return; }
-    navigator.serviceWorker.ready.then((reg) => {
+    // A subscription is bound to the server's VAPID key. When the key has changed (it
+    // was rotated), replace it; otherwise re-register it, so the server's list stays
+    // in step with the phone. If the browser won't resubscribe without a tap, the bell
+    // shows off and a tap subscribes again.
+    navigator.serviceWorker.ready.then(async (reg) => {
       swRegRef.current = reg;
-      return reg.pushManager.getSubscription();
-    }).then((sub) => {
-      setPushStatus(sub ? 'subscribed' : 'idle');
+      const sub = await reg.pushManager.getSubscription();
+      if (!sub) { setPushStatus('idle'); return; }
+      const { publicKey } = await fetch('/api/notifications/vapid-public-key').then((r) => r.json());
+      const serverKey = urlBase64ToUint8Array(publicKey);
+      const ownKey = sub.options?.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey) : null;
+      let current: PushSubscription = sub;
+      if (!ownKey || ownKey.length !== serverKey.length || ownKey.some((b, i) => b !== serverKey[i])) {
+        await sub.unsubscribe();
+        try {
+          current = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: serverKey });
+        } catch { setPushStatus('idle'); return; }
+      }
+      await saveSubscription(current);
+      setPushStatus('subscribed');
     }).catch(() => {});
   }, []);
+
+  async function saveSubscription(sub: PushSubscription) {
+    await fetch('/api/notifications/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${useAuth.getState().token}` },
+      body: JSON.stringify(sub),
+    });
+  }
 
   async function toggleNotifications() {
     if (pushLoading) return;
@@ -116,11 +141,7 @@ export default function Layout() {
     try {
       const { publicKey } = await fetch('/api/notifications/vapid-public-key').then((r) => r.json());
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
-      await fetch('/api/notifications/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${useAuth.getState().token}` },
-        body: JSON.stringify(sub),
-      });
+      await saveSubscription(sub);
       setPushStatus('subscribed');
     } catch {
       setPushStatus('idle');

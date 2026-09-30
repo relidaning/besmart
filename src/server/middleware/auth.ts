@@ -1,7 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-export const JWT_SECRET = process.env.JWT_SECRET || 'besmart-dev-secret-change-in-prod';
+// Set in the untracked .env (docker-compose passes it through). Production refuses to
+// start without it, so a missing secret never falls back to a well-known one.
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('JWT_SECRET is not set (see .env.example)');
+}
+export const JWT_SECRET = process.env.JWT_SECRET || 'besmart-dev-secret';
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
