@@ -1,11 +1,11 @@
 // Species of the Growth Garden, shared by the server (which decides what gets
 // planted) and the client (which draws it).
 //
-// Common plants are planted automatically by every completion that earns XP. The
-// species depends on the attribute and on that attribute's level at planting
-// time, so the garden visibly improves as you level up. Rare plants come from
-// seeds: each achievement and every 5 levels in an attribute earns one, and you
-// plant it yourself.
+// Flowers and shrubs are notes: every vault note plants one, in its folder's
+// color, and better species unlock with your Wisdom level. Trees are study plans:
+// creating a plan plants the tree you pick, and it grows as the plan's tasks get
+// done. Six trees are available from the start; achievements and every 5 levels
+// in an attribute unlock the rest.
 
 export type Attribute = 'wisdom' | 'health' | 'capability' | 'wealth';
 
@@ -43,24 +43,24 @@ export const SPECIES: Record<string, Species> = Object.fromEntries([
   S('lavender', 'Lavender', 'spike', '#a78bfa', '#6f9e7a', 0.9),
   S('iris', 'Iris', 'bloom', '#8b5cf6', '#4f9a6a', 1.05),
   S('lilac', 'Lilac', 'bush', '#c4a1ff', '#3f8a5a', 1.45),
-  S('jacaranda', 'Jacaranda', 'tree', '#a78bfa', '#3c7a52', 2.1, false, { autumn: '#d4a017' }),
+  S('jacaranda', 'Jacaranda', 'tree', '#a78bfa', '#3c7a52', 2.8, false, { autumn: '#d4a017' }),
   // Health (green)
   S('clover', 'Clover', 'bloom', '#f5f5f4', '#34a86a', 0.7),
   S('fern', 'Fern', 'fern', '#1fa874', '#1fa874', 1.0),
   S('boxwood', 'Boxwood', 'bush', '#86efac', '#1f8a55', 1.35, false, EVERGREEN),
-  S('olive', 'Olive Tree', 'tree', '#d9f99d', '#5b8a4a', 2.0, false, EVERGREEN),
+  S('olive', 'Olive Tree', 'tree', '#d9f99d', '#5b8a4a', 2.6, false, EVERGREEN),
   // Capability (blue)
   S('bluebell', 'Bluebell', 'bell', '#60a5fa', '#3f8f63', 0.85),
   S('cornflower', 'Cornflower', 'bloom', '#3987e5', '#4a9466', 1.0),
   S('hydrangea', 'Hydrangea', 'bush', '#7ab3f5', '#2f7d57', 1.4),
-  S('spruce', 'Blue Spruce', 'pine', '#7ab3f5', '#3b7f8f', 2.1, false, EVERGREEN),
+  S('spruce', 'Blue Spruce', 'pine', '#7ab3f5', '#3b7f8f', 3.0, false, EVERGREEN),
   // Wealth (amber)
   S('buttercup', 'Buttercup', 'bloom', '#fde047', '#4d9a5c', 0.75),
   S('sunflower', 'Sunflower', 'sunflower', '#fabf40', '#4a8f4f', 1.3),
   S('marigold', 'Marigold', 'bush', '#f59e0b', '#3f8a4f', 1.35),
-  S('ginkgo', 'Ginkgo', 'tree', '#facc15', '#7fa83a', 2.0, false, { autumn: '#facc15' }),
+  S('ginkgo', 'Ginkgo', 'tree', '#facc15', '#7fa83a', 2.8, false, { autumn: '#facc15' }),
   // Rare: from seeds only.
-  S('oak', 'Young Oak', 'tree', '#4d9a5c', '#3f7f4a', 2.6, true, { autumn: '#b45309' }),
+  S('oak', 'Oak', 'tree', '#4d9a5c', '#3f7f4a', 3.0, false, { autumn: '#b45309' }),
   S('ancient-oak', 'Ancient Oak', 'tree', '#3f8a4f', '#2f6b3d', 3.4, true, { autumn: '#a16207' }),
   S('maple', 'Red Maple', 'tree', '#ef4444', '#4d9a5c', 2.7, true, { autumn: '#dc2626' }),
   S('cherry', 'Cherry Blossom', 'blossom', '#f9a8d4', '#6b4f3a', 2.8, true),
@@ -71,7 +71,7 @@ export const SPECIES: Record<string, Species> = Object.fromEntries([
   S('golden-ginkgo', 'Golden Ginkgo', 'tree', '#fabf40', '#8fb34a', 3.0, true, { autumn: '#fbbf24' }),
   S('magnolia', 'Magnolia', 'blossom', '#fdf2f8', '#5b4636', 2.6, true),
   S('flame-tree', 'Flame Tree', 'blossom', '#f97316', '#6b4f3a', 2.7, true),
-    S('pine', 'Mountain Pine', 'pine', '#3f8a5f', '#2f6b4a', 2.9, true, EVERGREEN),
+    S('pine', 'Mountain Pine', 'pine', '#3f8a5f', '#2f6b4a', 3.0, false, EVERGREEN),
   S('cypress', 'Italian Cypress', 'cypress', '#2f6b4a', '#2a5e40', 3.2, true, EVERGREEN),
   S('moon-tree', 'Moon Tree', 'blossom', '#dbeafe', '#475569', 3.0, true),
   S('olive-grand', 'Old Olive', 'tree', '#bef264', '#4d7c3a', 3.0, true, EVERGREEN),
@@ -80,13 +80,20 @@ export const SPECIES: Record<string, Species> = Object.fromEntries([
 ].map((s) => [s.id, s]));
 
 // Common species per attribute, unlocked at these attribute levels.
-export const TIER_LEVELS = [0, 3, 6, 9, 12] as const;
+// Note plants top out at shrubs: trees are only for study plans.
+export const TIER_LEVELS = [0, 3, 6, 9] as const;
 export const COMMON_LADDER: Record<Attribute, string[]> = {
-  wisdom: ['sprout', 'lavender', 'iris', 'lilac', 'jacaranda'],
-  health: ['sprout', 'clover', 'fern', 'boxwood', 'olive'],
-  capability: ['sprout', 'bluebell', 'cornflower', 'hydrangea', 'spruce'],
-  wealth: ['sprout', 'buttercup', 'sunflower', 'marigold', 'ginkgo'],
+  wisdom: ['sprout', 'lavender', 'iris', 'lilac'],
+  health: ['sprout', 'clover', 'fern', 'boxwood'],
+  capability: ['sprout', 'bluebell', 'cornflower', 'hydrangea'],
+  wealth: ['sprout', 'buttercup', 'sunflower', 'marigold'],
 };
+
+// ── Trees are study plans ───────────────────────────────────────────────────
+const TREE_KINDS = new Set<PlantKind>(['tree', 'pine', 'cypress', 'blossom', 'willow', 'bamboo']);
+export const isTree = (id: string) => !!SPECIES[id] && TREE_KINDS.has(SPECIES[id].kind);
+export const TREES = Object.values(SPECIES).filter((s) => TREE_KINDS.has(s.kind)).map((s) => s.id);
+export const STARTER_TREES = ['oak', 'pine', 'jacaranda', 'ginkgo', 'olive', 'spruce'];
 
 export function commonSpeciesFor(attribute: Attribute, level: number): string {
   let tier = 0;
@@ -99,33 +106,24 @@ export function nextUnlock(attribute: Attribute, level: number): { level: number
   return i === -1 ? null : { level: TIER_LEVELS[i], species: COMMON_LADDER[attribute][i] };
 }
 
-// Seeds. Ids are stable numbers (stored as garden_plants.source_id).
-export interface Reward {
-  id: number;
-  species: string;
-  reason: string;
-  /** Achievement id, or attribute level milestone. */
-  achievement?: string;
-  milestone?: { attribute: Attribute; level: number };
-}
-
-export const ACHIEVEMENT_SEEDS: Record<string, { id: number; species: string }> = {
-  'first-sprout': { id: 1, species: 'oak' },
-  'todo-100': { id: 2, species: 'bamboo' },
-  'todo-500': { id: 3, species: 'redwood' },
-  'checkin-500': { id: 4, species: 'cherry' },
-  'checkin-1000': { id: 5, species: 'willow' },
-  'review-100': { id: 6, species: 'bodhi' },
-  'plan-finisher': { id: 7, species: 'pine' },
-  'early-bird': { id: 8, species: 'magnolia' },
-  'balanced-week': { id: 9, species: 'rainbow-eucalyptus' },
-  'streak-7': { id: 10, species: 'maple' },
-  'streak-30': { id: 11, species: 'ancient-oak' },
-  'big-day': { id: 12, species: 'flame-tree' },
-  'level-10': { id: 13, species: 'golden-ginkgo' },
+// Achievements unlock tree species (all-time: an unlock is a choice, not a free plant).
+export const ACHIEVEMENT_TREES: Record<string, string> = {
+  'first-sprout': 'magnolia',
+  'todo-100': 'bamboo',
+  'todo-500': 'redwood',
+  'checkin-500': 'cherry',
+  'checkin-1000': 'willow',
+  'review-100': 'bodhi',
+  'plan-finisher': 'ancient-oak',
+  'early-bird': 'flame-tree',
+  'balanced-week': 'rainbow-eucalyptus',
+  'streak-7': 'maple',
+  'streak-30': 'cypress',
+  'big-day': 'golden-ginkgo',
+  'level-10': 'olive-grand',
 };
 
-// Every 5 levels in an attribute earns that attribute's grand tree.
+// Reaching level 5 in an attribute unlocks its grand tree.
 export const MILESTONE_EVERY = 5;
 export const MILESTONE_SPECIES: Record<Attribute, string> = {
   wisdom: 'moon-tree',
@@ -133,13 +131,7 @@ export const MILESTONE_SPECIES: Record<Attribute, string> = {
   capability: 'cypress',
   wealth: 'jade',
 };
-const ATTR_INDEX: Record<Attribute, number> = { wisdom: 0, health: 1, capability: 2, wealth: 3 };
-
-export function milestoneRewardId(attribute: Attribute, level: number) {
-  return 100 + ATTR_INDEX[attribute] * 100 + level; // 105, 110, … per attribute
-}
-
-// ── Plants are notes ────────────────────────────────────────────────────────
+// ── Flowers are notes ───────────────────────────────────────────────────────
 // Every note you create in the vault (as a review course) plants a sapling.
 // Its color family follows the note's folder; the species within the family
 // depends on your Wisdom level when it's planted.
@@ -161,12 +153,7 @@ export const NO_PLANT_PREFIXES = ['claude-maxer/'];
 
 export const GROWTH = {
   review: { again: 8, hard: 15, ok: 25, easy: 30 } as Record<string, number>,
-  water: 5,        // per watered plant
-  waterPlants: 3,  // plants watered by one finished check-in / todo / plan task
-  full: 100,       // growth at full size
-  fullRare: 150,
+  water: 5,        // per watered note plant
+  waterPlants: 3,  // note plants watered by one finished check-in / todo
+  full: 100,       // growth at full size; a tree's growth is its plan's share of finished tasks
 };
-
-export function growthTarget(species: string) {
-  return SPECIES[species]?.rare ? GROWTH.fullRare : GROWTH.full;
-}

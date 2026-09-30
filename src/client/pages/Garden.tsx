@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Droplets, Gift, Lock, Maximize2, Minus, Plus, Sprout, Volume2, VolumeX } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { BookOpen, Droplets, Lock, Maximize2, Minus, Plus, Sprout, TreeDeciduous, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useTheme } from '../contexts/ThemeContext';
 import { ATTR_META, setSoundEnabled, soundEnabled } from '../lib/garden';
 import { GROUND, autumnColor, drawPlant, growthFor, seasonOf, type Season } from '../lib/gardenArt';
 import {
-  ACHIEVEMENT_SEEDS, COMMON_LADDER, FAMILY_LABEL, GROWTH, MILESTONE_EVERY, MILESTONE_SPECIES, SPECIES, TIER_LEVELS,
-  type Attribute, type Reward,
+  ACHIEVEMENT_TREES, COMMON_LADDER, FAMILY_LABEL, GROWTH, MILESTONE_EVERY, MILESTONE_SPECIES, SPECIES, STARTER_TREES,
+  TIER_LEVELS, TREES, type Attribute,
 } from '../../shared/gardenSpecies';
 import { AttrDot, Bar, CardHead, PageHeader } from '../components/PageKit';
 import PlantIcon from '../components/PlantIcon';
 
-// The Growth Garden. Every note you create in the vault plants a sapling; finished
-// check-ins, todos and plan tasks water the garden; reviewing a note grows its
-// plant. Rare trees come from seeds earned by achievements and level milestones.
-// Every one of those events is kept in a journal. Statistics live on Home.
+// The Growth Garden. Flowers and shrubs are notes: every note you write plants a
+// sapling, finished check-ins and todos water them, reviewing a note grows its
+// plant. Trees are study plans: a new plan plants the tree you chose, and it grows
+// with each finished task until the plan is done. Everything is kept in a journal.
+// Statistics live on Home.
 
 interface Plant {
   id: number;
@@ -32,11 +32,14 @@ interface Plant {
   target: number;
   reviews: number;
   waterings: number;
+  tasks_done?: number;
+  tasks_total?: number;
+  finished?: boolean;
 }
 
 interface GardenData {
   plants: Plant[];
-  seeds: Reward[];
+  unlockedTrees: string[];
   wisdomLevel: number;
   ladder: { attribute: Attribute; level: number; current: string; next: { level: number; species: string } | null }[];
   today: string;
@@ -45,7 +48,7 @@ interface GardenData {
 interface GardenEvent {
   id: number;
   plant_id: number | null;
-  kind: 'plant' | 'seed' | 'water' | 'review';
+  kind: 'plant' | 'water' | 'review' | 'task' | 'plan';
   amount: number;
   label: string;
   day: string;
@@ -63,9 +66,9 @@ const SEASONS: { id: Season; label: string }[] = [
   { id: 'spring', label: 'Spring' }, { id: 'summer', label: 'Summer' }, { id: 'autumn', label: 'Autumn' }, { id: 'winter', label: 'Winter' },
 ];
 
-const EVENT_ICON = { plant: Sprout, seed: Gift, water: Droplets, review: BookOpen };
+const EVENT_ICON = { plant: Sprout, water: Droplets, review: BookOpen, task: TreeDeciduous, plan: Trophy };
 const EVENT_TINT = {
-  plant: 'text-[#1fa874]', seed: 'text-brand-600 dark:text-brand-400', water: 'text-[#3987e5]', review: 'text-[#a854f7]',
+  plant: 'text-[#1fa874]', water: 'text-[#3987e5]', review: 'text-[#a854f7]', task: 'text-[#4d9a5c]', plan: 'text-brand-600 dark:text-brand-400',
 };
 
 const container = {
@@ -183,13 +186,14 @@ function GardenCanvas({ plants, season, layoutKey, highlight, onPick }: {
     if (!canvas || width === 0) return;
     const { n, placed } = layout;
     const W = width;
-    const tw = (W * 0.94) / n, th = tw / 2;
+    const tw = (W * 0.86) / n, th = tw / 2;
     const wall = Math.min(22, Math.max(6, tw * 0.5));
     const unit = Math.min(64, tw * 0.95);
     const grown = placed.map(({ p }) => {
       const sp = SPECIES[p.species] ?? SPECIES.sprout;
       const g = growthFor(p.growth, p.target);
-      return { sp, young: g.young, h: unit * sp.size * g.scale };
+      // Cap height so a big tree at the island's edge stays inside the canvas.
+      return { sp, young: g.young, pct: g.pct, fruit: !!p.finished, h: Math.min(unit * sp.size * g.scale, W * 0.36) };
     });
     const topPad = Math.max(40, ...grown.map((g, k) => g.h - (placed[k].i + placed[k].j) * th / 2)) + 6;
     const H = topPad + n * th + wall + 6;
@@ -245,7 +249,7 @@ function GardenCanvas({ plants, season, layoutKey, highlight, onPick }: {
         if (o.p.id === highlight) sc *= 1 + 0.12 * Math.sin(Math.min(1, t) * Math.PI);
         const h = o.h * sc;
         if (h < 0.5) continue;
-        drawPlant(sctx, o.sp, x, y, h, { seed: o.p.id, crit: o.p.crit, dark, season, young: o.young });
+        drawPlant(sctx, o.sp, x, y, h, { seed: o.p.id, crit: o.p.crit, dark, season, young: o.young, pct: o.pct, fruit: o.fruit });
         hits.push({ plant: o.p, x0: x - Math.max(h * 0.4, tw / 2), x1: x + Math.max(h * 0.4, tw / 2), y0: y - h, y1: y + th / 2 });
       }
       hitRef.current = hits;
@@ -432,7 +436,7 @@ function JournalRow({ e }: { e: GardenEvent }) {
     <div className="flex items-start gap-2.5 py-1.5">
       <Icon size={14} className={`mt-0.5 flex-shrink-0 ${EVENT_TINT[e.kind]}`} />
       <div className="min-w-0 flex-1 text-[12px] leading-snug text-gray-700 dark:text-gray-300">
-        {e.kind !== 'plant' && e.kind !== 'seed' && e.species && <b className="font-bold">{SPECIES[e.species]?.name}: </b>}
+        {e.kind !== 'plant' && e.species && <b className="font-bold">{SPECIES[e.species]?.name}: </b>}
         {e.label}
       </div>
       <span className="flex-shrink-0 text-[11px] text-gray-500 tabular-nums">
@@ -448,10 +452,10 @@ export default function Garden() {
   const [picked, setPicked] = useState<Plant | null>(null);
   const [pickedLog, setPickedLog] = useState<GardenEvent[]>([]);
   const [highlight, setHighlight] = useState<number | null>(null);
-  const [planting, setPlanting] = useState<number | null>(null);
   const [sound, setSound] = useState(soundEnabled());
   const [journal, setJournal] = useState<GardenEvent[]>([]);
   const [journalDone, setJournalDone] = useState(false);
+  const [achievementTitles, setAchievementTitles] = useState<Record<string, string>>({});
   const nowSeason = seasonOf(new Date());
   const [season, setSeason] = useState<Season>(nowSeason);
 
@@ -463,6 +467,8 @@ export default function Garden() {
 
   useEffect(() => {
     api.getGardenPlants().then((r: { data: GardenData }) => setData(r.data));
+    api.getGardenSummary().then((r: { data: { achievements: { id: string; title: string }[] } }) =>
+      setAchievementTitles(Object.fromEntries(r.data.achievements.map((a) => [a.id, a.title])))).catch(() => {});
     loadJournal();
   }, []);
 
@@ -486,37 +492,18 @@ export default function Garden() {
   }
 
   const speciesShown = new Set(shown.map((p) => p.species)).size;
-  const rarePlanted = new Map<string, number>();
-  data.plants.forEach((p) => { if (SPECIES[p.species]?.rare) rarePlanted.set(p.species, (rarePlanted.get(p.species) ?? 0) + 1); });
   const pickedSp = picked ? SPECIES[picked.species] : null;
   const pickedGrowth = picked ? growthFor(picked.growth, picked.target) : null;
 
-  async function plantSeed(seed: Reward) {
-    setPlanting(seed.id);
-    try {
-      await api.plantGardenSeed(seed.id);
-      const r: { data: GardenData } = await api.getGardenPlants();
-      setData(r.data);
-      setPeriod('all');
-      const newest = r.data.plants.reduce((m, p) => (p.id > m.id ? p : m), r.data.plants[0]);
-      setHighlight(newest?.id ?? null);
-      setPicked(newest ?? null);
-      loadJournal();
-      toast.success(`${SPECIES[seed.species].name} planted`);
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-    setPlanting(null);
-  }
-
-  // How each rare species is earned.
-  const rareSources = new Map<string, string[]>();
-  for (const [id, s] of Object.entries(ACHIEVEMENT_SEEDS)) rareSources.set(s.species, [...(rareSources.get(s.species) ?? []), `achievement: ${id}`]);
+  // How each locked tree is unlocked.
+  const treeUnlock = new Map<string, string[]>();
+  for (const [id, sp] of Object.entries(ACHIEVEMENT_TREES)) treeUnlock.set(sp, [...(treeUnlock.get(sp) ?? []), `"${achievementTitles[id] ?? id}"`]);
   (Object.keys(MILESTONE_SPECIES) as Attribute[]).forEach((a) => {
     const sp = MILESTONE_SPECIES[a];
-    rareSources.set(sp, [...(rareSources.get(sp) ?? []), `every ${MILESTONE_EVERY} ${ATTR_META[a].label} levels`]);
+    treeUnlock.set(sp, [...(treeUnlock.get(sp) ?? []), `${ATTR_META[a].label} Lv ${MILESTONE_EVERY}`]);
   });
-  const rareList = Object.values(SPECIES).filter((s) => s.rare);
+  const treesPlanted = new Map<string, number>();
+  data.plants.forEach((p) => { if (p.source_type === 'plan') treesPlanted.set(p.species, (treesPlanted.get(p.species) ?? 0) + 1); });
 
   // Journal grouped by day.
   const journalDays: [string, GardenEvent[]][] = [];
@@ -530,7 +517,7 @@ export default function Garden() {
       <PageHeader
         icon={Sprout}
         title="Growth Garden"
-        subtitle={data.plants.length ? `${data.plants.length} plants · one for every note you write` : 'Every note you write plants a sapling here'}
+        subtitle={data.plants.length ? `${data.plants.length} plants · notes grow flowers, study plans grow trees` : 'Notes grow flowers here, study plans grow trees'}
         actions={
           <button
             onClick={() => { setSoundEnabled(!sound); setSound(!sound); }}
@@ -577,7 +564,7 @@ export default function Garden() {
           {shown.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center px-10 text-center text-xs text-gray-600 dark:text-gray-300 pointer-events-none">
               {data.plants.length === 0
-                ? 'Nothing growing yet. Write a new note in your vault (or review an older one) to plant your first sapling.'
+                ? 'Nothing growing yet. Write a note in your vault or create a study plan to plant your first sapling.'
                 : 'Nothing was planted in this period.'}
             </div>
           )}
@@ -590,20 +577,24 @@ export default function Garden() {
                 <PlantIcon species={picked.species} size={36} />
                 <div className="min-w-0 flex-1">
                   <div className="text-[13px] font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                    {pickedSp.name}{pickedGrowth.young ? ' sapling' : pickedGrowth.pct >= 1 ? ' · full grown' : ''}
+                    {pickedSp.name}{pickedGrowth.young ? ' sapling' : pickedGrowth.pct >= 1 ? ' · fully grown' : ''}
                     {picked.attribute && <AttrDot attribute={picked.attribute} />}
                   </div>
                   <div className="text-[11px] text-gray-500 truncate">
-                    {picked.source_type === 'note' ? `${FAMILY_LABEL[picked.attribute ?? 'health'].replace(/s$/, '')}: ${picked.label}` : `Rare seed for ${picked.label}`}
+                    {picked.source_type === 'plan' ? `Study plan: ${picked.label}` : `${FAMILY_LABEL[picked.attribute ?? 'health'].replace(/s$/, '')}: ${picked.label}`}
                   </div>
                 </div>
               </div>
               <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-500">
                 <div className="flex-1"><Bar pct={pickedGrowth.pct * 100} className="bg-[#1fa874]" thin /></div>
-                <span className="tabular-nums">{Math.round(picked.growth)}/{picked.target}</span>
+                <span className="tabular-nums">
+                  {picked.source_type === 'plan' ? `${picked.tasks_done}/${picked.tasks_total} tasks` : `${Math.round(picked.growth)}/${picked.target}`}
+                </span>
               </div>
               <div className="mt-1 text-[11px] text-gray-500">
-                Planted {fmtDay(picked.day)} · reviewed {picked.reviews}× · watered {picked.waterings}×
+                Planted {fmtDay(picked.day)} · {picked.source_type === 'plan'
+                  ? (picked.finished ? 'plan finished, bearing fruit' : 'grows with every finished task')
+                  : `reviewed ${picked.reviews}× · watered ${picked.waterings}×`}
               </div>
               {pickedLog.length > 0 && (
                 <div className="mt-2 border-t border-gray-200/70 pt-1 dark:border-white/[0.06]">
@@ -621,30 +612,13 @@ export default function Garden() {
 
       <motion.div variants={item} className="card">
         <CardHead title="How the garden grows" />
-        <div className="grid gap-2 text-[12px] text-gray-600 dark:text-gray-300 sm:grid-cols-3">
-          <div className="row flex gap-2.5"><Sprout size={16} className="text-[#1fa874] flex-shrink-0 mt-0.5" /><span><b>Write a note</b> in your vault: it plants a sapling. Older notes plant theirs at their first review.</span></div>
-          <div className="row flex gap-2.5"><Droplets size={16} className="text-[#3987e5] flex-shrink-0 mt-0.5" /><span><b>Finish a check-in, todo or plan task</b>: it waters the {GROWTH.waterPlants} thirstiest plants (+{GROWTH.water}).</span></div>
+        <div className="grid gap-2 text-[12px] text-gray-600 dark:text-gray-300 sm:grid-cols-2">
+          <div className="row flex gap-2.5"><Sprout size={16} className="text-[#1fa874] flex-shrink-0 mt-0.5" /><span><b>Write a note</b> in your vault: it plants a flower sapling in its folder's color. Older notes plant theirs at their first review.</span></div>
           <div className="row flex gap-2.5"><BookOpen size={16} className="text-[#a854f7] flex-shrink-0 mt-0.5" /><span><b>Review a note</b>: its plant grows a lot (+{GROWTH.review.again} to +{GROWTH.review.easy}). Full size at {GROWTH.full}.</span></div>
+          <div className="row flex gap-2.5"><Droplets size={16} className="text-[#3987e5] flex-shrink-0 mt-0.5" /><span><b>Finish a check-in or todo</b>: it waters the {GROWTH.waterPlants} thirstiest flowers (+{GROWTH.water}).</span></div>
+          <div className="row flex gap-2.5"><TreeDeciduous size={16} className="text-[#4d9a5c] flex-shrink-0 mt-0.5" /><span><b>Create a study plan</b>: it plants the tree you pick. Every finished task grows it; finishing the plan brings it to full size, with fruit.</span></div>
         </div>
       </motion.div>
-
-      {data.seeds.length > 0 && (
-        <motion.div variants={item} className="card !border-brand-400/50">
-          <CardHead title="Seeds to plant" meta={`${data.seeds.length} earned`} />
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 snap-x">
-            {data.seeds.map((s) => (
-              <div key={s.id} className="row snap-start flex w-32 flex-shrink-0 flex-col items-center !px-2 !py-2.5 text-center">
-                <PlantIcon species={s.species} size={44} />
-                <div className="mt-1 w-full truncate text-[12px] font-bold text-gray-900 dark:text-gray-100">{SPECIES[s.species].name}</div>
-                <div className="w-full truncate text-[10px] text-gray-500">{s.reason}</div>
-                <button onClick={() => plantSeed(s)} disabled={planting !== null} className="btn-primary mt-2 w-full !px-2 !py-1 text-xs">
-                  {planting === s.id ? '…' : 'Plant'}
-                </button>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
 
       <motion.div variants={item} className="card">
         <CardHead title="Garden journal" meta={journal.length ? 'newest first' : undefined} />
@@ -668,7 +642,7 @@ export default function Garden() {
       </motion.div>
 
       <motion.div variants={item} className="card">
-        <CardHead title="What you can grow" meta={`Wisdom Lv ${data.wisdomLevel}`} />
+        <CardHead title="Flowers from notes" meta={`Wisdom Lv ${data.wisdomLevel}`} />
         <div className="space-y-3">
           {data.ladder.map((a) => (
             <div key={a.attribute}>
@@ -696,31 +670,33 @@ export default function Garden() {
             </div>
           ))}
         </div>
-        <p className="text-[11px] text-gray-500 mt-3">New notes get the best species your Wisdom level has unlocked, in their folder's color.</p>
+        <p className="text-[11px] text-gray-500 mt-3">New notes get the best flower your Wisdom level has unlocked, in their folder's color. Trees are for study plans.</p>
       </motion.div>
 
       <motion.div variants={item} className="card">
-        <CardHead title="Rare trees" meta={`${rarePlanted.size}/${rareList.length} grown`} />
+        <CardHead title="Trees for study plans" meta={`${data.unlockedTrees.length}/${TREES.length} unlocked`} />
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-          {rareList.map((sp) => {
-            const count = rarePlanted.get(sp.id) ?? 0;
-            const ready = data.seeds.some((s) => s.species === sp.id);
+          {TREES.map((id) => {
+            const sp = SPECIES[id];
+            const unlocked = data.unlockedTrees.includes(id);
+            const count = treesPlanted.get(id) ?? 0;
+            const how = STARTER_TREES.includes(id) ? 'available from the start' : `unlocked by ${(treeUnlock.get(id) ?? []).join(' or ')}`;
             return (
-              <div key={sp.id} title={(rareSources.get(sp.id) ?? []).join(' / ')}
-                className={`rounded-lg border flex flex-col items-center pt-1.5 pb-2 px-1 ${ready
+              <div key={id} title={how}
+                className={`rounded-lg border flex flex-col items-center pt-1.5 pb-2 px-1 ${count
                   ? 'border-brand-400/60 bg-brand-400/[0.10]'
                   : 'border-gray-200/70 dark:border-white/[0.06]'}`}>
-                <PlantIcon species={sp.id} size={40} locked={count === 0 && !ready} />
+                <PlantIcon species={id} size={40} locked={!unlocked} />
                 <span className="text-[10px] leading-3 text-center text-gray-600 dark:text-gray-300 mt-0.5">{sp.name}</span>
                 <span className="text-[10px] text-gray-500 flex items-center gap-0.5">
-                  {count > 0 ? `×${count}` : ready ? 'seed ready' : <><Lock size={8} />locked</>}
+                  {count > 0 ? `growing ×${count}` : unlocked ? 'unlocked' : <><Lock size={8} />locked</>}
                 </span>
               </div>
             );
           })}
         </div>
         <p className="text-[11px] text-gray-500 mt-3">
-          New achievements earn rare seeds (see Achievements on Home), and so does every {MILESTONE_EVERY} levels in an attribute.
+          Pick a tree when you create a study plan. Six are available from the start; achievements (see Home) and reaching level {MILESTONE_EVERY} in an attribute unlock the rest.
         </p>
       </motion.div>
     </motion.div>

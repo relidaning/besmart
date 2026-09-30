@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { gardenSummary, gardenPlants, gardenEvents, plantSeed, seedCount } from '../garden.js';
+import { gardenSummary, gardenPlants, gardenEvents, unlockedTrees } from '../garden.js';
 
 export const gardenRoutes = Router();
 
 gardenRoutes.get('/summary', (req, res) => {
-  res.json({ data: { ...gardenSummary(req.user!.id), seedsAvailable: seedCount(req.user!.id) } });
+  res.json({ data: gardenSummary(req.user!.id) });
 });
 
 gardenRoutes.get('/plants', (req, res) => {
@@ -17,8 +17,7 @@ gardenRoutes.get('/events', (req, res) => {
   res.json({ data: gardenEvents(req.user!.id, { before: num(req.query.before), plantId: num(req.query.plant), limit: num(req.query.limit) }) });
 });
 
-gardenRoutes.post('/seeds/:id/plant', (req, res) => {
-  const seed = plantSeed(req.user!.id, Number(req.params.id));
-  if (!seed) return res.status(400).json({ error: 'No such seed to plant' });
-  res.json({ data: seed });
+// Tree species the user can plant for a new study plan.
+gardenRoutes.get('/trees', (req, res) => {
+  res.json({ data: unlockedTrees(req.user!.id) });
 });

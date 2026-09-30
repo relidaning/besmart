@@ -6,6 +6,8 @@ import { FolderOpen } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import DatePicker from '../components/ui/DatePicker';
+import PlantIcon from '../components/PlantIcon';
+import { SPECIES } from '../../shared/gardenSpecies';
 import { PageHeader, StatTiles, XpChip, EmptyState } from '../components/PageKit';
 
 interface Plan {
@@ -32,7 +34,17 @@ export default function Plans() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'active' | 'completed'>('active');
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', start_date: '', end_date: '' });
+  const [form, setForm] = useState({ name: '', description: '', start_date: '', end_date: '', tree: '' });
+  const [trees, setTrees] = useState<string[]>([]);
+
+  // Every plan plants a tree; pick from the unlocked species (a random one preselected).
+  useEffect(() => {
+    if (!showForm) return;
+    api.getGardenTrees().then((r: { data: string[] }) => {
+      setTrees(r.data);
+      setForm((f) => (f.tree && r.data.includes(f.tree) ? f : { ...f, tree: r.data[Math.floor(Math.random() * r.data.length)] ?? '' }));
+    }).catch(() => {});
+  }, [showForm]);
 
   const fetchPlans = () => {
     api.getPlans().then((r) => setPlans(r.data)).finally(() => setLoading(false));
@@ -49,10 +61,10 @@ export default function Plans() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.createPlan(form);
-      toast.success('Plan created');
+      const r = await api.createPlan(form);
+      toast.success(r.tree ? `Plan created · ${SPECIES[r.tree]?.name ?? 'a tree'} planted in your garden` : 'Plan created');
       setShowForm(false);
-      setForm({ name: '', description: '', start_date: '', end_date: '' });
+      setForm({ name: '', description: '', start_date: '', end_date: '', tree: '' });
       fetchPlans();
     } catch (err: any) {
       toast.error(err.message);
@@ -180,6 +192,24 @@ export default function Plans() {
                 <DatePicker value={form.end_date}
                   onChange={(v) => setForm({ ...form, end_date: v })} required />
               </div>
+              {trees.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Tree <span className="font-normal text-gray-500">· grows as you finish its tasks</span>
+                  </label>
+                  <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+                    {trees.map((t) => (
+                      <button type="button" key={t} onClick={() => setForm({ ...form, tree: t })}
+                        className={`flex w-16 flex-shrink-0 flex-col items-center rounded-lg border pt-1 pb-1.5 transition-colors ${form.tree === t
+                          ? 'border-brand-400/70 bg-brand-400/[0.12]'
+                          : 'border-gray-200/70 dark:border-white/[0.08]'}`}>
+                        <PlantIcon species={t} size={40} />
+                        <span className="text-[10px] leading-3 text-center text-gray-600 dark:text-gray-300">{SPECIES[t]?.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
                 <button type="submit" className="btn-primary flex-1">Create Plan</button>
                 <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>

@@ -127,7 +127,7 @@ function sapling(ctx: CanvasRenderingContext2D, sp: Species, x: number, y: numbe
 
 export function drawPlant(
   ctx: CanvasRenderingContext2D, sp: Species, x: number, y: number, h: number,
-  opts: { seed: number; crit?: boolean; dark: boolean; season: Season; young?: boolean },
+  opts: { seed: number; crit?: boolean; dark: boolean; season: Season; young?: boolean; pct?: number; fruit?: boolean },
 ) {
   const r = rng(opts.seed);
   const { season } = opts;
@@ -135,6 +135,8 @@ export function drawPlant(
   const evergreen = !!sp.evergreen;
   const winterBare = season === 'winter' && !evergreen;
   const snow = season === 'winter';
+  // Trees gain detail as they grow (their plan's share of finished tasks).
+  const detail = 0.45 + 0.55 * Math.min(1, Math.max(0, opts.pct ?? 1));
 
   // soft ground shadow
   ellipse(ctx, x, y, w * (sp.rare ? 0.55 : 0.4) * (opts.young ? 0.5 : 1), w * 0.14, 0, opts.dark ? 'rgba(0,0,0,0.35)' : 'rgba(40,60,30,0.18)');
@@ -293,7 +295,7 @@ export function drawPlant(
       trunk(ctx, x, y, h * 0.5, h * 0.14);
       const cy = y - h * 0.68;
       const scale = season === 'spring' ? 0.85 : season === 'autumn' && !evergreen ? 0.9 : 1;
-      const puffs = sp.rare ? 7 : 5;
+      const puffs = Math.max(3, Math.round((sp.rare ? 8 : 6) * detail));
       for (let k = 0; k < puffs; k++) {
         if (season === 'autumn' && !evergreen && k % 3 === 2) continue; // thinning canopy
         const a = (k / puffs) * Math.PI * 2;
@@ -302,13 +304,16 @@ export function drawPlant(
       // Crown a shade lighter than the canopy; flowers show as dots, never mixed into the green.
       circle(ctx, x, cy - h * 0.06, h * 0.26 * scale, mix(leaf, '#ffffff', 0.12));
       if (season === 'summer' || season === 'spring') {
-        for (let k = 0; k < (sp.rare ? 14 : 8); k++) {
+        for (let k = 0; k < Math.round((sp.rare ? 14 : 10) * detail); k++) {
           circle(ctx, x + (r() - 0.5) * h * 0.65 * scale, cy + (r() - 0.55) * h * 0.45 * scale,
             h * (season === 'spring' ? 0.03 : 0.045), season === 'spring' ? bud : sp.color);
         }
       }
       if (season === 'autumn' && !evergreen) {
         for (let k = 0; k < 4; k++) ellipse(ctx, x + (r() - 0.5) * h * 0.8, y - h * 0.01, h * 0.04, h * 0.016, r(), leaf);
+      }
+      if (opts.fruit && (season === 'summer' || season === 'autumn')) { // a finished plan bears fruit
+        for (let k = 0; k < 7; k++) circle(ctx, x + (r() - 0.5) * h * 0.55, cy + (r() - 0.35) * h * 0.35, h * 0.035, k % 2 ? '#ef4444' : '#f59e0b');
       }
       if (snow) {
         ellipse(ctx, x, cy - h * 0.28, h * 0.2, h * 0.06, 0, '#f1f5f9');
@@ -318,7 +323,8 @@ export function drawPlant(
     }
     case 'pine': {
       trunk(ctx, x, y, h * 0.25, h * 0.1);
-      for (let k = 0; k < 4; k++) {
+      const tiers = Math.min(4, 2 + Math.round(2 * (detail - 0.45) / 0.55));
+      for (let k = 0; k < tiers; k++) {
         const top = y - h * (0.35 + k * 0.18) - h * 0.22;
         const half = h * (0.34 - k * 0.07);
         ctx.fillStyle = k % 2 ? sp.leaf : mix(sp.leaf, sp.color);
@@ -357,7 +363,7 @@ export function drawPlant(
       // Flowering trees: buds in spring, clouds of blossom in summer, color in autumn.
       trunk(ctx, x, y, h * 0.45, h * 0.12, sp.leaf);
       for (const d of [-1, 1]) line(ctx, x, y - h * 0.4, x + d * h * 0.28, y - h * 0.62, h * 0.04, sp.leaf);
-      const n = season === 'summer' ? 36 : season === 'spring' ? 20 : 18;
+      const n = Math.round((season === 'summer' ? 36 : season === 'spring' ? 20 : 18) * detail);
       for (let k = 0; k < n; k++) {
         const a = r() * Math.PI * 2, d = Math.sqrt(r());
         const c = season === 'summer' ? (k % 5 === 0 ? '#ffffff' : sp.color)
@@ -384,7 +390,7 @@ export function drawPlant(
       break;
     }
     case 'bamboo': {
-      for (const dx of [-0.2, -0.05, 0.1, 0.24]) {
+      for (const dx of [-0.05, 0.1, -0.2, 0.24].slice(0, 1 + Math.round(3 * (detail - 0.45) / 0.55))) {
         const sh = h * (0.75 + r() * 0.25);
         const sx = x + dx * h;
         line(ctx, sx, y, sx, y - sh, h * 0.05, sp.leaf);

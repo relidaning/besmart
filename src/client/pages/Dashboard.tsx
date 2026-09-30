@@ -221,11 +221,7 @@ export default function Dashboard() {
               <Link to="/garden"
                 className="row mt-4 flex items-center gap-2.5 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
                 <Sprout size={15} className="text-[#1fa874] flex-shrink-0" />
-                <span className="flex-1 min-w-0 text-[12px] text-gray-700 dark:text-gray-300">
-                  {garden.seedsAvailable
-                    ? <><b className="text-brand-600 dark:text-brand-400">{garden.seedsAvailable} rare seed{garden.seedsAvailable > 1 ? 's' : ''}</b> waiting to be planted</>
-                    : 'Visit your garden'}
-                </span>
+                <span className="flex-1 min-w-0 text-[12px] text-gray-700 dark:text-gray-300">Visit your garden</span>
                 <ChevronRight size={14} className="text-gray-400 dark:text-gray-600" />
               </Link>
             </motion.div>

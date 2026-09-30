@@ -372,6 +372,36 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 12: trees belong to study plans. garden_events gains the kinds
+  // 'task' (a finished plan task grew its tree) and 'plan' (the plan was
+  // finished), so the table is rebuilt without migration 11's CHECK list.
+  if (version < 12) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE garden_events_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          plant_id INTEGER,
+          kind TEXT NOT NULL,
+          amount REAL NOT NULL DEFAULT 0,
+          source_type TEXT,
+          source_id INTEGER,
+          label TEXT,
+          day TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        INSERT INTO garden_events_new SELECT * FROM garden_events;
+        DROP TABLE garden_events;
+        ALTER TABLE garden_events_new RENAME TO garden_events;
+        CREATE INDEX IF NOT EXISTS idx_garden_events_user ON garden_events(user_id, id);
+        CREATE INDEX IF NOT EXISTS idx_garden_events_plant ON garden_events(plant_id);
+        CREATE INDEX IF NOT EXISTS idx_garden_events_source ON garden_events(source_type, source_id);
+      `);
+      db.prepare("DELETE FROM garden_plants WHERE source_type = 'seed'").run(); // seeds are gone: achievements unlock tree species
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (12)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'

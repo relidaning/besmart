@@ -5,7 +5,7 @@ import {
   Award, Brain, CalendarCheck, CalendarRange, CheckCheck, Crown, Flag, Flame, Hammer, Scale, Sprout,
   Sunrise, TreePine, Zap, type LucideIcon,
 } from 'lucide-react';
-import { ACHIEVEMENT_SEEDS, SPECIES } from '../../shared/gardenSpecies';
+import { ACHIEVEMENT_TREES, SPECIES } from '../../shared/gardenSpecies';
 import type { AttributeLevel } from './AttributeBar';
 import { Bar, CardHead } from './PageKit';
 import PlantIcon from './PlantIcon';
@@ -29,7 +29,6 @@ export interface GardenSummary {
   streak: { current: number; best: number; shields: number };
   heatmap: { day: string; xp: number }[];
   achievements: Achievement[];
-  seedsAvailable?: number;
 }
 
 // Line icons for the server's achievement ids (the server's emoji are ignored).
@@ -121,7 +120,7 @@ export function YearOfGrowth({ data }: { data: GardenSummary }) {
 function AchievementModal({ a, onClose }: { a: Achievement; onClose: () => void }) {
   const done = a.progress >= a.goal;
   const Icon = ACHIEVEMENT_ICON[a.id] ?? Award;
-  const seed = ACHIEVEMENT_SEEDS[a.id];
+  const tree = ACHIEVEMENT_TREES[a.id];
   const pct = Math.min(1, a.progress / a.goal);
   const [count, setCount] = useState(0);
 
@@ -206,16 +205,16 @@ function AchievementModal({ a, onClose }: { a: Achievement; onClose: () => void 
           {!done && <div className="text-[11px] text-gray-500">{(a.goal - a.progress).toLocaleString()} to go · {Math.floor(pct * 100)}%</div>}
         </motion.div>
 
-        {seed && !done && (
+        {tree && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.45 }}
             className="row mt-4 flex items-center gap-3 text-left"
           >
-            <PlantIcon species={seed.species} size={52} />
+            <PlantIcon species={tree} size={52} locked={!done} />
             <div className="min-w-0">
-              <div className="text-[11px] text-gray-500">Reward</div>
-              <div className="text-[13px] font-bold text-gray-900 dark:text-gray-100">{SPECIES[seed.species].name} seed</div>
-              <div className="text-[11px] text-gray-500">a rare tree for your garden</div>
+              <div className="text-[11px] text-gray-500">{done ? 'Unlocked' : 'Unlocks'}</div>
+              <div className="text-[13px] font-bold text-gray-900 dark:text-gray-100">{SPECIES[tree].name}</div>
+              <div className="text-[11px] text-gray-500">a tree you can plant for a study plan</div>
             </div>
           </motion.div>
         )}
@@ -238,7 +237,7 @@ export function Achievements({ data }: { data: GardenSummary }) {
         {[...unlocked, ...locked].map((a) => {
           const done = a.progress >= a.goal;
           const Icon = ACHIEVEMENT_ICON[a.id] ?? Award;
-          const seed = ACHIEVEMENT_SEEDS[a.id];
+          const tree = ACHIEVEMENT_TREES[a.id];
           return (
             <motion.button key={a.id} onClick={() => setOpen(a.id)} whileTap={{ scale: 0.96 }}
               className={`row flex items-center gap-3 text-left transition-colors hover:bg-gray-100 dark:hover:bg-white/[0.06] ${done ? '' : 'opacity-80'}`}>
@@ -253,7 +252,7 @@ export function Achievements({ data }: { data: GardenSummary }) {
                   <span className="text-[11px] text-gray-500 whitespace-nowrap">{done ? 'done' : `${a.progress}/${a.goal}`}</span>
                 </div>
                 <div className="text-[11px] text-gray-500 truncate">
-                  {a.description}{seed && !done && <> · <span className="text-gray-600 dark:text-gray-400">{SPECIES[seed.species].name} seed</span></>}
+                  {a.description}{tree && <> · <span className="text-gray-600 dark:text-gray-400">{SPECIES[tree].name}</span></>}
                 </div>
                 {!done && <div className="mt-1.5"><Bar pct={(a.progress / a.goal) * 100} thin /></div>}
               </div>
