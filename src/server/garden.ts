@@ -163,11 +163,10 @@ function plantBySource(sourceType: 'note' | 'plan', id: number) {
 export function plantForCourse(userId: number, courseId: number, why: 'created' | 'first-review') {
   const existing = plantBySource('note', courseId);
   if (existing) return existing;
-  const course = db.prepare('SELECT name, vault_path, vault_paths FROM review_courses WHERE id = ? AND user_id = ?')
+  const course = db.prepare('SELECT name, vault_path FROM review_courses WHERE id = ? AND user_id = ?')
     .get(courseId, userId) as any;
   if (!course) return null;
-  let path: string | null = course.vault_path;
-  if (!path && course.vault_paths) { try { path = JSON.parse(course.vault_paths)[0] ?? null; } catch { /* malformed */ } }
+  const path: string | null = course.vault_path;
   if (isExcludedVaultPath(path)) return null;
 
   const family = familyForNote(path);

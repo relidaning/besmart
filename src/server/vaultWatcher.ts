@@ -60,8 +60,8 @@ function startWatcherForUser(userId: number, vaultRoot: string) {
       const moved = candidates.find((c) => !fs.existsSync(path.join(vaultRoot, c.vault_path)));
       if (moved) {
         db.prepare(
-          "UPDATE review_courses SET vault_path = ?, vault_match_status = 'matched' WHERE id = ?"
-        ).run(rel, moved.id);
+          "UPDATE review_courses SET vault_path = ?, name = ?, vault_match_status = 'matched' WHERE id = ?"
+        ).run(rel, path.basename(rel, '.md'), moved.id);
         console.log(`[vault-watch] moved: ${moved.vault_path} → ${rel}`);
         return;
       }

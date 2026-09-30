@@ -209,7 +209,6 @@ export default function ReviewContent() {
   );
 
   const title = data?.title ?? data?.record?.course_name ?? data?.course?.name ?? 'Note';
-  const matchStatus = data?.record?.vault_match_status ?? data?.course?.vault_match_status;
   const obsidianUris = (data?.obsidian_uris ?? []) as string[];
   const paths = (data?.paths ?? []) as string[];
   const reviewedTimes = data?.record?.reviewed_times as number | undefined;
@@ -223,7 +222,7 @@ export default function ReviewContent() {
           className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors flex-shrink-0">
           <ArrowLeft size={18} />
         </button>
-        <h1 className={`flex-1 font-bold text-lg truncate ${matchStatus === 'none' ? 'text-red-500' : 'text-gray-900 dark:text-gray-100'}`}>
+        <h1 className={`flex-1 font-bold text-lg truncate text-gray-900 dark:text-gray-100`}>
           {title}
         </h1>
         {obsidianUris[0] && (
@@ -238,12 +237,6 @@ export default function ReviewContent() {
       <div className="flex items-center gap-2 mb-6 flex-wrap">
         {reviewedTimes !== undefined && (
           <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400">Review #{reviewedTimes + 1}</span>
-        )}
-        {paths.length > 1 && (
-          <span className="badge bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">{paths.length} notes merged</span>
-        )}
-        {matchStatus === 'none' && (
-          <span className="badge badge-high">No vault match</span>
         )}
         {paths.map((p) => (
           <span key={p} className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[220px]">{p}</span>
@@ -295,11 +288,6 @@ export default function ReviewContent() {
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={mdComponents}>
                 {content}
               </ReactMarkdown>
-            </div>
-          ) : matchStatus === 'none' ? (
-            <div className="text-center py-16 text-gray-400 dark:text-gray-500">
-              <p className="text-sm">No matching note found in vault for <span className="font-medium text-gray-600 dark:text-gray-300">"{title}"</span>.</p>
-              <p className="text-xs mt-2">Create a note in Obsidian with a matching name, then reload.</p>
             </div>
           ) : (
             <div className="text-center py-16 text-gray-400 dark:text-gray-500 text-sm">No content available.</div>

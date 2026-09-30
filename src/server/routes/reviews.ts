@@ -48,64 +48,6 @@ function scanVault(base: string, rel: string): string[] {
   return results;
 }
 
-function extractTitle(content: string, fallback: string): string {
-  const fm = content.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (fm) {
-    const t = fm[1].match(/^title:\s*(.+)$/m);
-    if (t) return t[1].trim().replace(/^["']|["']$/g, '');
-  }
-  const h1 = content.match(/^#\s+(.+)$/m);
-  if (h1) return h1[1].trim();
-  return fallback;
-}
-
-function norm(s: string) {
-  return s.toLowerCase().replace(/[-_]/g, ' ').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-}
-
-function matchVaultNotes(courseName: string, allNotes: string[]): string[] {
-  const nameNorm = norm(courseName);
-  const nameWords = nameNorm.split(' ').filter((w) => w.length > 2);
-  return allNotes.filter((p) => {
-    const fileNorm = norm(path.basename(p, '.md'));
-    if (fileNorm === nameNorm) return true;
-    if (fileNorm.includes(nameNorm)) return true;
-    if (nameNorm.includes(fileNorm) && fileNorm.length > 3) return true;
-    if (nameWords.length > 0 && nameWords.every((w) => fileNorm.includes(w))) return true;
-    return false;
-  });
-}
-
-function autoMatch(courses: Array<{ id: number; name: string }>, vaultRoot: string) {
-  if (courses.length === 0) return;
-  try {
-    const allNotes = scanVault(vaultRoot, '');
-    for (const { id, name } of courses) {
-      const paths = matchVaultNotes(name, allNotes);
-      const status = paths.length === 0 ? 'none' : paths.length === 1 ? 'matched' : 'multiple';
-      const vaultPaths = paths.length > 0 ? JSON.stringify(paths) : null;
-
-      let trueTitle: string | null = null;
-      if (paths.length > 0) {
-        try {
-          const content = fs.readFileSync(path.join(vaultRoot, paths[0]), 'utf-8');
-          trueTitle = extractTitle(content, path.basename(paths[0], '.md'));
-        } catch {}
-      }
-
-      if (trueTitle) {
-        db.prepare(
-          'UPDATE review_courses SET vault_paths = ?, vault_match_status = ?, name = ? WHERE id = ?'
-        ).run(vaultPaths, status, trueTitle, id);
-      } else {
-        db.prepare(
-          'UPDATE review_courses SET vault_paths = ?, vault_match_status = ? WHERE id = ?'
-        ).run(vaultPaths, status, id);
-      }
-    }
-  } catch {}
-}
-
 function buildObsidianUris(paths: string[], vaultName: string): string[] {
   return paths.map(
     (p) => `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(p.replace(/\.md$/, ''))}`
@@ -113,31 +55,19 @@ function buildObsidianUris(paths: string[], vaultName: string): string[] {
 }
 
 function getCourseContent(course: any, vaultRoot: string): { content: string; paths: string[] } {
-  const paths: string[] = [];
-  if (course.vault_path) {
-    paths.push(course.vault_path);
-  } else if (course.vault_paths) {
-    const parsed = typeof course.vault_paths === 'string' ? JSON.parse(course.vault_paths) : course.vault_paths;
-    paths.push(...parsed);
+  if (!course.vault_path) return { content: '', paths: [] };
+  const p = course.vault_path as string;
+  try {
+    return { content: fs.readFileSync(path.join(vaultRoot, p), 'utf-8'), paths: [p] };
+  } catch {
+    return { content: `*(file not found: ${p})*`, paths: [p] };
   }
-  if (paths.length === 0) return { content: '', paths: [] };
-
-  const parts = paths.map((p) => {
-    try {
-      const raw = fs.readFileSync(path.join(vaultRoot, p), 'utf-8');
-      return paths.length > 1 ? `# ${path.basename(p, '.md')}\n\n${raw}` : raw;
-    } catch {
-      return `*(file not found: ${p})*`;
-    }
-  });
-  return { content: parts.join('\n\n---\n\n'), paths };
 }
 
 function serializeCourse(c: any) {
   return {
     ...c,
     is_postponed: Boolean(c.is_postponed),
-    vault_paths: c.vault_paths ? JSON.parse(c.vault_paths) : null,
   };
 }
 
@@ -150,12 +80,7 @@ export function scheduleVaultNote(userId: number, vaultRoot: string, relPath: st
   ).get(userId, relPath);
   if (existing) return false;
 
-  const fallback = path.basename(relPath, '.md');
-  let name = fallback;
-  try {
-    const content = fs.readFileSync(path.join(vaultRoot, relPath), 'utf-8');
-    name = extractTitle(content, fallback);
-  } catch {}
+  const name = path.basename(relPath, '.md'); // a course is named after its note file
 
   const today = localDate(new Date());
   const tomorrow = new Date();
@@ -170,24 +95,6 @@ export function scheduleVaultNote(userId: number, vaultRoot: string, relPath: st
   return true;
 }
 
-// Find the course tracking a given note, by exact vault_path or fuzzy vault_paths.
-function findCourseForNote(userId: number, relPath: string): { id: number } | null {
-  const exact = db.prepare(
-    'SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?'
-  ).get(userId, relPath) as any;
-  if (exact) return exact;
-
-  const fuzzyRows = db.prepare(
-    'SELECT id, vault_paths FROM review_courses WHERE user_id = ? AND vault_paths IS NOT NULL'
-  ).all(userId) as any[];
-  for (const row of fuzzyRows) {
-    try {
-      if ((JSON.parse(row.vault_paths) as string[]).includes(relPath)) return { id: row.id };
-    } catch {}
-  }
-  return null;
-}
-
 // Called when a vault note is updated: if the note isn't tracked yet, schedule it;
 // if it's tracked but has no pending (unreviewed) record, queue a fresh review for tomorrow.
 export function ensureScheduleForNote(
@@ -195,7 +102,9 @@ export function ensureScheduleForNote(
   vaultRoot: string,
   relPath: string
 ): 'created' | 'rescheduled' | 'noop' {
-  const course = findCourseForNote(userId, relPath);
+  const course = db.prepare(
+    'SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?'
+  ).get(userId, relPath) as { id: number } | undefined;
   if (!course) {
     return scheduleVaultNote(userId, vaultRoot, relPath) ? 'created' : 'noop';
   }
@@ -310,9 +219,9 @@ const DUE_DAILY_LIMIT = 20;
 // notes first, then the rest of 0_dev, then everything else. The AI folder was renamed
 // from 0_dev/AI to 0_dev/0_AI, and older courses still carry the old path.
 const DUE_TOPIC_TIER = `CASE
-    WHEN COALESCE(c.vault_path, c.vault_paths, '') LIKE '%0_dev/0_AI/%'
-      OR COALESCE(c.vault_path, c.vault_paths, '') LIKE '%0_dev/AI/%' THEN 0
-    WHEN COALESCE(c.vault_path, c.vault_paths, '') LIKE '%0_dev/%' THEN 1
+    WHEN COALESCE(c.vault_path, '') LIKE '%0_dev/0_AI/%'
+      OR COALESCE(c.vault_path, '') LIKE '%0_dev/AI/%' THEN 0
+    WHEN COALESCE(c.vault_path, '') LIKE '%0_dev/%' THEN 1
     ELSE 2
   END`;
 
@@ -350,36 +259,13 @@ reviewRoutes.get('/due', (req, res) => {
     SELECT r.id, r.course_id, c.name as course_name, c.description as course_description,
            r.is_reviewed, r.reviewed_times, r.planned_date, r.reviewed_date,
            r.ease_factor, r.interval_days,
-           c.vault_path, c.vault_paths, c.vault_match_status, c.is_postponed
+           c.vault_path, c.vault_match_status, c.is_postponed
     ${dueWhere}
     ORDER BY c.is_postponed ASC,
       c.created_at DESC, c.id DESC, -- latest notes first
       ${DUE_TOPIC_TIER}, r.planned_date ASC
     LIMIT ?
   `).all(userId, today, search, search, today, DUE_DAILY_LIMIT) as any[];
-
-  const cfg = getUserVaultConfig(userId);
-
-  // Auto-match courses that have never been scanned
-  if (cfg) {
-    const toMatch = records
-      .filter((r) => !r.vault_path && r.vault_match_status === null)
-      .reduce((acc: Array<{ id: number; name: string }>, r) => {
-        if (!acc.find((x) => x.id === r.course_id)) acc.push({ id: r.course_id, name: r.course_name });
-        return acc;
-      }, []);
-    if (toMatch.length) {
-      autoMatch(toMatch, cfg.vaultRoot);
-      toMatch.forEach(({ id }) => {
-        const updated = db.prepare('SELECT name, vault_paths, vault_match_status FROM review_courses WHERE id = ?').get(id) as any;
-        records.filter((r) => r.course_id === id).forEach((r) => {
-          r.course_name = updated.name;
-          r.vault_paths = updated.vault_paths;
-          r.vault_match_status = updated.vault_match_status;
-        });
-      });
-    }
-  }
 
   res.json({
     data: records.map((r) => ({
@@ -388,7 +274,6 @@ reviewRoutes.get('/due', (req, res) => {
       is_postponed: Boolean(r.is_postponed),
       ease_factor: r.ease_factor ?? 2.5,
       interval_days: r.interval_days ?? 1,
-      vault_paths: r.vault_paths ? JSON.parse(r.vault_paths) : null,
     })),
     total,
     limit: DUE_DAILY_LIMIT,
@@ -447,7 +332,7 @@ reviewRoutes.get('/records/:id/detail', (req, res) => {
   const userId = req.user!.id;
   const record = db.prepare(`
     SELECT r.*, c.name as course_name, c.description as course_description,
-           c.vault_path, c.vault_paths, c.vault_match_status,
+           c.vault_path, c.vault_match_status,
            c.fsrs_stability, c.fsrs_difficulty, c.fsrs_last_review, c.fsrs_reps, c.fsrs_lapses
     FROM review_records r
     JOIN review_courses c ON r.course_id = c.id
@@ -457,15 +342,12 @@ reviewRoutes.get('/records/:id/detail', (req, res) => {
 
   const cfg = getUserVaultConfig(userId);
   const { content, paths } = cfg ? getCourseContent(record, cfg.vaultRoot) : { content: '', paths: [] };
-  const liveTitle = cfg && paths[0]
-    ? (() => { try { return extractTitle(fs.readFileSync(path.join(cfg.vaultRoot, paths[0]), 'utf-8'), record.course_name); } catch { return record.course_name; } })()
-    : record.course_name;
 
   res.json({
     record,
     content,
     paths,
-    title: liveTitle,
+    title: record.course_name,
     vault_name: cfg?.vaultName ?? '',
     obsidian_uris: cfg ? buildObsidianUris(paths, cfg.vaultName) : [],
     memory: (() => {
@@ -493,20 +375,6 @@ reviewRoutes.get('/courses', (req, res) => {
     WHERE c.user_id = ?
     ORDER BY c.studied_date DESC
   `).all(userId) as any[];
-
-  const cfg = getUserVaultConfig(userId);
-  if (cfg) {
-    const toMatch = courses.filter((c) => !c.vault_path && c.vault_match_status === null);
-    if (toMatch.length) {
-      autoMatch(toMatch.map((c) => ({ id: c.id, name: c.name })), cfg.vaultRoot);
-      toMatch.forEach((c) => {
-        const updated = db.prepare('SELECT name, vault_paths, vault_match_status FROM review_courses WHERE id = ?').get(c.id) as any;
-        c.name = updated.name;
-        c.vault_paths = updated.vault_paths;
-        c.vault_match_status = updated.vault_match_status;
-      });
-    }
-  }
 
   res.json({ data: courses.map(serializeCourse) });
 });
@@ -578,31 +446,15 @@ reviewRoutes.get('/courses/:id/detail', (req, res) => {
 
   const cfg = getUserVaultConfig(userId);
   const { content, paths } = cfg ? getCourseContent(course, cfg.vaultRoot) : { content: '', paths: [] };
-  const liveTitle = cfg && paths[0]
-    ? (() => { try { return extractTitle(fs.readFileSync(path.join(cfg.vaultRoot, paths[0]), 'utf-8'), course.name); } catch { return course.name; } })()
-    : course.name;
 
   res.json({
     course: serializeCourse(course),
     content,
     paths,
-    title: liveTitle,
+    title: course.name,
     vault_name: cfg?.vaultName ?? '',
     obsidian_uris: cfg ? buildObsidianUris(paths, cfg.vaultName) : [],
   });
-});
-
-// ── Rematch ───────────────────────────────────────────────────────────────────
-
-reviewRoutes.post('/courses/rematch', (req, res) => {
-  const userId = req.user!.id;
-  const cfg = getUserVaultConfig(userId);
-  if (!cfg) return res.json({ updated: 0 });
-
-  const courses = db.prepare('SELECT id, name FROM review_courses WHERE user_id = ? AND vault_path IS NULL').all(userId) as any[];
-  if (!courses.length) return res.json({ updated: 0 });
-  autoMatch(courses, cfg.vaultRoot);
-  res.json({ updated: courses.length });
 });
 
 // ── Vault ─────────────────────────────────────────────────────────────────────
@@ -637,12 +489,6 @@ reviewRoutes.put('/vault/config', (req, res) => {
     userId
   );
   res.json({ success: true });
-});
-
-reviewRoutes.post('/vault/sync', (req, res) => {
-  const userId = req.user!.id;
-  const result = syncVaultForUser(userId);
-  res.json({ success: true, ...result });
 });
 
 reviewRoutes.get('/vault/suggestions', (req, res) => {
@@ -706,12 +552,7 @@ reviewRoutes.post('/vault/import', (req, res) => {
 
   const created = db.transaction(() =>
     paths.map((vaultPath) => {
-      const fallback = path.basename(vaultPath, '.md');
-      let name = fallback;
-      try {
-        const content = fs.readFileSync(path.join(cfg.vaultRoot, vaultPath), 'utf-8');
-        name = extractTitle(content, fallback);
-      } catch {}
+      const name = path.basename(vaultPath, '.md');
       const result = db.prepare(
         'INSERT INTO review_courses (name, description, studied_date, vault_path, vault_match_status, user_id) VALUES (?, ?, ?, ?, ?, ?)'
       ).run(name, '', today, vaultPath, 'matched', userId);

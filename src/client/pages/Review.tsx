@@ -18,7 +18,6 @@ interface ReviewRecord {
   is_reviewed: boolean;
   is_postponed: boolean;
   vault_path: string | null;
-  vault_paths: string[] | null;
   vault_match_status: string | null;
   ease_factor: number;
   interval_days: number;
@@ -32,10 +31,6 @@ interface VaultNote {
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const listItem  = { hidden: { opacity: 0, x: -16 }, show: { opacity: 1, x: 0 } };
-
-function primaryPath(vault_path: string | null, vault_paths: string[] | null) {
-  return vault_path ?? vault_paths?.[0] ?? null;
-}
 
 function obsidianUri(vaultName: string, p: string) {
   return `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(p.replace(/\.md$/, ''))}`;
@@ -57,8 +52,6 @@ export default function Review() {
   const [selectedVault, setSelectedVault] = useState<Set<string>>(new Set());
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [importingVault, setImportingVault] = useState(false);
-  const [rematching, setRematching] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [courseCount, setCourseCount] = useState<number | null>(null);
   const [wisdom, setWisdom] = useState<GardenSummary['attributes'][number] | null>(null);
 
@@ -137,29 +130,6 @@ export default function Review() {
       fetchAll();
     } catch (err: any) { toast.error(err.message); }
     setImportingVault(false);
-  };
-
-  const handleRematch = async () => {
-    setRematching(true);
-    try {
-      const r = await api.rematchVault();
-      toast.success(`Re-matched ${r.updated} course${r.updated !== 1 ? 's' : ''} against vault`);
-      fetchAll();
-    } catch (err: any) { toast.error(err.message); }
-    setRematching(false);
-  };
-
-  const handleSyncVault = async () => {
-    setSyncing(true);
-    try {
-      const r = await api.syncVault();
-      const parts = [];
-      if (r.missing > 0) parts.push(`${r.missing} missing`);
-      if (r.restored > 0) parts.push(`${r.restored} restored`);
-      toast.success(parts.length ? parts.join(', ') : 'All notes accounted for');
-      if (r.missing > 0 || r.restored > 0) fetchAll();
-    } catch (err: any) { toast.error(err.message); }
-    setSyncing(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -249,22 +219,6 @@ export default function Review() {
         )}
       </div>
 
-      {/* Vault tools */}
-      <div className="flex justify-end gap-3">
-        <button onClick={handleSyncVault} disabled={syncing}
-          className="flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-700 dark:hover:text-brand-300 disabled:opacity-40 transition-colors font-medium"
-          title="Import all unscheduled vault notes and detect moved/deleted ones">
-          <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? 'Syncing...' : 'Sync vault'}
-        </button>
-        <button onClick={handleRematch} disabled={rematching}
-          className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-40 transition-colors"
-          title="Re-scan vault and update fuzzy matches for manually added courses">
-          <RefreshCw size={13} className={rematching ? 'animate-spin' : ''} />
-          {rematching ? 'Matching...' : 'Re-match'}
-        </button>
-      </div>
-
       {dueRecords.length === 0 ? (
         <motion.div variants={listItem} className="space-y-4">
           <div className="card text-center py-10">
@@ -284,8 +238,7 @@ export default function Review() {
       ) : (
         <>
           {dueRecords.slice(0, dueVisible).map((record) => {
-            const pp = primaryPath(record.vault_path, record.vault_paths);
-            const noMatch = record.vault_match_status === 'none';
+            const pp = record.vault_path;
             const isMissing = record.vault_match_status === 'missing';
             const isOverdue = record.planned_date < new Date().toISOString().slice(0, 10);
 
@@ -299,15 +252,12 @@ export default function Review() {
                 }}
               >
                 <div className="flex items-start gap-2">
-                  <span className={`dot mt-1.5 ${noMatch || isOverdue ? 'bg-[#e66666]' : isMissing ? 'bg-brand-400' : 'bg-[#a854f7]'}`} />
+                  <span className={`dot mt-1.5 ${isOverdue ? 'bg-[#e66666]' : isMissing ? 'bg-brand-400' : 'bg-[#a854f7]'}`} />
                   <div className="flex-1 min-w-0">
-                    <h3 className={`text-[13px] font-bold leading-snug ${noMatch ? 'text-[#d64545] dark:text-[#ec8a8a]' : isMissing ? 'text-brand-600 dark:text-brand-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                    <h3 className={`text-[13px] font-bold leading-snug ${isMissing ? 'text-brand-600 dark:text-brand-400' : 'text-gray-900 dark:text-gray-100'}`}>
                       {record.course_name}
                     </h3>
-                    {(record.vault_paths && record.vault_paths.length > 0
-                      ? record.vault_paths
-                      : pp ? [pp] : []
-                    ).map((path) => (
+                    {(pp ? [pp] : []).map((path) => (
                       <p key={path} className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1 min-w-0">
                         <FileText size={10} className="flex-shrink-0" />
                         <span className="truncate">{path}</span>
@@ -320,7 +270,6 @@ export default function Review() {
                         )}
                       </p>
                     ))}
-                    {noMatch && <p className="text-[11px] text-[#d64545] dark:text-[#ec8a8a] mt-0.5">No matching note in vault</p>}
                     {isMissing && <p className="text-[11px] text-brand-600 dark:text-brand-400 mt-0.5">Note moved or deleted</p>}
                     <div className="text-[11px] text-gray-500 mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
                       <XpChip attribute="wisdom" amount="6–12" />

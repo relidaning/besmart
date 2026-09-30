@@ -428,6 +428,51 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 14: a course is exactly one note, named after its file. Courses that were
+  // fuzzy-matched by name (vault_paths) are linked to their note, or dropped when another
+  // course already tracks it; titles taken from a note's H1 go back to the filename.
+  if (version < 14) {
+    db.transaction(() => {
+      const fuzzy = db.prepare('SELECT id, user_id, vault_paths FROM review_courses WHERE vault_path IS NULL ORDER BY id').all() as any[];
+      let linked = 0, dropped = 0;
+      for (const c of fuzzy) {
+        let p: string | null = null;
+        if (c.vault_paths) { try { p = JSON.parse(c.vault_paths)[0] ?? null; } catch { /* malformed */ } }
+        // A note moved since it was matched is found by filename, as the vault sync does.
+        const root = (db.prepare('SELECT vault_root FROM users WHERE id = ?').get(c.user_id) as any)?.vault_root || process.env.VAULT_PATH;
+        if (p && root && !fs.existsSync(path.join(root, p))) {
+          const base = path.basename(p);
+          const moved = db.prepare('SELECT vault_path FROM review_courses WHERE user_id = ? AND (vault_path = ? OR vault_path LIKE ?)')
+            .get(c.user_id, base, `%/${base}`) as any;
+          if (moved) p = moved.vault_path;
+        }
+        const taken = p && db.prepare('SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?').get(c.user_id, p);
+        if (p && !taken) {
+          db.prepare("UPDATE review_courses SET vault_path = ?, vault_match_status = 'matched' WHERE id = ?").run(p, c.id);
+          linked++;
+          continue;
+        }
+        const plant = db.prepare("SELECT id FROM garden_plants WHERE source_type = 'note' AND source_id = ?").get(c.id) as any;
+        if (plant) {
+          db.prepare('DELETE FROM garden_events WHERE plant_id = ?').run(plant.id);
+          db.prepare('DELETE FROM garden_plants WHERE id = ?').run(plant.id);
+        }
+        db.prepare('DELETE FROM review_records WHERE course_id = ?').run(c.id);
+        db.prepare('DELETE FROM review_courses WHERE id = ?').run(c.id);
+        dropped++;
+      }
+      db.prepare('UPDATE review_courses SET vault_paths = NULL').run();
+      const rename = db.prepare('UPDATE review_courses SET name = ? WHERE id = ?');
+      let renamed = 0;
+      for (const c of db.prepare('SELECT id, name, vault_path FROM review_courses').all() as any[]) {
+        const name = path.basename(c.vault_path, '.md');
+        if (name !== c.name) { rename.run(name, c.id); renamed++; }
+      }
+      console.log(`[migration 14] linked ${linked}, dropped ${dropped} duplicate courses; renamed ${renamed} to their note filename`);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (14)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'
