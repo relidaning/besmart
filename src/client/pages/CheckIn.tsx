@@ -328,17 +328,18 @@ export default function CheckIn() {
       {showDiary && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-start sm:items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget && !savingDiary) setShowDiary(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-2xl p-5"
           >
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">A moment of today</h2>
             <p className="text-xs text-gray-500 mt-0.5 mb-3">Added to this month's diary note in your vault, with the time.</p>
             <form onSubmit={handleDiarySubmit} className="space-y-3">
-              <textarea className="input min-h-[120px]" autoFocus value={diaryText} onChange={(e) => setDiaryText(e.target.value)}
+              {/* Phone height leaves the buttons above the on-screen keyboard. */}
+              <textarea className="input block h-[32dvh] sm:h-[45vh] min-h-[160px] leading-relaxed" autoFocus value={diaryText} onChange={(e) => setDiaryText(e.target.value)}
                 placeholder="What happened, what you did, how it felt…" />
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setShowDiary(false)} disabled={savingDiary} className="btn-secondary text-sm">Cancel</button>
