@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-01 — Unattended optimize run: graceful shutdown on SIGTERM (PR #6, not merged)
+The server had no SIGTERM handler and Node is PID 1 in the container, so every `docker stop`/`restart` waited the 10 s grace period, was killed (exit 137), and left the SQLite WAL uncheckpointed, which means a plain `cp` of `besmart.db` can miss recent writes. PR #6 (branch `opt/besmart-20261001-2227`, based on `master`) adds a handler in `src/server/index.ts` that drains requests (3 s cap) and closes the DB: `docker stop` 10.19 s → 0.18 s on throwaway containers with a prod-DB copy. Nothing is deployed and the repo's working tree was not touched; also noted that `growth-garden` still lacks `origin/master`'s merged PR #3, and PRs #2, #4 and #5 are still open.
+
 ## 2026-10-01 — Unattended claude-maxer run skipped: app hangs after a short interruption (no changes)
 A vault task reported that after a short interruption the reopened app shows the old page, feels sluggish, and a check-in tap hangs until the app is closed and reopened. The run matched it to besmart but stopped without investigating or editing, because the task said to commit to `master` and the repo was on `growth-garden` (clean, 38 commits ahead of local `master`). The bug is still open: the existing resume handling only reloads after 10+ min in the background, so a short interruption is not covered.
 

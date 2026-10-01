@@ -164,5 +164,7 @@ SQLite path defaults to `<project>/data/besmart.db` but can be overridden via `D
 
 **Known issue — fresh-DB migration ordering:** `database.ts` migration 1 references the `scores` table before migration 2 creates it, so bootstrapping against a genuinely empty DB file fails at startup. Not hit in production (the DB always already exists), but blocks spinning up a fresh dev/demo instance — copy an existing `.db` file instead of starting from empty.
 
+**Shutdown and backups:** the server has no SIGTERM handler, and Node is PID 1 in the container, so every `docker stop`/`restart` waits the 10 s grace period and ends in SIGKILL (exit 137). The WAL is then never checkpointed, and recent writes can sit only in `besmart.db-wal` for hours. Back up with `sqlite3 besmart.db ".backup 'file'"`, never a plain `cp` of `besmart.db` alone. PR #6 (not merged yet) adds a SIGTERM/SIGINT handler in `index.ts` that drains requests (3 s cap) and closes the DB, which checkpoints the WAL.
+
 ### Git Push (network)
 Direct `git push` over SSH to `github.com` can fail with DNS resolution errors in this environment (no direct outbound DNS/SSH). A local SOCKS5 proxy is available at `127.0.0.1:10808` (also set as `http_proxy`/`https_proxy` env vars). Route a single push through it without touching git config: `GIT_SSH_COMMAND='ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:10808 %h %p"' git push origin master`.
