@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-01 — Unattended claude-maxer run skipped: app hangs after a short interruption (no changes)
+A vault task reported that after a short interruption the reopened app shows the old page, feels sluggish, and a check-in tap hangs until the app is closed and reopened. The run matched it to besmart but stopped without investigating or editing, because the task said to commit to `master` and the repo was on `growth-garden` (clean, 38 commits ahead of local `master`). The bug is still open: the existing resume handling only reloads after 10+ min in the background, so a short interruption is not covered.
+
 ## 2026-09-30 (night) — One note per course, images and math in reviews, task-queue batch
 Removed the fuzzy name-merging of courses (`vault_paths`, Re-match/Sync vault buttons). Migration 14 linked 3 merged courses to their note, dropped 5 duplicates and renamed 125 courses to their file name (`51cc236`). Also: one combined toast per review (`87915e9`), vault images via `GET /reviews/vault/image` (`0c24a77`), and KaTeX math following Obsidian's `$…$` rule so prices like `$5` stay text (`b9ab497`, `96b6ec6`). Hand-fixed broken math in the vault notes `benchmarking.md`, `离散数学.md` (web paste with every symbol escaped, 7 lost `⟨…⟩` spots guessed; user should check them) and `深度学习`. Then worked the vault task queue, all uncommitted when the session ended during verification: slower plant growth (migration 15, backup `pre-m15`), a Check In Diary button writing to the monthly diary note, a reload after 10+ min in the background plus a 15 s fetch timeout (the app hung on resume), live achievement pop-ups (`AchievementWatcher`), shrub art, fixes to the garden time views, and todo layout. Commits are local, not pushed.
 
