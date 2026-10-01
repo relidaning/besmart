@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-02 — Unattended claude-maxer run skipped again: app hangs after a short interruption (no changes)
+The same vault task (reopened app shows the old page, feels sluggish, a check-in tap hangs until the app is closed and reopened) was picked up a second time and skipped for the same reason: it says to commit to `master`, and the repo is on `growth-garden` (clean, in sync with origin, now 42 commits ahead of local `master`). Nothing was investigated or edited, so the bug is still open; the task will keep being skipped until `master` is checked out (after merging `growth-garden`) or the task allows committing to `growth-garden`.
+
 ## 2026-10-01 — Unattended optimize run: graceful shutdown on SIGTERM (PR #6, not merged)
 The server had no SIGTERM handler and Node is PID 1 in the container, so every `docker stop`/`restart` waited the 10 s grace period, was killed (exit 137), and left the SQLite WAL uncheckpointed, which means a plain `cp` of `besmart.db` can miss recent writes. PR #6 (branch `opt/besmart-20261001-2227`, based on `master`) adds a handler in `src/server/index.ts` that drains requests (3 s cap) and closes the DB: `docker stop` 10.19 s → 0.18 s on throwaway containers with a prod-DB copy. Nothing is deployed and the repo's working tree was not touched; also noted that `growth-garden` still lacks `origin/master`'s merged PR #3, and PRs #2, #4 and #5 are still open.
 
