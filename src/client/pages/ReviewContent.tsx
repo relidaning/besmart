@@ -41,13 +41,22 @@ import { useTheme } from '../contexts/ThemeContext';
 
 // The full Prism build bundles ~300 grammars (~1MB). Register only what the vault's
 // notes actually use; unknown fence languages still render, just unhighlighted.
-for (const [lang, grammar] of Object.entries({
-  bash, sh: bash, shell: bash, zsh: bash, c, cpp, css, diff, docker, dockerfile: docker, go,
-  ini, cnf: ini, java, javascript, js: javascript, json, jsonc: json, jsonl: json, jsx, log, lua,
-  markdown, md: markdown, markup, html: markup, xml: markup, nginx, properties, python, py: python,
-  sql, tsx, typescript, ts: typescript, yaml, yml: yaml,
-})) {
-  SyntaxHighlighter.registerLanguage(lang, grammar);
+// PrismLight's registerLanguage ignores the name it is given: a grammar answers to its
+// own name and built-in aliases (sh, yml, py, html, …), and any other name needs alias().
+for (const grammar of [
+  bash, c, cpp, css, diff, docker, go, ini, java, javascript, json, jsx, log, lua,
+  markdown, markup, nginx, properties, python, sql, tsx, typescript, yaml,
+]) {
+  SyntaxHighlighter.registerLanguage('', grammar);
+}
+SyntaxHighlighter.alias({ bash: ['zsh'], ini: ['cnf'], json: ['jsonc', 'jsonl'] });
+
+// A fence with no language that holds JSON (or one JSON value per line) is shown as JSON.
+function looksLikeJson(code: string) {
+  const text = code.trim();
+  if (!/^[{[]/.test(text)) return false;
+  const parses = (v: string) => { try { JSON.parse(v); return true; } catch { return false; } };
+  return parses(text) || text.split('\n').every((line) => !line.trim() || parses(line));
 }
 
 // ── Heading helpers ───────────────────────────────────────────────────────────
@@ -241,20 +250,30 @@ export default function ReviewContent() {
     h1: ({ children, ...p }: any) => <h1 id={`h-${hCountRef.current++}`} {...p}>{children}</h1>,
     h2: ({ children, ...p }: any) => <h2 id={`h-${hCountRef.current++}`} {...p}>{children}</h2>,
     h3: ({ children, ...p }: any) => <h3 id={`h-${hCountRef.current++}`} {...p}>{children}</h3>,
+    // A table sits on a plate like a code block and scrolls sideways, so narrow screens
+    // don't squeeze its columns.
+    table: ({ node: _node, ...p }: any) => (
+      <div className="my-4 overflow-x-auto rounded-lg bg-[#f6f8fa] dark:bg-[#161b22] px-4 py-1">
+        <table {...p} className="my-0 w-max min-w-full max-w-none" />
+      </div>
+    ),
     code({ className, children, ...rest }: any) {
-      const match = /language-(\w+)/.exec(className ?? '');
-      if (match) {
+      const text = String(children);
+      // Only a fenced block ends with a newline; inline code never does.
+      const language = /language-([\w+#-]+)/.exec(className ?? '')?.[1].toLowerCase()
+        ?? (text.endsWith('\n') && looksLikeJson(text) ? 'json' : undefined);
+      if (language) {
         return (
           <SyntaxHighlighter
             style={resolvedTheme === 'dark' ? oneDark : oneLight}
-            language={match[1]}
+            language={language}
             PreTag="div"
             className="rounded-lg text-sm my-4"
             customStyle={resolvedTheme === 'dark'
               ? { background: '#161b22', borderRadius: '0.5rem', padding: '1rem', margin: '1rem 0', maxWidth: '100%', overflowX: 'auto' }
               : { background: '#f6f8fa', borderRadius: '0.5rem', padding: '1rem', margin: '1rem 0', maxWidth: '100%', overflowX: 'auto' }}
           >
-            {String(children).replace(/\n$/, '')}
+            {text.replace(/\n$/, '')}
           </SyntaxHighlighter>
         );
       }
@@ -342,7 +361,7 @@ export default function ReviewContent() {
               prose-a:text-brand-600 dark:prose-a:text-brand-400 prose-a:no-underline hover:prose-a:underline
               prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:rounded prose-code:text-sm prose-code:text-purple-700 dark:prose-code:text-purple-400 prose-code:before:content-none prose-code:after:content-none
               prose-pre:bg-gray-100 dark:prose-pre:bg-gray-900 prose-pre:text-gray-800 dark:prose-pre:text-gray-100 prose-pre:overflow-x-auto prose-pre:max-w-full
-              prose-table:block prose-table:overflow-x-auto
+              prose-th:whitespace-nowrap prose-td:max-w-[22rem]
               prose-blockquote:border-brand-300 dark:prose-blockquote:border-brand-700 prose-blockquote:text-gray-500 dark:prose-blockquote:text-gray-400
               prose-li:text-gray-600 dark:prose-li:text-gray-300 prose-strong:text-gray-800 dark:prose-strong:text-gray-100 prose-hr:border-gray-200 dark:prose-hr:border-gray-800">
               <NotePathContext.Provider value={paths[0] ?? null}>
