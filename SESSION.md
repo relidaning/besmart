@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-03 — Unattended review of PR #6: SIGTERM shutdown merged, not deployed
+PR #6 was tested on top of `master` (with #4 and #5) in a separate worktree: throwaway containers from the production image ran the `master` and merged `dist/` on copies of the prod DB, and `docker stop` went from 10.1 s (exit 137, a 1.6 MB WAL left behind) to 0.07–0.09 s (exit 0, WAL checkpointed), with a request stalled mid-body stopping at the 3 s cap. It was merged on GitHub (`bdb0452`) but not deployed, so the running container still needs the `.backup` way of copying the DB; `tsc --noEmit` shows one client error in `ReviewContent.tsx` (no types for the Prism `log` language) on `master` too, and the build passes anyway. Left behind: the local `opt/besmart-20261001-2227` branch and the review worktree `besmart-review-20261003-0239`; PR #2 is still held.
+
 ## 2026-10-03 — Unattended review of PRs #2, #4, #5: #4 and #5 merged, #2 held
 Each PR was tested on top of `master` in a separate worktree, running the old and new server builds on copies of the prod DB. #4 (auth crash: 5 of 6 malformed payloads crashed `master`, none with the PR) and #5 (watcher `EACCES` crash gone; a 503 push is retried and delivered after 5 s) were merged on GitHub but not deployed, and local `master` was left 2 commits behind. #2 was held: it conflicts with `master` (its migration 8 must become 16, and the due query's `r.id ASC` tie-break must be re-applied by hand) and it changes the schema and the image, though its index claim reproduced (`GET /reviews/due` 54 ms → 2.6 ms). The run also found that `POST /api/auth/reset-password` fails with `no such column: "now"` (`datetime("now")` in double quotes in `auth.ts`), which is not fixed.
 

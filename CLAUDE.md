@@ -24,7 +24,7 @@ docker exec besmart-besmart-1 rm -rf /app/dist && docker cp /data/apps/besmart/d
 ```
 The `rm -rf` first is required — `docker cp dist/. container:/app/dist/` alone only overlays and leaves stale hashed asset files behind, which can mismatch `index.html`. This path replaces the *entire* `dist/` (client + server + shared) — always run the full `npm run build`, not `npm run build:client` alone, or the copied tree will be missing `dist/server` and the container will crash-loop on restart.
 
-**Merged but not deployed (as of 2026-10-03):** PRs #4 and #5 are in `master` on GitHub, but the running container predates them. They take effect after a `git pull` and an image rebuild.
+**Merged but not deployed (as of 2026-10-03):** PRs #4, #5 and #6 are in `master` on GitHub, but the running container predates them. They take effect after a `git pull` and an image rebuild.
 
 **Container logs have no size limit** (`json-file` with no options). Growth is slow, mostly the hourly "Scheduler job completed" line. Branch `opt/besmart-20261002-1131` (local, not merged) adds 10 MB × 3 rotation to both services.
 
@@ -170,7 +170,7 @@ SQLite path defaults to `<project>/data/besmart.db` but can be overridden via `D
 
 **Known issue — fresh-DB migration ordering:** `database.ts` migration 1 references the `scores` table before migration 2 creates it, so bootstrapping against a genuinely empty DB file fails at startup. Not hit in production (the DB always already exists), but blocks spinning up a fresh dev/demo instance — copy an existing `.db` file instead of starting from empty. Branch `opt/besmart-20261002-1131` (local, not merged) fixes it by skipping `scores` in migration 1 when the table doesn't exist.
 
-**Shutdown and backups:** the server has no SIGTERM handler, and Node is PID 1 in the container, so every `docker stop`/`restart` waits the 10 s grace period and ends in SIGKILL (exit 137). The WAL is then never checkpointed, and recent writes can sit only in `besmart.db-wal` for hours. Back up with `sqlite3 besmart.db ".backup 'file'"`, never a plain `cp` of `besmart.db` alone. PR #6 (not merged yet) adds a SIGTERM/SIGINT handler in `index.ts` that drains requests (3 s cap) and closes the DB, which checkpoints the WAL.
+**Shutdown and backups:** the running container's server has no SIGTERM handler, and Node is PID 1 in the container, so every `docker stop`/`restart` waits the 10 s grace period and ends in SIGKILL (exit 137). The WAL is then never checkpointed, and recent writes can sit only in `besmart.db-wal` for hours. Back up with `sqlite3 besmart.db ".backup 'file'"`, never a plain `cp` of `besmart.db` alone. PR #6 (merged 2026-10-03, not deployed) adds a SIGTERM/SIGINT handler in `index.ts` that drains requests (3 s cap) and closes the DB, which checkpoints the WAL: `docker stop` then takes about 0.1 s and exits 0. Until the image is rebuilt the old behavior stands.
 
 ### Git Push (network)
 Direct `git push` over SSH to `github.com` can fail with DNS resolution errors in this environment (no direct outbound DNS/SSH). A local SOCKS5 proxy is available at `127.0.0.1:10808` (also set as `http_proxy`/`https_proxy` env vars). Route a single push through it without touching git config: `GIT_SSH_COMMAND='ssh -o ProxyCommand="nc -X 5 -x 127.0.0.1:10808 %h %p"' git push origin master`.
