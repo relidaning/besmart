@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { FileText, Check, ChevronRight, ChevronDown, Plus, ArrowUp, ArrowDown, ChevronsRight, ChevronsLeft } from 'lucide-react';
+import { FileText, FolderOpen, Check, ChevronRight, ChevronDown, Plus, ArrowUp, ArrowDown, ChevronsRight, ChevronsLeft } from 'lucide-react';
 import { api } from '../hooks/api';
 import DatePicker from '../components/ui/DatePicker';
+import { PageHeader, StatTiles, XpChip } from '../components/PageKit';
+
+// Mirrors the plan XP table in server/garden.ts.
+const TASK_XP = 15;
+const PLAN_XP = 50;
 
 interface Plan {
   id: number;
@@ -145,8 +150,8 @@ export default function PlanDetail() {
 
   const handleComplete = async () => {
     try {
-      await api.completePlan(plan!.id);
-      toast.success('Plan completed! 🎉');
+      const r = await api.completePlan(plan!.id);
+      if (!r.xp) toast.success('Plan completed'); // otherwise the XP toast confirms it
       navigate('/plans');
     } catch (err: any) { toast.error(err.message); }
   };
@@ -162,8 +167,9 @@ export default function PlanDetail() {
 
   const handleToggleTask = async (task: PlanTask) => {
     try {
-      await api.updatePlanTask(plan!.id, task.id, { is_completed: !task.is_completed });
-      toast.success(task.is_completed ? 'Task reopened' : 'Task completed! ✓');
+      const r = await api.updatePlanTask(plan!.id, task.id, { is_completed: !task.is_completed });
+      if (task.is_completed) toast('Task reopened');
+      else if (!r.xp) toast.success('Task completed'); // otherwise the XP toast confirms it
       fetchPlan();
     } catch (err: any) { toast.error(err.message); }
   };
@@ -238,26 +244,24 @@ export default function PlanDetail() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       {/* Header */}
       <div>
-        <button onClick={() => navigate('/plans')} className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-3 block">
-          ← Back to Plans
-        </button>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 break-words">{plan.name}</h1>
-            {plan.description && <p className="text-gray-500 dark:text-gray-400 mt-1 break-words whitespace-pre-line">{plan.description}</p>}
-            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">{plan.start_date} → {plan.end_date}</p>
-          </div>
-          {plan.is_completed && (
-            <span className="badge bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 text-sm px-3 py-1 flex-shrink-0">Done</span>
+        <PageHeader
+          icon={FolderOpen}
+          title={plan.name}
+          subtitle={`${plan.start_date} → ${plan.end_date}`}
+          onBack={() => navigate('/plans')}
+          backLabel="Back to Plans"
+          actions={plan.is_completed && (
+            <span className="badge bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 text-sm px-3 py-1">Done</span>
           )}
-        </div>
+        />
+        {plan.description && <p className="text-gray-500 dark:text-gray-400 mt-2 break-words whitespace-pre-line">{plan.description}</p>}
 
         {/* Plan actions */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-white/[0.08]">
           {!plan.is_completed ? (
             <button onClick={handleComplete}
               className="flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
-              <Check size={14} /> Mark Complete
+              <Check size={14} /> Mark Complete <XpChip attribute="wisdom" amount={PLAN_XP} />
             </button>
           ) : <span />}
           <button onClick={openPlanEdit}
@@ -271,25 +275,20 @@ export default function PlanDetail() {
         </div>
       </div>
 
-      {/* Progress bar */}
+      {/* Progress */}
       {overall.total > 0 && (
-        <motion.div variants={listItem} className="card">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="text-gray-500 dark:text-gray-400">Progress</span>
-            <span className="font-semibold text-gray-900 dark:text-gray-100">{progress}%</span>
-          </div>
-          <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2.5">
-            <motion.div
-              className="bg-brand-500 h-2.5 rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-            />
-          </div>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-            {overall.completed}/{overall.total} work items done
-          </p>
-        </motion.div>
+        <StatTiles stats={[
+          {
+            value: `${progress}%`,
+            label: 'Progress',
+            progress,
+          },
+          { value: `${overall.completed}/${overall.total}`, label: 'Items Done' },
+          {
+            value: (overall.total - overall.completed) * TASK_XP + (plan.is_completed ? 0 : PLAN_XP),
+            label: 'XP to Earn',
+          },
+        ]} />
       )}
 
       {/* WBS Tasks */}
@@ -307,7 +306,7 @@ export default function PlanDetail() {
           <button onClick={() => openTaskForm(null)} className="btn-primary mt-4 text-sm">Add First Task</button>
         </motion.div>
       ) : (
-        <motion.div variants={listItem} className="card divide-y divide-gray-100 dark:divide-gray-800 !p-2">
+        <motion.div variants={listItem} className="card divide-y divide-gray-100 dark:divide-white/[0.06] !p-2">
           {tree.map((node, idx) => (
             <TaskRow
               key={node.id}
@@ -334,12 +333,12 @@ export default function PlanDetail() {
       {showTaskForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowTaskForm(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">
               {editingTask ? 'Edit Task' : parentTaskId ? 'New Subtask' : 'New Task'}
@@ -382,12 +381,12 @@ export default function PlanDetail() {
       {showPlanForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowPlanForm(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">Edit Plan</h2>
             <form onSubmit={handlePlanSubmit} className="space-y-4">
@@ -469,7 +468,7 @@ function TaskRow({
           <div
             title={`${stats.completed}/${stats.total} done`}
             className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[10px] font-semibold ${
-              complete ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500'
+              complete ? 'bg-[#1fa874] border-[#1fa874] text-white' : 'border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500'
             }`}
           >
             {complete ? <Check size={12} /> : `${stats.completed}/${stats.total}`}
@@ -480,7 +479,7 @@ function TaskRow({
             title={node.is_completed ? 'Mark incomplete' : 'Mark complete'}
             className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
               node.is_completed
-                ? 'bg-green-500 border-green-500 text-white'
+                ? 'bg-[#1fa874] border-[#1fa874] text-white'
                 : 'border-gray-300 dark:border-gray-700 hover:border-brand-400'
             }`}
           >
@@ -501,7 +500,10 @@ function TaskRow({
           {node.description && (
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 break-words whitespace-pre-line">{node.description}</p>
           )}
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{node.planned_start} → {node.planned_end}</p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <span className="text-xs text-gray-400 dark:text-gray-500">{node.planned_start} → {node.planned_end}</span>
+            {!hasChildren && !node.is_completed && <XpChip attribute="wisdom" amount={TASK_XP} />}
+          </div>
 
           {/* Row actions */}
           <div className="flex flex-wrap items-center gap-x-1 gap-y-1 mt-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">

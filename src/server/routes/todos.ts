@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../database.js';
-import { localDate } from '../date.js';
+import { localDate, effectiveDate, effectiveDayBounds } from '../date.js';
+import { awardXp, revokeXp, scheduleCategory, MIN_CHECKIN_XP, TODO_XP, XpAward } from '../garden.js';
 
 export const todoRoutes = Router();
 
@@ -62,6 +63,7 @@ todoRoutes.put('/:id', (req, res) => {
   const { title, description, priority, due_date, completed } = req.body;
   const existing = db.prepare('SELECT * FROM todos WHERE id = ? AND user_id = ?').get(req.params.id, userId) as any;
   if (!existing) return res.status(404).json({ error: 'Todo not found' });
+  if (completed === false && existing.completed) revokeXp('todo', existing.id);
 
   const now = new Date().toISOString();
   db.prepare(
@@ -77,40 +79,49 @@ todoRoutes.put('/:id', (req, res) => {
   );
 
   const updated = db.prepare('SELECT * FROM todos WHERE id = ?').get(req.params.id) as any;
-  res.json({ data: { ...updated, completed: Boolean(updated.completed) } });
+  const xp = updated.completed && !existing.completed
+    ? awardXp(userId, 'todo', updated.id, 'capability', TODO_XP[updated.priority as keyof typeof TODO_XP] ?? TODO_XP.medium)
+    : null;
+  res.json({ data: { ...updated, completed: Boolean(updated.completed) }, xp });
 });
 
 todoRoutes.post('/:id/complete', (req, res) => {
   const userId = req.user!.id;
-  const existing = db.prepare('SELECT id FROM todos WHERE id = ? AND user_id = ?').get(req.params.id, userId);
+  const existing = db.prepare('SELECT id, priority FROM todos WHERE id = ? AND user_id = ?').get(req.params.id, userId) as any;
   if (!existing) return res.status(404).json({ error: 'Todo not found' });
 
   const now = new Date().toISOString();
-  const today = now.split('T')[0];
   db.prepare('UPDATE todos SET completed = 1, completed_at = ? WHERE id = ?').run(now, req.params.id);
+  const xp = awardXp(userId, 'todo', existing.id, 'capability', TODO_XP[existing.priority as keyof typeof TODO_XP] ?? TODO_XP.medium);
+  let bonus: XpAward | null = null;
 
+  // The app's day (06:00 to 06:00, like check-ins), as in /stats/overview.
   const completedToday = (db.prepare(
-    'SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 1 AND date(completed_at) = ?'
-  ).get(userId, today) as any).c;
+    'SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 1 AND completed_at >= ? AND completed_at < ?'
+  ).get(userId, ...effectiveDayBounds()) as any).c;
 
   if (completedToday >= 5) {
+    // Only today's "Complete 5 todos" check-in: without the date, every todo after the
+    // fifth ticked off an old day's unfinished one (a second toast and unearned XP).
     const checkinTask = db.prepare(`
-      SELECT t.id FROM checkin_tasks t
+      SELECT t.id, s.score, s.category, s.name FROM checkin_tasks t
       JOIN checkin_schedules s ON t.schedule_id = s.id
-      WHERE t.is_completed = 0 AND s.user_id = ? AND lower(s.name) LIKE '%5%todo%'
+      WHERE t.is_completed = 0 AND s.user_id = ? AND t.task_date = ? AND lower(s.name) LIKE '%5%todo%'
       LIMIT 1
-    `).get(userId) as any;
+    `).get(userId, effectiveDate()) as any;
     if (checkinTask) {
       db.prepare('UPDATE checkin_tasks SET is_completed = 1, completed_at = ? WHERE id = ?').run(now, checkinTask.id);
+      bonus = awardXp(userId, 'checkin', checkinTask.id, scheduleCategory(checkinTask), Math.max(checkinTask.score || 0, MIN_CHECKIN_XP));
     }
   }
 
-  res.json({ success: true });
+  res.json({ success: true, xp, bonus });
 });
 
 todoRoutes.post('/:id/uncomplete', (req, res) => {
   const userId = req.user!.id;
-  db.prepare('UPDATE todos SET completed = 0, completed_at = NULL WHERE id = ? AND user_id = ?').run(req.params.id, userId);
+  const result = db.prepare('UPDATE todos SET completed = 0, completed_at = NULL WHERE id = ? AND user_id = ?').run(req.params.id, userId);
+  if (result.changes) revokeXp('todo', req.params.id);
   res.json({ success: true });
 });
 
@@ -136,9 +147,11 @@ todoRoutes.get('/stats/overview', (req, res) => {
   const highPriority = (db.prepare(
     "SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 0 AND priority = 'high'"
   ).get(userId) as any).c;
+  // completed_at is a UTC ISO string, so count by the day's UTC bounds (the app's
+  // 06:00 day, as check-ins use); date(completed_at) would be off by 8 hours.
   const completedToday = (db.prepare(
-    'SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 1 AND date(completed_at) = ?'
-  ).get(userId, today) as any).c;
+    'SELECT COUNT(*) as c FROM todos WHERE user_id = ? AND completed = 1 AND completed_at >= ? AND completed_at < ?'
+  ).get(userId, ...effectiveDayBounds()) as any).c;
 
   res.json({
     data: { total, completed, pending, overdue, today: todayCount, highPriority, completedToday },

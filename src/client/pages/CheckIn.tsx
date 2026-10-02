@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { ClipboardCheck, Check } from 'lucide-react';
+import { ClipboardCheck, Check, Flame, NotebookPen } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { ATTRIBUTES, ATTR_META, type Attribute } from '../lib/garden';
+import { PageHeader, StatTiles, XpChip, EmptyState, AttrDot } from '../components/PageKit';
+import { DIARY_TYPES, diaryPeriod, defaultsToPrevious, type DiaryType } from '../../shared/diary';
+
+// Mirrors MIN_CHECKIN_XP in server/garden.ts.
+const checkinXp = (score: number | null) => Math.max(score || 0, 5);
 
 interface CheckinData {
   date: string;
@@ -22,6 +28,7 @@ interface CheckinTask {
   is_timeout: boolean;
   schedule_type: string;
   score: number | null;
+  category: Attribute;
 }
 
 interface Schedule {
@@ -29,6 +36,7 @@ interface Schedule {
   name: string;
   type: string;
   score: number;
+  category: Attribute;
   is_active: boolean;
   created_at: string | null;
 }
@@ -50,21 +58,41 @@ const typeBadges: Record<string, string> = {
   yearly: 'badge bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
 };
 
+// The diary dialog's wording per kind; the prompts follow the vault's diary templates.
+const DIARY_COPY: Record<DiaryType, { tab: string; title: string; placeholder: string; unit: string }> = {
+  daily: { tab: 'Daily', title: 'A moment of today', placeholder: 'What happened, what you did, how it felt…', unit: 'day' },
+  weekly: { tab: 'Weekly', title: 'Weekly diary', placeholder: 'What you achieved this week, and the plan for the next one…', unit: 'week' },
+  monthly: { tab: 'Monthly', title: 'Monthly diary', placeholder: 'Summary and score, how it went and why, and the plan for next month…', unit: 'month' },
+  yearly: { tab: 'Yearly', title: 'Yearly diary', placeholder: 'What you did this year, and what you want from the next one…', unit: 'year' },
+};
+
+const todayLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 export default function CheckIn() {
   const [data, setData] = useState<CheckinData | null>(null);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'today' | 'schedules'>('today');
   const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [showDiary, setShowDiary] = useState(false);
+  const [diaryText, setDiaryText] = useState('');
+  const [diaryType, setDiaryType] = useState<DiaryType>('daily');
+  const [diaryPrevious, setDiaryPrevious] = useState(false);
+  const [savingDiary, setSavingDiary] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
-  const [scheduleForm, setScheduleForm] = useState({ name: '', type: 'daily', score: 0 });
+  const [scheduleForm, setScheduleForm] = useState<{ name: string; type: string; score: number; category?: Attribute }>({ name: '', type: 'daily', score: 0 });
   const [completingId, setCompletingId] = useState<number | null>(null);
+  const [streak, setStreak] = useState(0);
 
   const fetchAll = () => {
     Promise.all([api.getTodayCheckins(), api.getSchedules(), api.getStreak()])
       .then(([checkinData, schedData, streakData]) => {
         setData(checkinData.data);
         setSchedules(schedData.data);
+        setStreak(streakData.data.streak);
       })
       .finally(() => setLoading(false));
   };
@@ -78,14 +106,30 @@ export default function CheckIn() {
         await api.uncompleteCheckin(task.id);
         toast('Task reopened');
       } else {
-        await api.completeCheckin(task.id);
-        toast.success('Nice work!');
+        // The XP toast (lib/garden.tsx) is the confirmation; only fall back when none was awarded.
+        const r = await api.completeCheckin(task.id);
+        if (!r.xp) toast.success('Checked in');
       }
       fetchAll();
     } catch (err: any) {
       toast.error(err.message);
     }
     setCompletingId(null);
+  };
+
+  const handleDiarySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!diaryText.trim()) return;
+    setSavingDiary(true);
+    try {
+      await api.addDiaryEntry(diaryText, diaryType, diaryPrevious);
+      toast.success(diaryType === 'daily' ? 'Added to your diary' : `Added to your ${diaryType} diary`);
+      setDiaryText('');
+      setShowDiary(false);
+      setDiaryType('daily');
+      setDiaryPrevious(false);
+    } catch (err: any) { toast.error(err.message); }
+    setSavingDiary(false);
   };
 
   const handleScheduleSubmit = async (e: React.FormEvent) => {
@@ -132,24 +176,25 @@ export default function CheckIn() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Check In</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">{data?.date}</p>
-        </div>
-        {tab === 'schedules' && (
+      <PageHeader
+        icon={ClipboardCheck}
+        title="Check In"
+        subtitle={data?.date && new Date(`${data.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+        actions={tab === 'schedules' ? (
           <button onClick={() => { setEditingSchedule(null); setScheduleForm({ name: '', type: 'daily', score: 10 }); setShowScheduleForm(true); }}
             className="btn-primary text-sm">+ New</button>
+        ) : (
+          <button onClick={() => setShowDiary(true)} className="btn-primary text-sm flex items-center gap-1.5" title="Write a daily, weekly, monthly or yearly diary entry to your vault">
+            <NotebookPen size={15} /> Diary
+          </button>
         )}
-      </div>
+      />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-xl p-1">
+      <div className="seg">
         {(['today', 'schedules'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-              tab === t ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}>
+            className={tab === t ? 'on' : ''}>
             {t === 'today' ? `Today (${data?.tasks.length ?? 0})` : `Schedules (${schedules.length})`}
           </button>
         ))}
@@ -157,35 +202,28 @@ export default function CheckIn() {
 
       {/* ── Today tab ── */}
       {tab === 'today' && (<>
-      {/* Progress bar */}
+      {/* Stats */}
       {data && (() => {
         const dailyTasks = data.tasks.filter((t) => t.schedule_type === 'daily');
         const dailyTotal = dailyTasks.length;
         const dailyDone = dailyTasks.filter((t) => t.is_completed).length;
-        const dailyProgress = dailyTotal > 0 ? Math.round((dailyDone / dailyTotal) * 100) : 0;
+        const xpLeft = data.tasks.filter((t) => !t.is_completed).reduce((sum, t) => sum + checkinXp(t.score), 0);
         return (
-          <motion.div variants={listItem} className="card">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-500 dark:text-gray-400">Today's Progress</span>
-              <span className="text-sm font-bold text-brand-600 dark:text-brand-400">{dailyDone}/{dailyTotal}</span>
-            </div>
-            <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-3">
-              <motion.div
-                className="h-3 rounded-full bg-gradient-to-r from-brand-400 to-brand-500"
-                initial={{ width: 0 }}
-                animate={{ width: `${dailyProgress}%` }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
-              />
-            </div>
-          </motion.div>
+          <StatTiles stats={[
+            {
+              value: `${dailyDone}/${dailyTotal}`,
+              label: 'Daily Done',
+              progress: dailyTotal > 0 ? (dailyDone / dailyTotal) * 100 : 0,
+            },
+            { value: streak, label: 'Day Streak' },
+            { value: xpLeft, label: 'XP to Earn' },
+          ]} />
         );
       })()}
 
       {/* Tasks */}
       {!data || data.tasks.length === 0 ? (
-        <motion.div variants={listItem} className="card text-center py-12">
-          <div className="flex justify-center mb-4 text-gray-300 dark:text-gray-700"><ClipboardCheck size={48} /></div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No check-in tasks for today</h3>
+        <EmptyState icon={ClipboardCheck} title="No check-in tasks for today">
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
             Tasks are auto-generated from your schedules. Add some daily schedules to get started.
           </p>
@@ -193,7 +231,7 @@ export default function CheckIn() {
             className="btn-primary text-sm">
             + Add Schedule
           </button>
-        </motion.div>
+        </EmptyState>
       ) : (
         <>
           {(() => {
@@ -226,7 +264,7 @@ export default function CheckIn() {
                         <span className="font-medium text-gray-900 dark:text-gray-100">{task.schedule_name}</span>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={`badge ${typeBadges[task.schedule_type] || ''}`}>{task.schedule_type}</span>
-                          {task.score && <span className="text-xs text-gray-400 dark:text-gray-500">{task.score} pts</span>}
+                          <XpChip attribute={task.category} amount={checkinXp(task.score)} />
                           <span className="text-xs text-gray-300 dark:text-gray-600">{task.task_date}</span>
                         </div>
                       </div>
@@ -241,7 +279,7 @@ export default function CheckIn() {
                       onClick={() => handleComplete(task)}
                       className="w-full card flex items-center gap-4 text-left opacity-60 bg-gray-50 dark:bg-gray-900/60"
                     >
-                      <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-[#1fa874] flex items-center justify-center flex-shrink-0">
                         <motion.span
                           initial={{ scale: 0, rotate: -45 }}
                           animate={{ scale: 1, rotate: 0 }}
@@ -286,13 +324,14 @@ export default function CheckIn() {
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className={`badge ${typeBadges[s.type] || ''}`}>{s.type}</span>
                     <span className="text-xs text-gray-400 dark:text-gray-500">{s.score} pts</span>
+                    <span className="text-[11px] text-gray-500 flex items-center gap-1.5"><AttrDot attribute={s.category} />{ATTR_META[s.category].label}</span>
                   </div>
                 </div>
                 <button onClick={() => handleToggleActive(s)}
                   className={`text-xs px-2 py-1 rounded ${s.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'}`}>
                   {s.is_active ? 'On' : 'Off'}
                 </button>
-                <button onClick={() => { setEditingSchedule(s); setScheduleForm({ name: s.name, type: s.type, score: s.score }); setShowScheduleForm(true); }}
+                <button onClick={() => { setEditingSchedule(s); setScheduleForm({ name: s.name, type: s.type, score: s.score, category: s.category }); setShowScheduleForm(true); }}
                   className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">Edit</button>
                 <button onClick={() => handleDeleteSchedule(s.id)} className="text-xs text-red-400 hover:text-red-600">Del</button>
               </motion.div>
@@ -304,15 +343,67 @@ export default function CheckIn() {
       </>)}
 
       {/* Schedule form modal */}
+      {showDiary && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-start sm:items-center justify-center p-4 z-50"
+          onClick={(e) => { if (e.target === e.currentTarget && !savingDiary) setShowDiary(false); }}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-2xl p-5"
+          >
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">{DIARY_COPY[diaryType].title}</h2>
+            <form onSubmit={handleDiarySubmit} className="space-y-3">
+              <div className="seg">
+                {DIARY_TYPES.map((t) => (
+                  <button key={t} type="button" className={`!px-1 whitespace-nowrap ${diaryType === t ? 'on' : ''}`}
+                    onClick={() => { setDiaryType(t); setDiaryPrevious(defaultsToPrevious(t, todayLocal())); }}>
+                    {DIARY_COPY[t].tab}
+                  </button>
+                ))}
+              </div>
+              {/* A weekly diary is often written the Monday after, a monthly one on the 1st. */}
+              {diaryType !== 'daily' && (
+                <div className="seg">
+                  {[false, true].map((prev) => (
+                    <button key={String(prev)} type="button" className={`!px-1 ${diaryPrevious === prev ? 'on' : ''}`} onClick={() => setDiaryPrevious(prev)}>
+                      {prev ? 'Last' : 'This'} {DIARY_COPY[diaryType].unit}
+                      <span className="block text-xs font-normal text-gray-500 truncate">{diaryPeriod(diaryType, todayLocal(), prev).label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div>
+                {/* Phone height leaves the buttons above the on-screen keyboard. */}
+                <textarea className={`input block ${diaryType === 'daily' ? 'h-[32dvh]' : 'h-[26dvh]'} sm:h-[45vh] min-h-[140px] leading-relaxed`} autoFocus value={diaryText} onChange={(e) => setDiaryText(e.target.value)}
+                  placeholder={DIARY_COPY[diaryType].placeholder} />
+                <p className="text-xs text-gray-500 mt-1.5 truncate">
+                  {(() => {
+                    const p = diaryPeriod(diaryType, todayLocal(), diaryPrevious);
+                    const note = p.note.split('/')[1];
+                    return diaryType === 'daily' ? `Saved to ${note}, with the time` : `Saved to ${note} · ${DIARY_COPY[diaryType].tab} ${p.key}`;
+                  })()}
+                </p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowDiary(false)} disabled={savingDiary} className="btn-secondary text-sm">Cancel</button>
+                <button type="submit" disabled={savingDiary || !diaryText.trim()} className="btn-primary text-sm">{savingDiary ? 'Saving…' : 'Add to diary'}</button>
+              </div>
+            </form>
+          </motion.div>
+        </motion.div>
+      )}
+
       {showScheduleForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowScheduleForm(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editingSchedule ? 'Edit Schedule' : 'New Schedule'}</h2>
             <form onSubmit={handleScheduleSubmit} className="space-y-4">
@@ -331,6 +422,16 @@ export default function CheckIn() {
                   <option value="monthly">Monthly</option>
                   <option value="seasonly">Seasonly</option>
                   <option value="yearly">Yearly</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Growth area</label>
+                <select className="input" value={scheduleForm.category ?? ''}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, category: (e.target.value || undefined) as Attribute | undefined })}>
+                  {!editingSchedule && <option value="">Auto (guess from name)</option>}
+                  {ATTRIBUTES.map((a) => (
+                    <option key={a} value={a}>{ATTR_META[a].label}</option>
+                  ))}
                 </select>
               </div>
               <div>

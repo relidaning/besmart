@@ -158,5 +158,41 @@
     "filename": "chopin-mazurka-op17-no4.mp3",
     "sourceUrl": "https://archive.org/download/musopen-chopin/Mazurka Op. 17 no. 4 in A minor.mp3",
     "durationSec": 299
+  },
+  {
+    "id": "rain-light-gentle",
+    "kind": "sleep",
+    "title": "Light Gentle Rain",
+    "composer": "Nature sounds · CC0",
+    "filename": "rain-light-gentle.mp3",
+    "sourceUrl": "https://archive.org/download/naturesounds-soundtheraphy/Light Gentle Rain.mp3",
+    "durationSec": 2160
+  },
+  {
+    "id": "rain-tropical-forest",
+    "kind": "sleep",
+    "title": "Tropical Rain Forest",
+    "composer": "Nature sounds · CC0",
+    "filename": "rain-tropical-forest.mp3",
+    "sourceUrl": "https://archive.org/download/relaxingrainsounds/A Tropical Rain Forest 1.mp3",
+    "durationSec": 1885
+  },
+  {
+    "id": "rain-trickling",
+    "kind": "sleep",
+    "title": "Rain Trickling",
+    "composer": "Nature sounds · CC0",
+    "filename": "rain-trickling.mp3",
+    "sourceUrl": "https://archive.org/download/relaxingrainsounds/Rain Trickling Sounds Part 1.mp3",
+    "durationSec": 1809
+  },
+  {
+    "id": "rain-thunderstorm",
+    "kind": "sleep",
+    "title": "Passing Thunderstorm",
+    "composer": "chillachella · public domain",
+    "filename": "rain-thunderstorm.mp3",
+    "sourceUrl": "https://archive.org/download/ThunderStorm_943/NaturalSounds-Thunderstorm.mp3",
+    "durationSec": 2045
   }
 ]

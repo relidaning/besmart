@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Downloads the full public-domain piano catalog (see src/shared/musicCatalog.json)
+// Downloads the full public-domain catalog (piano + sleep-mode rain) (see src/shared/musicCatalog.json)
 // into the app's persisted data dir, so playback and library management are served
 // locally instead of hitting archive.org at request time (the container has no
 // outbound internet access). Safe to re-run: skips files that already exist.
@@ -29,7 +29,7 @@ function download(track) {
   const tmp = `${dest}.part`;
   // shell out to curl: respects http_proxy/https_proxy and handles redirects/retries better than node's fetch here
   const url = encodeURI(track.sourceUrl);
-  execFileSync('curl', ['-sSL', '--fail', '--max-time', '120', '-o', tmp, url], { stdio: 'inherit' });
+  execFileSync('curl', ['-sSL', '--fail', '--max-time', '900', '-o', tmp, url], { stdio: 'inherit' });
   fs.renameSync(tmp, dest);
   const size = fs.statSync(dest).size;
   console.log(`  saved ${(size / 1024 / 1024).toFixed(1)} MB`);

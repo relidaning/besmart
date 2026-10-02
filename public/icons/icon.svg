@@ -1,8 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#7c3aed"/>
-  <!-- mountain: steady climb to a summit -->
-  <path d="M96 384 L206 214 L256 280 L314 170 L416 384 Z" fill="#ffffff"/>
-  <!-- summit flag -->
-  <path d="M314 170 L314 104" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
-  <path d="M320 104 L376 124 L320 146 Z" fill="#fbbf24"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Matches scripts/make_icons.py (the PNG icons); keep them in step. -->
+  <rect width="100" height="100" rx="22" fill="#0d0e13"/>
+  <g fill="none" stroke-width="8">
+  <path d="M52.67 16.10 A34 34 0 0 1 83.90 47.33" stroke="#a854f7"/>
+  <path d="M83.90 52.67 A34 34 0 0 1 52.67 83.90" stroke="#1fa874"/>
+  <path d="M47.33 83.90 A34 34 0 0 1 16.10 52.67" stroke="#3987e5"/>
+  <path d="M16.10 47.33 A34 34 0 0 1 47.33 16.10" stroke="#fabf40"/>
+  </g>
+  <circle cx="50" cy="50" r="25.0" fill="#14171f" stroke="#ffffff" stroke-opacity="0.28" stroke-width="0.8"/>
+  <path d="M30.50 65.00 L44.00 50.00 L49.50 56.50 L56.00 43.00 L69.50 65.00 Z" fill="#edf0f5"/>
+  <path d="M56.00 43.00 V34.50" stroke="#edf0f5" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M56.60 34.50 L63.50 36.75 L56.60 39.00 Z" fill="#fabf40"/>
 </svg>

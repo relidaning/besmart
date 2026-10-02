@@ -1,4 +1,5 @@
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
+import { isExcludedVaultPath } from '../shared/vaultRules.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -256,6 +257,248 @@ export function initializeDatabase() {
         UPDATE plan_tasks SET sort_order = id WHERE sort_order = 0 OR sort_order IS NULL;
       `);
       db.prepare('INSERT INTO schema_migrations (version) VALUES (7)').run();
+    })();
+  }
+
+  // Migration 8: Growth Garden. xp_events is backfilled from history by initGarden()
+  // in garden.ts; checkin_schedules.category is nullable (NULL = inferred from name).
+  if (version < 8) {
+    db.transaction(() => {
+      addColIfMissing('checkin_schedules', 'category', 'TEXT');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS xp_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          attribute TEXT NOT NULL CHECK(attribute IN ('wisdom','health','capability','wealth')),
+          amount INTEGER NOT NULL,
+          source_type TEXT NOT NULL,
+          source_id INTEGER NOT NULL,
+          day TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE(source_type, source_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_xp_events_user_day ON xp_events(user_id, day);
+        CREATE TABLE IF NOT EXISTS garden_state (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        );
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (8)').run();
+    })();
+  }
+
+  // Migration 9: the garden's plants. One row per XP-earning completion (planted
+  // automatically, removed with its XP), plus rare trees planted from seeds
+  // (source_type 'seed', source_id = reward id from shared/gardenSpecies.ts).
+  // initGarden() plants the history once.
+  if (version < 9) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS garden_plants (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          species TEXT NOT NULL,
+          attribute TEXT,
+          source_type TEXT NOT NULL,
+          source_id INTEGER NOT NULL,
+          label TEXT,
+          crit INTEGER NOT NULL DEFAULT 0,
+          day TEXT NOT NULL,
+          planted_at TEXT NOT NULL,
+          UNIQUE(user_id, source_type, source_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_garden_plants_user_day ON garden_plants(user_id, day);
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (9)').run();
+    })();
+  }
+
+  // Migration 10: FSRS memory state per review course (see fsrs.ts). Seeded from
+  // the SM-2 history: stability = the interval SM-2 had scheduled, difficulty from
+  // its ease factor (1.3 → 9, 3.5 → 2). Courses never reviewed stay NULL (new).
+  if (version < 10) {
+    db.transaction(() => {
+      addColIfMissing('review_courses', 'fsrs_stability', 'REAL');
+      addColIfMissing('review_courses', 'fsrs_difficulty', 'REAL');
+      addColIfMissing('review_courses', 'fsrs_last_review', 'TEXT');
+      addColIfMissing('review_courses', 'fsrs_reps', 'INTEGER NOT NULL DEFAULT 0');
+      addColIfMissing('review_courses', 'fsrs_lapses', 'INTEGER NOT NULL DEFAULT 0');
+      const courses = db.prepare(`
+        SELECT c.id,
+          (SELECT MAX(reviewed_date) FROM review_records WHERE course_id = c.id AND is_reviewed = 1) AS last,
+          (SELECT COUNT(*) FROM review_records WHERE course_id = c.id AND is_reviewed = 1) AS reps,
+          (SELECT planned_date FROM review_records WHERE course_id = c.id AND is_reviewed = 0 ORDER BY planned_date LIMIT 1) AS next,
+          (SELECT ease_factor FROM review_records WHERE course_id = c.id ORDER BY is_reviewed ASC, id DESC LIMIT 1) AS ef
+        FROM review_courses c
+      `).all() as any[];
+      const set = db.prepare(
+        'UPDATE review_courses SET fsrs_stability = ?, fsrs_difficulty = ?, fsrs_last_review = ?, fsrs_reps = ? WHERE id = ?'
+      );
+      const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+      for (const c of courses) {
+        if (!c.last) continue;
+        const stability = c.next ? Math.max(1, days(c.last, c.next)) : 1;
+        const ef = c.ef ?? 2.5;
+        const difficulty = Math.min(10, Math.max(1, 9 - ((ef - 1.3) * 7) / 2.2));
+        set.run(stability, Math.round(difficulty * 100) / 100, c.last, c.reps, c.id);
+      }
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (10)').run();
+    })();
+  }
+
+  // Migration 11: garden journal. A plant's growth is the sum of its events:
+  // planted when its vault note becomes a review course, watered by finished
+  // check-ins/todos/plan tasks, grown by reviewing its note. Also the log the
+  // Garden page shows.
+  if (version < 11) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS garden_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          plant_id INTEGER,
+          kind TEXT NOT NULL CHECK(kind IN ('plant','seed','water','review')),
+          amount REAL NOT NULL DEFAULT 0,
+          source_type TEXT,
+          source_id INTEGER,
+          label TEXT,
+          day TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_garden_events_user ON garden_events(user_id, id);
+        CREATE INDEX IF NOT EXISTS idx_garden_events_plant ON garden_events(plant_id);
+        CREATE INDEX IF NOT EXISTS idx_garden_events_source ON garden_events(source_type, source_id);
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (11)').run();
+    })();
+  }
+
+  // Migration 12: trees belong to study plans. garden_events gains the kinds
+  // 'task' (a finished plan task grew its tree) and 'plan' (the plan was
+  // finished), so the table is rebuilt without migration 11's CHECK list.
+  if (version < 12) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE garden_events_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          plant_id INTEGER,
+          kind TEXT NOT NULL,
+          amount REAL NOT NULL DEFAULT 0,
+          source_type TEXT,
+          source_id INTEGER,
+          label TEXT,
+          day TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        INSERT INTO garden_events_new SELECT * FROM garden_events;
+        DROP TABLE garden_events;
+        ALTER TABLE garden_events_new RENAME TO garden_events;
+        CREATE INDEX IF NOT EXISTS idx_garden_events_user ON garden_events(user_id, id);
+        CREATE INDEX IF NOT EXISTS idx_garden_events_plant ON garden_events(plant_id);
+        CREATE INDEX IF NOT EXISTS idx_garden_events_source ON garden_events(source_type, source_id);
+      `);
+      db.prepare("DELETE FROM garden_plants WHERE source_type = 'seed'").run(); // seeds are gone: achievements unlock tree species
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (12)').run();
+    })();
+  }
+
+  // Migration 13: root-level notes and 0_lidaning, claude-maxer, attachs are not review sources
+  // (shared/vaultRules.ts). Remove review courses from those folders, with their
+  // records and garden plants. Only app data: the notes themselves are untouched.
+  if (version < 13) {
+    db.transaction(() => {
+      const courses = (db.prepare('SELECT id, vault_path, vault_paths FROM review_courses').all() as any[])
+        .filter((c) => {
+          let p: string | null = c.vault_path;
+          if (!p && c.vault_paths) { try { p = JSON.parse(c.vault_paths)[0] ?? null; } catch { /* malformed */ } }
+          return isExcludedVaultPath(p);
+        });
+      for (const c of courses) {
+        const plant = db.prepare("SELECT id FROM garden_plants WHERE source_type = 'note' AND source_id = ?").get(c.id) as any;
+        if (plant) {
+          db.prepare('DELETE FROM garden_events WHERE plant_id = ?').run(plant.id);
+          db.prepare('DELETE FROM garden_plants WHERE id = ?').run(plant.id);
+        }
+        db.prepare('DELETE FROM review_records WHERE course_id = ?').run(c.id);
+        db.prepare('DELETE FROM review_courses WHERE id = ?').run(c.id);
+      }
+      if (courses.length) console.log(`[migration 13] removed ${courses.length} review courses from excluded vault folders`);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (13)').run();
+    })();
+  }
+
+  // Migration 14: a course is exactly one note, named after its file. Courses that were
+  // fuzzy-matched by name (vault_paths) are linked to their note, or dropped when another
+  // course already tracks it; titles taken from a note's H1 go back to the filename.
+  if (version < 14) {
+    db.transaction(() => {
+      const fuzzy = db.prepare('SELECT id, user_id, vault_paths FROM review_courses WHERE vault_path IS NULL ORDER BY id').all() as any[];
+      let linked = 0, dropped = 0;
+      for (const c of fuzzy) {
+        let p: string | null = null;
+        if (c.vault_paths) { try { p = JSON.parse(c.vault_paths)[0] ?? null; } catch { /* malformed */ } }
+        // A note moved since it was matched is found by filename, as the vault sync does.
+        const root = (db.prepare('SELECT vault_root FROM users WHERE id = ?').get(c.user_id) as any)?.vault_root || process.env.VAULT_PATH;
+        if (p && root && !fs.existsSync(path.join(root, p))) {
+          const base = path.basename(p);
+          const moved = db.prepare('SELECT vault_path FROM review_courses WHERE user_id = ? AND (vault_path = ? OR vault_path LIKE ?)')
+            .get(c.user_id, base, `%/${base}`) as any;
+          if (moved) p = moved.vault_path;
+        }
+        const taken = p && db.prepare('SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?').get(c.user_id, p);
+        if (p && !taken) {
+          db.prepare("UPDATE review_courses SET vault_path = ?, vault_match_status = 'matched' WHERE id = ?").run(p, c.id);
+          linked++;
+          continue;
+        }
+        const plant = db.prepare("SELECT id FROM garden_plants WHERE source_type = 'note' AND source_id = ?").get(c.id) as any;
+        if (plant) {
+          db.prepare('DELETE FROM garden_events WHERE plant_id = ?').run(plant.id);
+          db.prepare('DELETE FROM garden_plants WHERE id = ?').run(plant.id);
+        }
+        db.prepare('DELETE FROM review_records WHERE course_id = ?').run(c.id);
+        db.prepare('DELETE FROM review_courses WHERE id = ?').run(c.id);
+        dropped++;
+      }
+      db.prepare('UPDATE review_courses SET vault_paths = NULL').run();
+      const rename = db.prepare('UPDATE review_courses SET name = ? WHERE id = ?');
+      let renamed = 0;
+      for (const c of db.prepare('SELECT id, name, vault_path FROM review_courses').all() as any[]) {
+        const name = path.basename(c.vault_path, '.md');
+        if (name !== c.name) { rename.run(name, c.id); renamed++; }
+      }
+      console.log(`[migration 14] linked ${linked}, dropped ${dropped} duplicate courses; renamed ${renamed} to their note filename`);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (14)').run();
+    })();
+  }
+
+  // Migration 15: plants grew too fast (a day of check-ins matured a flower without a
+  // review). Re-apply the new rules to past events: water +2, once a plant a day, at
+  // most +20 per plant; reviews Forgot/Hard/Good/Easy 8/15/25/30 → 6/12/18/22.
+  if (version < 15) {
+    db.transaction(() => {
+      const water = db.prepare("SELECT id, plant_id, day FROM garden_events WHERE kind = 'water' ORDER BY plant_id, id").all() as any[];
+      const seen = new Set<string>();
+      const total = new Map<number, number>();
+      let dropped = 0;
+      for (const e of water) {
+        const key = `${e.plant_id}|${e.day}`;
+        const sum = total.get(e.plant_id) ?? 0;
+        if (seen.has(key) || sum + 2 > 20) {
+          db.prepare('DELETE FROM garden_events WHERE id = ?').run(e.id);
+          dropped++;
+          continue;
+        }
+        seen.add(key);
+        total.set(e.plant_id, sum + 2);
+        db.prepare('UPDATE garden_events SET amount = 2 WHERE id = ?').run(e.id);
+      }
+      for (const [from, to] of [[8, 6], [15, 12], [25, 18], [30, 22]]) {
+        db.prepare("UPDATE garden_events SET amount = ? WHERE kind = 'review' AND amount = ?").run(to, from);
+      }
+      console.log(`[migration 15] garden: ${water.length - dropped} water events kept at +2, ${dropped} dropped; review growth rescaled`);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (15)').run();
     })();
   }
 

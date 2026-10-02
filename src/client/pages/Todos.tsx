@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { ListTodo, Trophy, Check, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
+import { ListTodo, Trophy, Check, AlertTriangle, ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../hooks/api';
+import { PageHeader, StatTiles, XpChip, EmptyState } from '../components/PageKit';
 
 interface Todo {
   id: number;
@@ -27,10 +28,15 @@ const listItem = {
 };
 
 const priorityConfig = {
-  high: { border: 'border-l-red-400', label: 'High', badge: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' },
-  medium: { border: 'border-l-yellow-400', label: 'Medium', badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300' },
-  low: { border: 'border-l-green-400', label: 'Low', badge: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300' },
+  high: { label: 'High' },
+  medium: { label: 'Medium' },
+  low: { label: 'Low' },
 };
+
+const ICON_BTN = 'w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-800 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-200 dark:hover:bg-white/[0.06] transition-colors disabled:opacity-25 disabled:pointer-events-none';
+
+// Mirrors the todo XP table in server/garden.ts.
+const TODO_XP: Record<Todo['priority'], number> = { high: 15, medium: 10, low: 5 };
 
 const priorityOrder: Todo['priority'][] = ['low', 'medium', 'high'];
 const priorityRank: Record<Todo['priority'], number> = { high: 0, medium: 1, low: 2 };
@@ -62,7 +68,7 @@ export default function Todos() {
   const [editing, setEditing] = useState<Todo | null>(null);
   const [form, setForm] = useState({ title: '', description: '', priority: 'medium', due_date: '' });
   const [completingId, setCompletingId] = useState<number | null>(null);
-  const [completedToday, setCompletedToday] = useState<number>(0);
+  const [stats, setStats] = useState({ completedToday: 0, pending: 0, overdue: 0 });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -104,7 +110,9 @@ export default function Todos() {
   }, [loadingMore, hasMore, page, buildParams]);
 
   const fetchStats = useCallback(() => {
-    api.getTodoStats().then((r) => setCompletedToday(r.data.completedToday));
+    api.getTodoStats().then((r) => setStats({
+      completedToday: r.data.completedToday, pending: r.data.pending, overdue: r.data.overdue,
+    }));
   }, []);
 
   useEffect(() => { fetchTodos(); }, [fetchTodos]);
@@ -125,21 +133,27 @@ export default function Todos() {
   const handleToggle = async (todo: Todo) => {
     // Remove from current tab immediately — it belongs to the other tab now
     setTodos((prev) => prev.filter((t) => t.id !== todo.id));
-    setCompletedToday((n) => todo.completed ? n - 1 : n + 1);
+    const shift = (sign: 1 | -1) => setStats((s) => ({
+      ...s,
+      completedToday: s.completedToday + sign,
+      pending: s.pending - sign,
+    }));
+    shift(todo.completed ? -1 : 1);
     setCompletingId(todo.id);
     try {
       if (todo.completed) {
         await api.uncompleteTodo(todo.id);
         toast('Reopened');
       } else {
-        await api.completeTodo(todo.id);
-        toast.success('Done! 🎉');
+        const r = await api.completeTodo(todo.id);
+        if (!r.xp) toast.success('Completed'); // otherwise the XP toast confirms it
       }
+      fetchStats();
     } catch (err: any) {
       toast.error(err.message);
       // Revert on failure
       setTodos((prev) => [todo, ...prev]);
-      setCompletedToday((n) => todo.completed ? n + 1 : n - 1);
+      shift(todo.completed ? 1 : -1);
     }
     setCompletingId(null);
   };
@@ -163,6 +177,7 @@ export default function Todos() {
     try {
       await api.deleteTodo(id);
       toast.success('Deleted');
+      fetchStats();
     } catch (err: any) {
       toast.error(err.message);
       fetchTodos(); // revert
@@ -187,6 +202,7 @@ export default function Todos() {
           setTodos((prev) => sortTodos([r.data, ...prev]));
         }
         toast.success('Created');
+        fetchStats();
       }
       setShowForm(false);
       setEditing(null);
@@ -216,20 +232,22 @@ export default function Todos() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Todos</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">{todos.length} tasks</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900 rounded-xl px-3 py-1.5">
-            <Check size={14} className="text-green-600 dark:text-green-400" />
-            <span className="text-green-700 dark:text-green-400 font-semibold text-sm">{completedToday}</span>
-            <span className="text-green-600 dark:text-green-500 text-xs">done today</span>
-          </div>
-          <button onClick={() => openForm()} className="btn-primary text-sm">+ New Todo</button>
-        </div>
-      </div>
+      <PageHeader
+        icon={ListTodo}
+        title="Todos"
+        subtitle="Each completed todo earns Capability XP."
+        actions={<button onClick={() => openForm()} className="btn-primary text-sm">+ New Todo</button>}
+      />
+
+      <StatTiles stats={[
+        { value: stats.pending, label: 'Active' },
+        { value: stats.completedToday, label: 'Done Today' },
+        {
+          value: stats.overdue,
+          label: 'Overdue',
+          tone: stats.overdue > 0 ? 'critical' : 'muted',
+        },
+      ]} />
 
       {/* Search */}
       <div className="relative">
@@ -250,20 +268,16 @@ export default function Todos() {
 
       {/* Tabs + filter */}
       <div className="flex items-center gap-2">
-        <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-xl p-1 flex-1">
+        <div className="seg flex-1">
           <button
             onClick={() => setTab('active')}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-              tab === 'active' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
+            className={tab === 'active' ? 'on' : ''}
           >
             Active
           </button>
           <button
             onClick={() => setTab('completed')}
-            className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-              tab === 'completed' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
+            className={tab === 'completed' ? 'on' : ''}
           >
             Done
           </button>
@@ -282,20 +296,17 @@ export default function Todos() {
 
       {/* Todo list */}
       {todos.length === 0 ? (
-        <motion.div variants={listItem} className="card text-center py-12">
-          <div className="flex justify-center mb-4 text-gray-300 dark:text-gray-700">
-            {tab === 'completed' ? <Trophy size={48} /> : <ListTodo size={48} />}
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            {debouncedSearch ? 'No matches' : tab === 'completed' ? 'No completed todos yet' : 'No active todos'}
-          </h3>
+        <EmptyState
+          icon={tab === 'completed' ? Trophy : ListTodo}
+          title={debouncedSearch ? 'No matches' : tab === 'completed' ? 'No completed todos yet' : 'No active todos'}
+        >
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
             {debouncedSearch ? 'Try a different search term.' : tab === 'completed' ? 'Complete some tasks to see them here.' : 'Create your first todo to get started.'}
           </p>
           {tab === 'active' && !debouncedSearch && (
             <button onClick={() => openForm()} className="btn-primary text-sm">Create a Todo</button>
           )}
-        </motion.div>
+        </EmptyState>
       ) : (
         <>
           {todos.map((todo) => {
@@ -304,14 +315,19 @@ export default function Todos() {
 
             return (
               <motion.div key={todo.id} variants={listItem}>
-                <div className={`card border-l-4 ${config.border} ${todo.completed ? 'opacity-60 bg-gray-50 dark:bg-gray-900/60' : ''}`}>
+                {/* Tapping anywhere on the card completes it (or reopens it); the action buttons don't. */}
+                <div
+                  onClick={() => { if (completingId !== todo.id) handleToggle(todo); }}
+                  className={`card cursor-pointer select-none active:scale-[0.99] transition-transform ${todo.completed ? 'opacity-60 bg-gray-50 dark:bg-gray-900/60' : ''}`}
+                >
                   <div className="flex items-start gap-4">
                     <button
-                      onClick={() => handleToggle(todo)}
+                      onClick={(e) => { e.stopPropagation(); handleToggle(todo); }}
+                      aria-label={todo.completed ? 'Reopen' : 'Complete'}
                       disabled={completingId === todo.id}
                       className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                         todo.completed
-                          ? 'bg-green-500 border-green-500 text-white'
+                          ? 'bg-[#1fa874] border-[#1fa874] text-white'
                           : completingId === todo.id
                             ? 'border-brand-400 bg-brand-50 dark:bg-brand-950'
                             : 'border-gray-300 dark:border-gray-700 hover:border-brand-400'
@@ -325,49 +341,48 @@ export default function Todos() {
                       )}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold ${config.badge} ${todo.completed ? 'opacity-60' : ''}`}>
-                          {config.label}
-                        </span>
-                        <h3 className={`font-medium min-w-0 break-words ${todo.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
-                          {todo.title}
-                        </h3>
-                      </div>
+                      <h3 className={`font-medium min-w-0 break-words ${todo.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
+                        {todo.title}
+                      </h3>
                       {todo.description && (
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{todo.description}</p>
                       )}
-                      <div className="flex items-center gap-3 mt-2">
-                        {todo.due_date && (
-                          <span className={`flex items-center gap-0.5 text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
-                            {isOverdue && <AlertTriangle size={11} />}
-                            {isOverdue ? 'Overdue: ' : 'Due: '}{todo.due_date}
+                      {/* Meta left, compact actions right: no separate button row. */}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 flex-1">
+                          <span className={`badge badge-${todo.priority} ${todo.completed ? 'opacity-60' : ''}`}>
+                            {config.label}
                           </span>
-                        )}
-                        {todo.completed && todo.completed_at && (
-                          <span className="text-xs text-gray-400 dark:text-gray-500">Done: {todo.completed_at.split('T')[0]}</span>
-                        )}
+                          {!todo.completed && <XpChip attribute="capability" amount={TODO_XP[todo.priority]} />}
+                          {todo.due_date && (
+                            <span className={`flex items-center gap-0.5 text-[11px] ${isOverdue ? 'text-[#d64545] dark:text-[#ec8a8a] font-medium' : 'text-gray-500'}`}>
+                              {isOverdue && <AlertTriangle size={11} />}
+                              {isOverdue ? 'Overdue ' : 'Due '}{todo.due_date}
+                            </span>
+                          )}
+                          {todo.completed && todo.completed_at && (
+                            <span className="text-[11px] text-gray-500">Done {todo.completed_at.split('T')[0]}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center -mr-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button onClick={() => handlePriorityChange(todo, 1)} disabled={todo.priority === 'high'}
+                            title="Prioritize" aria-label="Prioritize" className={ICON_BTN}>
+                            <ChevronUp size={15} />
+                          </button>
+                          <button onClick={() => handlePriorityChange(todo, -1)} disabled={todo.priority === 'low'}
+                            title="De-prioritize" aria-label="De-prioritize" className={ICON_BTN}>
+                            <ChevronDown size={15} />
+                          </button>
+                          <button onClick={() => openForm(todo)} title="Edit" aria-label="Edit" className={ICON_BTN}>
+                            <Pencil size={13} />
+                          </button>
+                          <button onClick={() => handleDelete(todo.id)} title="Delete" aria-label="Delete"
+                            className={`${ICON_BTN} hover:!text-[#d64545] dark:hover:!text-[#ec8a8a]`}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex gap-1 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 justify-center items-center">
-                    <button
-                      onClick={() => handlePriorityChange(todo, 1)}
-                      disabled={todo.priority === 'high'}
-                      title="Prioritize"
-                      className="btn-ghost text-xs disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <ChevronUp size={14} />
-                    </button>
-                    <button
-                      onClick={() => handlePriorityChange(todo, -1)}
-                      disabled={todo.priority === 'low'}
-                      title="De-prioritize"
-                      className="btn-ghost text-xs disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <ChevronDown size={14} />
-                    </button>
-                    <button onClick={() => openForm(todo)} className="btn-ghost text-xs">Edit</button>
-                    <button onClick={() => handleDelete(todo.id)} className="btn-ghost text-xs text-red-400">Delete</button>
                   </div>
                 </div>
               </motion.div>
@@ -383,12 +398,12 @@ export default function Todos() {
       {showForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editing ? 'Edit Todo' : 'New Todo'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">

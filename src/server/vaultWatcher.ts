@@ -4,14 +4,14 @@ import path from 'path';
 import db from './database.js';
 import { scheduleVaultNote, ensureScheduleForNote, deleteCourseForNote } from './routes/reviews.js';
 
-const VAULT_SYNC_EXCLUDE = ['0_lidaning'];
+import { isExcludedVaultPath } from '../shared/vaultRules.js';
 
 // Grace window after a note disappears before we delete its review schedule.
 // A move fires unlink(old) + add(new); the add handler re-links within this window.
 const DELETE_GRACE_MS = 5000;
 
 function isExcluded(rel: string): boolean {
-  return VAULT_SYNC_EXCLUDE.includes(rel.split('/')[0]);
+  return isExcludedVaultPath(rel);
 }
 
 function markMissing(userId: number, relPath: string) {
@@ -60,8 +60,8 @@ function startWatcherForUser(userId: number, vaultRoot: string) {
       const moved = candidates.find((c) => !fs.existsSync(path.join(vaultRoot, c.vault_path)));
       if (moved) {
         db.prepare(
-          "UPDATE review_courses SET vault_path = ?, vault_match_status = 'matched' WHERE id = ?"
-        ).run(rel, moved.id);
+          "UPDATE review_courses SET vault_path = ?, name = ?, vault_match_status = 'matched' WHERE id = ?"
+        ).run(rel, path.basename(rel, '.md'), moved.id);
         console.log(`[vault-watch] moved: ${moved.vault_path} → ${rel}`);
         return;
       }

@@ -1,7 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import { DB_PATH } from './database.js';
-import catalog from '../shared/musicCatalog.json' with { type: 'json' };
+import fullCatalog from '../shared/musicCatalog.json' with { type: 'json' };
+
+// Sleep-mode rain recordings share the catalog file but not the managed library:
+// the player's Sleep tab plays every downloaded one.
+const catalog = fullCatalog.filter((t) => (t as { kind?: string }).kind !== 'sleep');
+const sleepCatalog = fullCatalog.filter((t) => (t as { kind?: string }).kind === 'sleep');
 
 export const MUSIC_DIR = path.join(path.dirname(DB_PATH), 'music');
 const LIBRARY_FILE = path.join(MUSIC_DIR, '.library.json');
@@ -22,6 +27,10 @@ export function isDownloaded(filename: string): boolean {
 
 export function getCatalog() {
   return catalog.map((t) => ({ ...t, downloaded: isDownloaded(t.filename) }));
+}
+
+export function getSleepTracks() {
+  return sleepCatalog.filter((t) => isDownloaded(t.filename));
 }
 
 export function getActiveIds(): string[] {

@@ -15,6 +15,7 @@ const Review = lazy(() => import('./pages/Review'));
 const ReviewContent = lazy(() => import('./pages/ReviewContent'));
 const Todos = lazy(() => import('./pages/Todos'));
 const MusicLibrary = lazy(() => import('./pages/MusicLibrary'));
+const Garden = lazy(() => import('./pages/Garden'));
 const Login = lazy(() => import('./pages/Login'));
 const Signup = lazy(() => import('./pages/Signup'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
@@ -32,11 +33,20 @@ function ThemedToaster() {
   return (
     <Toaster
       position="top-center"
+      /* A little above the middle of the screen, where the eye already is. */
+      containerStyle={{ top: '38vh' }}
       toastOptions={{
-        duration: 2000,
-        style: resolvedTheme === 'dark'
-          ? { borderRadius: '12px', padding: '12px 16px', fontSize: '14px', background: '#27272a', color: '#f4f4f5' }
-          : { borderRadius: '12px', padding: '12px 16px', fontSize: '14px' },
+        duration: 2500,
+        // floatingsphere's surfaces, raised: amber hairline, shadow, 14px bold.
+        style: {
+          borderRadius: '12px', padding: '10px 16px', fontSize: '14px', fontWeight: 700, fontFamily: 'inherit',
+          border: '1px solid rgba(250,191,64,0.55)',
+          ...(resolvedTheme === 'dark'
+            ? { background: '#1b1c26', color: '#edf0f5', boxShadow: '0 10px 30px rgba(0,0,0,0.55)' }
+            : { background: '#ffffff', color: '#15161e', boxShadow: '0 10px 30px rgba(15,17,25,0.18)' }),
+        },
+        success: { iconTheme: { primary: '#1fa874', secondary: '#fff' } },
+        error: { iconTheme: { primary: '#e66666', secondary: '#fff' }, style: { borderColor: 'rgba(230,102,102,0.6)' } },
       }}
     />
   );
@@ -74,6 +84,7 @@ function App() {
             <Route path="review/course/:id" element={<ReviewContent />} />
             <Route path="todos" element={<Todos />} />
             <Route path="music" element={<MusicLibrary />} />
+            <Route path="garden" element={<Garden />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

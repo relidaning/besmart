@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
 import c from 'react-syntax-highlighter/dist/esm/languages/prism/c';
@@ -30,6 +33,7 @@ import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typesc
 import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import toast from 'react-hot-toast';
+import { celebrate } from '../lib/garden';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useAuth } from '../store/auth';
@@ -37,13 +41,22 @@ import { useTheme } from '../contexts/ThemeContext';
 
 // The full Prism build bundles ~300 grammars (~1MB). Register only what the vault's
 // notes actually use; unknown fence languages still render, just unhighlighted.
-for (const [lang, grammar] of Object.entries({
-  bash, sh: bash, shell: bash, zsh: bash, c, cpp, css, diff, docker, dockerfile: docker, go,
-  ini, cnf: ini, java, javascript, js: javascript, json, jsonc: json, jsonl: json, jsx, log, lua,
-  markdown, md: markdown, markup, html: markup, xml: markup, nginx, properties, python, py: python,
-  sql, tsx, typescript, ts: typescript, yaml, yml: yaml,
-})) {
-  SyntaxHighlighter.registerLanguage(lang, grammar);
+// PrismLight's registerLanguage ignores the name it is given: a grammar answers to its
+// own name and built-in aliases (sh, yml, py, html, …), and any other name needs alias().
+for (const grammar of [
+  bash, c, cpp, css, diff, docker, go, ini, java, javascript, json, jsx, log, lua,
+  markdown, markup, nginx, properties, python, sql, tsx, typescript, yaml,
+]) {
+  SyntaxHighlighter.registerLanguage('', grammar);
+}
+SyntaxHighlighter.alias({ bash: ['zsh'], ini: ['cnf'], json: ['jsonc', 'jsonl'] });
+
+// A fence with no language that holds JSON (or one JSON value per line) is shown as JSON.
+function looksLikeJson(code: string) {
+  const text = code.trim();
+  if (!/^[{[]/.test(text)) return false;
+  const parses = (v: string) => { try { JSON.parse(v); return true; } catch { return false; } };
+  return parses(text) || text.split('\n').every((line) => !line.trim() || parses(line));
 }
 
 // ── Heading helpers ───────────────────────────────────────────────────────────
@@ -60,6 +73,75 @@ function extractHeadings(md: string): Heading[] {
       const m = line.match(/^(#{1,3})\s+(.+)$/)!;
       return { level: m[1].length, text: m[2].trim(), id: `h-${idx++}` };
     });
+}
+
+// FSRS ratings (server/fsrs.ts): each button shows the gap it would schedule.
+type Rating = 'again' | 'hard' | 'ok' | 'easy';
+const RATINGS: { id: Rating; label: string; cls: string }[] = [
+  { id: 'again', label: 'Forgot', cls: 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100 dark:bg-[#e66666]/[0.12] dark:text-[#ec8a8a] dark:border-[#e66666]/50 dark:hover:bg-[#e66666]/[0.2]' },
+  { id: 'hard', label: 'Hard', cls: 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 dark:bg-[#d95926]/[0.12] dark:text-[#ec8a5f] dark:border-[#d95926]/50 dark:hover:bg-[#d95926]/[0.2]' },
+  { id: 'ok', label: 'Good', cls: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-brand-400/[0.12] dark:text-brand-400 dark:border-brand-400/50 dark:hover:bg-brand-400/[0.2]' },
+  { id: 'easy', label: 'Easy', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-[#1fa874]/[0.12] dark:text-[#4fd6a0] dark:border-[#1fa874]/50 dark:hover:bg-[#1fa874]/[0.2]' },
+];
+
+function fmtGap(days: number) {
+  if (days < 30) return `${days}d`;
+  if (days < 365) return `${Math.round(days / 30)}mo`;
+  return `${Math.round((days / 365) * 10) / 10}y`;
+}
+
+// $…$ and $$…$$ math, as in Obsidian. Notes mix Chinese text into formulas, so KaTeX
+// isn't strict about it, and a formula it can't parse shows as red source, not an error.
+const KATEX_OPTIONS = { strict: false, throwOnError: false };
+
+// Obsidian only reads $…$ as math when the dollars hug it: no space inside either one,
+// and no digit right after the closing one. Other dollars ("costs $5, or $10") are
+// escaped so remark-math leaves them as text. Inline code and $$ blocks pass through.
+const DOLLAR_TOKENS = /(`+)[\s\S]*?\1|\$\$[\s\S]*?\$\$|\$[^\s$](?:[^$\n]*?[^\s$\\])?\$(?!\d)|\\\$|\$/g;
+const escapeLoneDollars = (md: string) => md.replace(DOLLAR_TOKENS, (m) => (m === '$' ? '\\$' : m));
+
+// ── Vault images ──────────────────────────────────────────────────────────────
+
+const IMAGE_EMBED = /!\[\[([^\]|]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif))(?:\|([^\]]*))?\]\]/gi;
+const escAttr = (v: string) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+// Obsidian's ![[image.png|300]] as an <img>; ![](file.png) is already one.
+function embedImages(md: string) {
+  return md.replace(IMAGE_EMBED, (_, name: string, size?: string) => {
+    const width = size?.match(/^\s*(\d+)/)?.[1];
+    return `<img src="${escAttr(encodeURI(name.trim()))}" alt="${escAttr(name.trim())}"${width ? ` width="${width}"` : ''}>`;
+  });
+}
+
+// The note being shown, so an image link can resolve relative to it.
+const NotePathContext = createContext<string | null>(null);
+
+// Vault images need the auth header, so they're fetched and shown as blob URLs.
+function VaultImage({ src, alt, node: _node, ...rest }: any) {
+  const note = useContext(NotePathContext);
+  const external = !src || /^(https?:|data:|blob:)/i.test(src);
+  const [url, setUrl] = useState<string | null>(external ? src : null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (external) { setUrl(src); return; }
+    let link = src as string;
+    try { link = decodeURI(link); } catch { /* not encoded */ }
+    let objectUrl: string | null = null;
+    let alive = true;
+    setFailed(false);
+    fetch(`/api/reviews/vault/image?src=${encodeURIComponent(link)}&note=${encodeURIComponent(note ?? '')}`, {
+      headers: { Authorization: `Bearer ${useAuth.getState().token ?? ''}` },
+    })
+      .then((r) => (r.ok ? r.blob() : Promise.reject()))
+      .then((b) => { if (!alive) return; objectUrl = URL.createObjectURL(b); setUrl(objectUrl); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [src, note, external]);
+
+  if (failed) return <span className="text-xs text-gray-400 dark:text-gray-500">[image not found: {alt || src}]</span>;
+  if (!url) return <span className="inline-block w-full h-32 rounded-lg bg-gray-100 dark:bg-white/[0.05] animate-pulse" />;
+  return <img src={url} alt={alt ?? ''} loading="lazy" className="max-w-full h-auto rounded-lg my-3" {...rest} />;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -135,13 +217,15 @@ export default function ReviewContent() {
     return () => obs.disconnect();
   }, [data]);
 
-  const handleRating = async (rating: 'hard' | 'ok' | 'easy') => {
+  const handleRating = async (rating: Rating) => {
     if (!data?.record) return;
     setRatingLoading(true);
     try {
-      await api.completeReview(data.record.id, rating);
+      const r = await api.completeReview(data.record.id, rating);
       if (posKey) localStorage.removeItem(posKey);
-      toast.success({ hard: 'Keep at it!', ok: 'Good job!', easy: 'Nailed it!' }[rating]);
+      // One toast: the XP it earned and when it comes back.
+      const next = rating === 'again' ? 'back tomorrow' : `next in ${fmtGap(r.next?.days ?? 1)}`;
+      if (!celebrate(r.xp, undefined, next)) toast(next[0].toUpperCase() + next.slice(1), { id: 'review-next' });
       navigate('/review');
     } catch (err: any) { toast.error(err.message); }
     setRatingLoading(false);
@@ -153,7 +237,7 @@ export default function ReviewContent() {
     const stripped = rawContent.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
     // Split on fenced code blocks; only transform even-indexed segments (non-code)
     const parts = stripped.split(/(^```[\s\S]*?^```)/m);
-    return parts.map((p, i) => i % 2 === 0 ? p.replace(/==([^=\n]+)==/g, '<mark>$1</mark>') : p).join('');
+    return parts.map((p, i) => i % 2 === 0 ? embedImages(escapeLoneDollars(p).replace(/==([^=\n]+)==/g, '<mark>$1</mark>')) : p).join('');
   }, [rawContent]);
 
   const headings = useMemo(() => extractHeadings(content), [content]);
@@ -162,23 +246,34 @@ export default function ReviewContent() {
   const hCountRef = useRef(0);
   hCountRef.current = 0;
   const mdComponents = {
+    img: VaultImage,
     h1: ({ children, ...p }: any) => <h1 id={`h-${hCountRef.current++}`} {...p}>{children}</h1>,
     h2: ({ children, ...p }: any) => <h2 id={`h-${hCountRef.current++}`} {...p}>{children}</h2>,
     h3: ({ children, ...p }: any) => <h3 id={`h-${hCountRef.current++}`} {...p}>{children}</h3>,
+    // A table sits on a plate like a code block and scrolls sideways, so narrow screens
+    // don't squeeze its columns.
+    table: ({ node: _node, ...p }: any) => (
+      <div className="my-4 overflow-x-auto rounded-lg bg-[#f6f8fa] dark:bg-[#161b22] px-4 py-1">
+        <table {...p} className="my-0 w-max min-w-full max-w-none" />
+      </div>
+    ),
     code({ className, children, ...rest }: any) {
-      const match = /language-(\w+)/.exec(className ?? '');
-      if (match) {
+      const text = String(children);
+      // Only a fenced block ends with a newline; inline code never does.
+      const language = /language-([\w+#-]+)/.exec(className ?? '')?.[1].toLowerCase()
+        ?? (text.endsWith('\n') && looksLikeJson(text) ? 'json' : undefined);
+      if (language) {
         return (
           <SyntaxHighlighter
             style={resolvedTheme === 'dark' ? oneDark : oneLight}
-            language={match[1]}
+            language={language}
             PreTag="div"
             className="rounded-lg text-sm my-4"
             customStyle={resolvedTheme === 'dark'
               ? { background: '#161b22', borderRadius: '0.5rem', padding: '1rem', margin: '1rem 0', maxWidth: '100%', overflowX: 'auto' }
               : { background: '#f6f8fa', borderRadius: '0.5rem', padding: '1rem', margin: '1rem 0', maxWidth: '100%', overflowX: 'auto' }}
           >
-            {String(children).replace(/\n$/, '')}
+            {text.replace(/\n$/, '')}
           </SyntaxHighlighter>
         );
       }
@@ -193,7 +288,6 @@ export default function ReviewContent() {
   );
 
   const title = data?.title ?? data?.record?.course_name ?? data?.course?.name ?? 'Note';
-  const matchStatus = data?.record?.vault_match_status ?? data?.course?.vault_match_status;
   const obsidianUris = (data?.obsidian_uris ?? []) as string[];
   const paths = (data?.paths ?? []) as string[];
   const reviewedTimes = data?.record?.reviewed_times as number | undefined;
@@ -207,7 +301,7 @@ export default function ReviewContent() {
           className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors flex-shrink-0">
           <ArrowLeft size={18} />
         </button>
-        <h1 className={`flex-1 font-bold text-lg truncate ${matchStatus === 'none' ? 'text-red-500' : 'text-gray-900 dark:text-gray-100'}`}>
+        <h1 className={`flex-1 font-bold text-lg truncate text-gray-900 dark:text-gray-100`}>
           {title}
         </h1>
         {obsidianUris[0] && (
@@ -222,12 +316,6 @@ export default function ReviewContent() {
       <div className="flex items-center gap-2 mb-6 flex-wrap">
         {reviewedTimes !== undefined && (
           <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400">Review #{reviewedTimes + 1}</span>
-        )}
-        {paths.length > 1 && (
-          <span className="badge bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">{paths.length} notes merged</span>
-        )}
-        {matchStatus === 'none' && (
-          <span className="badge bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400">No vault match</span>
         )}
         {paths.map((p) => (
           <span key={p} className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[220px]">{p}</span>
@@ -273,17 +361,14 @@ export default function ReviewContent() {
               prose-a:text-brand-600 dark:prose-a:text-brand-400 prose-a:no-underline hover:prose-a:underline
               prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:rounded prose-code:text-sm prose-code:text-purple-700 dark:prose-code:text-purple-400 prose-code:before:content-none prose-code:after:content-none
               prose-pre:bg-gray-100 dark:prose-pre:bg-gray-900 prose-pre:text-gray-800 dark:prose-pre:text-gray-100 prose-pre:overflow-x-auto prose-pre:max-w-full
-              prose-table:block prose-table:overflow-x-auto
+              prose-th:whitespace-nowrap prose-td:max-w-[22rem]
               prose-blockquote:border-brand-300 dark:prose-blockquote:border-brand-700 prose-blockquote:text-gray-500 dark:prose-blockquote:text-gray-400
               prose-li:text-gray-600 dark:prose-li:text-gray-300 prose-strong:text-gray-800 dark:prose-strong:text-gray-100 prose-hr:border-gray-200 dark:prose-hr:border-gray-800">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={mdComponents}>
-                {content}
-              </ReactMarkdown>
-            </div>
-          ) : matchStatus === 'none' ? (
-            <div className="text-center py-16 text-gray-400 dark:text-gray-500">
-              <p className="text-sm">No matching note found in vault for <span className="font-medium text-gray-600 dark:text-gray-300">"{title}"</span>.</p>
-              <p className="text-xs mt-2">Create a note in Obsidian with a matching name, then reload.</p>
+              <NotePathContext.Provider value={paths[0] ?? null}>
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeRaw, [rehypeKatex, KATEX_OPTIONS]]} components={mdComponents}>
+                  {content}
+                </ReactMarkdown>
+              </NotePathContext.Provider>
             </div>
           ) : (
             <div className="text-center py-16 text-gray-400 dark:text-gray-500 text-sm">No content available.</div>
@@ -291,16 +376,19 @@ export default function ReviewContent() {
 
           {/* Rating footer */}
           {isRecord && data?.record && (
-            <div className="mt-10 pt-5 border-t border-gray-100 dark:border-gray-800">
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 text-center">How well did you recall?</p>
-              <div className="flex gap-2">
-                {(['hard', 'ok', 'easy'] as const).map((r) => (
-                  <button key={r} onClick={() => handleRating(r)} disabled={ratingLoading}
-                    className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-colors disabled:opacity-40 ${r === 'hard' ? 'bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-100 dark:hover:bg-red-900' :
-                      r === 'ok' ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900 hover:bg-amber-100 dark:hover:bg-amber-900' :
-                        'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 border-green-200 dark:border-green-900 hover:bg-green-100 dark:hover:bg-green-900'
-                      }`}>
-                    {r === 'hard' ? 'Hard' : r === 'ok' ? 'OK' : 'Easy'}
+            <div className="mt-10 pt-5 border-t border-gray-100 dark:border-white/[0.08]">
+              <p className="text-xs text-gray-500 mb-1 text-center">How well did you recall it?</p>
+              <p className="text-[11px] text-gray-500 mb-3 text-center">
+                {data.memory?.recall != null
+                  ? `Predicted recall today: ${Math.round(data.memory.recall * 100)}% · reviewed ${data.memory.reps}×${data.memory.lapses ? ` · forgot ${data.memory.lapses}×` : ''}`
+                  : 'First review of this note'}
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {RATINGS.map((r) => (
+                  <button key={r.id} onClick={() => handleRating(r.id)} disabled={ratingLoading}
+                    className={`h-14 rounded-xl border flex flex-col items-center justify-center transition-colors disabled:opacity-40 ${r.cls}`}>
+                    <span className="text-sm font-bold">{r.label}</span>
+                    <span className="text-[11px] opacity-80">{fmtGap(data.memory?.preview?.[r.id] ?? 1)}</span>
                   </button>
                 ))}
               </div>

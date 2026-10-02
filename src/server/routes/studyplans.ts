@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../database.js';
 import { localDate } from '../date.js';
+import { awardXp, revokeXp, plantTreeForPlan, removeTreeForPlan, PLAN_XP, PLAN_TASK_XP } from '../garden.js';
 
 export const studyPlanRoutes = Router();
 
@@ -42,7 +43,7 @@ studyPlanRoutes.get('/:id', (req, res) => {
 
 studyPlanRoutes.post('/', (req, res) => {
   const userId = req.user!.id;
-  const { name, description, start_date, end_date } = req.body;
+  const { name, description, start_date, end_date, tree } = req.body;
   if (!name || !start_date || !end_date) {
     return res.status(400).json({ error: 'name, start_date, and end_date are required' });
   }
@@ -52,7 +53,8 @@ studyPlanRoutes.post('/', (req, res) => {
   ).run(name, description || '', start_date, end_date, userId);
 
   const plan = db.prepare('SELECT * FROM study_plans WHERE id = ?').get(result.lastInsertRowid) as any;
-  res.status(201).json({ data: { ...plan, is_completed: Boolean(plan.is_completed) } });
+  const planted = plantTreeForPlan(userId, plan.id, typeof tree === 'string' ? tree : null, 'created'); // every plan is a tree
+  res.status(201).json({ data: { ...plan, is_completed: Boolean(plan.is_completed) }, tree: planted?.species ?? null });
 });
 
 studyPlanRoutes.put('/:id', (req, res) => {
@@ -75,12 +77,16 @@ studyPlanRoutes.put('/:id', (req, res) => {
   );
 
   const updated = db.prepare('SELECT * FROM study_plans WHERE id = ?').get(req.params.id) as any;
-  res.json({ data: { ...updated, is_completed: Boolean(updated.is_completed) } });
+  let xp = null;
+  if (updated.is_completed && !existing.is_completed) xp = awardXp(userId, 'plan', updated.id, 'wisdom', PLAN_XP);
+  else if (!updated.is_completed && existing.is_completed) revokeXp('plan', updated.id);
+  res.json({ data: { ...updated, is_completed: Boolean(updated.is_completed) }, xp });
 });
 
 studyPlanRoutes.delete('/:id', (req, res) => {
   const userId = req.user!.id;
-  db.prepare('DELETE FROM study_plans WHERE id = ? AND user_id = ?').run(req.params.id, userId);
+  const r = db.prepare('DELETE FROM study_plans WHERE id = ? AND user_id = ?').run(req.params.id, userId);
+  if (r.changes) removeTreeForPlan(Number(req.params.id));
   res.json({ success: true });
 });
 
@@ -94,7 +100,8 @@ studyPlanRoutes.post('/:id/complete', (req, res) => {
   db.prepare(
     'UPDATE plan_tasks SET is_completed = 1, actual_end = ? WHERE plan_id = ? AND is_completed = 0'
   ).run(today, req.params.id);
-  res.json({ success: true });
+  const xp = awardXp(userId, 'plan', req.params.id, 'wisdom', PLAN_XP);
+  res.json({ success: true, xp });
 });
 
 // --- Plan Tasks (WBS tree) ---
@@ -195,7 +202,10 @@ studyPlanRoutes.put('/:planId/tasks/:taskId', (req, res) => {
   );
 
   const updated = db.prepare('SELECT * FROM plan_tasks WHERE id = ?').get(req.params.taskId) as any;
-  res.json({ data: { ...updated, is_completed: Boolean(updated.is_completed) } });
+  let xp = null;
+  if (updated.is_completed && !existing.is_completed) xp = awardXp(userId, 'plan_task', updated.id, 'wisdom', PLAN_TASK_XP);
+  else if (!updated.is_completed && existing.is_completed) revokeXp('plan_task', updated.id);
+  res.json({ data: { ...updated, is_completed: Boolean(updated.is_completed) }, xp });
 });
 
 studyPlanRoutes.delete('/:planId/tasks/:taskId', (req, res) => {

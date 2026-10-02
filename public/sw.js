@@ -1,6 +1,6 @@
 // App-shell caching. iOS evicts the HTTP cache of home-screen apps aggressively, so
 // hashed bundles are kept in Cache Storage and served without touching the network.
-const CACHE = 'besmart-shell-v1';
+const CACHE = 'besmart-shell-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 

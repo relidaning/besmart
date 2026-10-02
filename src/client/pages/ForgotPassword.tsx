@@ -26,13 +26,13 @@ export default function ForgotPassword() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-brand-600 rounded-2xl flex items-center justify-center mb-3">
-            <Brain size={24} className="text-white" />
+          <div className="w-12 h-12 bg-brand-400 rounded-2xl flex items-center justify-center mb-3">
+            <Brain size={24} className="text-ink" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Reset password</h1>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-[14px] border border-gray-200/70 dark:border-white/[0.08] p-6">
           {sent ? (
             <div className="text-center">
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
@@ -61,7 +61,7 @@ export default function ForgotPassword() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-medium hover:bg-brand-700 disabled:opacity-60 transition-colors"
+                className="w-full py-2.5 bg-brand-400 text-ink rounded-xl text-sm font-bold hover:bg-brand-300 disabled:opacity-60 transition-colors"
               >
                 {loading ? 'Sending…' : 'Send reset link'}
               </button>

@@ -1,4 +1,5 @@
 import { useAuth } from '../store/auth';
+import { celebrate } from '../lib/garden';
 
 const BASE = '/api';
 
@@ -14,7 +15,8 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
+// `quiet` skips the XP toast, for callers that show it themselves with more detail.
+async function request<T>(url: string, options?: RequestInit, { quiet = false } = {}): Promise<T> {
   const method = (options?.method ?? 'GET').toUpperCase();
 
   if (method === 'GET') {
@@ -22,9 +24,14 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     if (hit && Date.now() - hit.at < TTL) return hit.data as T;
   }
 
+  // A connection that died while the phone slept can leave fetch pending forever,
+  // freezing whatever waits on it, so give up after 15 s and let the user retry.
   const res = await fetch(`${BASE}${url}`, {
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    signal: AbortSignal.timeout(15_000),
     ...options,
+  }).catch((err) => {
+    throw new Error(err?.name === 'TimeoutError' ? 'The server took too long to answer. Try again.' : 'Network error. Try again.');
   });
 
   if (res.status === 401) {
@@ -44,8 +51,13 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   } else {
     const resource = url.split('/')[1];
     for (const k of _cache.keys()) {
-      if (k.split('?')[0].split('/')[1] === resource) _cache.delete(k);
+      const r = k.split('?')[0].split('/')[1];
+      // Any completion can move XP, so garden/dashboard views are always stale after a mutation.
+      if (r === resource || r === 'garden' || r === 'dashboard') _cache.delete(k);
     }
+    if (!quiet) celebrate(data?.xp);
+    celebrate(data?.bonus, 'Check-in done'); // the "Complete 5 todos" check-in ticked itself
+    if (data?.xp || data?.bonus) window.dispatchEvent(new Event('besmart:xp')); // AchievementWatcher
   }
 
   return data;
@@ -91,8 +103,10 @@ export const api = {
 
   // Reviews
   getDueReviews: (search?: string) => request<any>(`/reviews/due${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-  completeReview: (id: number, rating: 'hard' | 'ok' | 'easy') =>
-    request<any>(`/reviews/records/${id}/complete`, { method: 'POST', body: JSON.stringify({ rating }) }),
+  addDiaryEntry: (text: string, type: string = 'daily', previous = false) =>
+    request<{ success: boolean; path: string; heading: string }>('/checkins/diary', { method: 'POST', body: JSON.stringify({ text, type, previous }) }),
+  completeReview: (id: number, rating: 'again' | 'hard' | 'ok' | 'easy') =>
+    request<any>(`/reviews/records/${id}/complete`, { method: 'POST', body: JSON.stringify({ rating }) }, { quiet: true }),
   getCourses: () => request<any>('/reviews/courses'),
   createCourse: (data: any) => request<any>('/reviews/courses', { method: 'POST', body: JSON.stringify(data) }),
   updateCourse: (id: number, data: any) => request<any>(`/reviews/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -105,8 +119,6 @@ export const api = {
     request<any>(`/reviews/vault/content?path=${encodeURIComponent(notePath)}`),
   importVaultNotes: (paths: string[]) =>
     request<any>('/reviews/vault/import', { method: 'POST', body: JSON.stringify({ paths }) }),
-  rematchVault: () => request<any>('/reviews/courses/rematch', { method: 'POST' }),
-  syncVault: () => request<any>('/reviews/vault/sync', { method: 'POST' }),
   getVaultConfig: () => request<any>('/reviews/vault/config'),
   setVaultConfig: (data: { vault_root?: string; vault_name?: string }) =>
     request<any>('/reviews/vault/config', { method: 'PUT', body: JSON.stringify(data) }),
@@ -123,9 +135,17 @@ export const api = {
   deleteTodo: (id: number) => request<any>(`/todos/${id}`, { method: 'DELETE' }),
   getTodoStats: () => request<any>('/todos/stats/overview'),
 
+  // Growth Garden
+  getGardenSummary: () => request<any>('/garden/summary'),
+  getGardenPlants: () => request<any>('/garden/plants'),
+  getGardenEvents: (params: { before?: number; plant?: number; limit?: number } = {}) =>
+    request<any>(`/garden/events?${new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]))}`),
+  getGardenTrees: () => request<any>('/garden/trees'),
+
   // Music
   getMusicCatalog: () => request<any>('/music/catalog'),
   getMusicLibrary: () => request<any>('/music/library'),
+  getSleepTracks: () => request<any>('/music/sleep'),
   addMusicTrack: (id: string) => request<any>('/music/library', { method: 'POST', body: JSON.stringify({ id }) }),
   removeMusicTrack: (id: string) => request<any>(`/music/library/${id}`, { method: 'DELETE' }),
 };

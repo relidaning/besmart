@@ -6,6 +6,9 @@ import { FolderOpen } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import DatePicker from '../components/ui/DatePicker';
+import PlantIcon from '../components/PlantIcon';
+import { SPECIES } from '../../shared/gardenSpecies';
+import { PageHeader, StatTiles, XpChip, EmptyState } from '../components/PageKit';
 
 interface Plan {
   id: number;
@@ -31,7 +34,17 @@ export default function Plans() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'active' | 'completed'>('active');
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', start_date: '', end_date: '' });
+  const [form, setForm] = useState({ name: '', description: '', start_date: '', end_date: '', tree: '' });
+  const [trees, setTrees] = useState<string[]>([]);
+
+  // Every plan plants a tree; pick from the unlocked species (a random one preselected).
+  useEffect(() => {
+    if (!showForm) return;
+    api.getGardenTrees().then((r: { data: string[] }) => {
+      setTrees(r.data);
+      setForm((f) => (f.tree && r.data.includes(f.tree) ? f : { ...f, tree: r.data[Math.floor(Math.random() * r.data.length)] ?? '' }));
+    }).catch(() => {});
+  }, [showForm]);
 
   const fetchPlans = () => {
     api.getPlans().then((r) => setPlans(r.data)).finally(() => setLoading(false));
@@ -41,16 +54,17 @@ export default function Plans() {
 
   const activePlans = plans.filter((p) => !p.is_completed);
   const completedPlans = plans.filter((p) => p.is_completed);
+  const overdueCount = activePlans.filter((p) => p.expired).length;
   const displayed = tab === 'active' ? activePlans : completedPlans;
   const { visible, sentinelRef } = useInfiniteScroll(displayed.length, tab);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.createPlan(form);
-      toast.success('Plan created');
+      const r = await api.createPlan(form);
+      toast.success(r.tree ? `Plan created · ${SPECIES[r.tree]?.name ?? 'a tree'} planted in your garden` : 'Plan created');
       setShowForm(false);
-      setForm({ name: '', description: '', start_date: '', end_date: '' });
+      setForm({ name: '', description: '', start_date: '', end_date: '', tree: '' });
       fetchPlans();
     } catch (err: any) {
       toast.error(err.message);
@@ -67,29 +81,34 @@ export default function Plans() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Study Plans</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">{activePlans.length} active, {completedPlans.length} completed</p>
-        </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary text-sm flex-shrink-0 whitespace-nowrap">+ New Plan</button>
-      </div>
+      <PageHeader
+        icon={FolderOpen}
+        title="Study Plans"
+        subtitle="Goals broken into steps. Each finished step earns Wisdom XP."
+        actions={<button onClick={() => setShowForm(true)} className="btn-primary text-sm whitespace-nowrap">+ New Plan</button>}
+      />
+
+      <StatTiles stats={[
+        { value: activePlans.length, label: 'Active' },
+        { value: completedPlans.length, label: 'Completed' },
+        {
+          value: overdueCount,
+          label: 'Overdue',
+          tone: overdueCount > 0 ? 'critical' : 'muted',
+        },
+      ]} />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded-xl p-1">
+      <div className="seg">
         <button
           onClick={() => setTab('active')}
-          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-            tab === 'active' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-          }`}
+          className={tab === 'active' ? 'on' : ''}
         >
           Active ({activePlans.length})
         </button>
         <button
           onClick={() => setTab('completed')}
-          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-            tab === 'completed' ? 'bg-brand-500 text-white font-semibold shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-          }`}
+          className={tab === 'completed' ? 'on' : ''}
         >
           Done ({completedPlans.length})
         </button>
@@ -97,18 +116,14 @@ export default function Plans() {
 
       {/* Plan list */}
       {displayed.length === 0 ? (
-        <motion.div variants={listItem} className="card text-center py-12">
-          <div className="flex justify-center mb-4 text-gray-300 dark:text-gray-700"><FolderOpen size={48} /></div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            {tab === 'active' ? 'No active plans' : 'No completed plans yet'}
-          </h3>
+        <EmptyState icon={FolderOpen} title={tab === 'active' ? 'No active plans' : 'No completed plans yet'}>
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
             {tab === 'active' ? 'Create your first learning plan to get started.' : 'Complete a plan to see it here.'}
           </p>
           {tab === 'active' && (
             <button onClick={() => setShowForm(true)} className="btn-primary">Create a Plan</button>
           )}
-        </motion.div>
+        </EmptyState>
       ) : (
         <>
           {displayed.slice(0, visible).map((plan) => (
@@ -126,6 +141,7 @@ export default function Plans() {
                 <div className="flex items-center justify-between gap-3 mt-2">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
                     <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">{plan.start_date} → {plan.end_date}</span>
+                    {!plan.is_completed && <XpChip attribute="wisdom" amount={50} />}
                     {plan.expired && !plan.is_completed && (
                       <span className="badge badge-high">Overdue</span>
                     )}
@@ -146,12 +162,12 @@ export default function Plans() {
       {showForm && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md p-6"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">New Plan</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -176,6 +192,24 @@ export default function Plans() {
                 <DatePicker value={form.end_date}
                   onChange={(v) => setForm({ ...form, end_date: v })} required />
               </div>
+              {trees.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Tree <span className="font-normal text-gray-500">· grows as you finish its tasks</span>
+                  </label>
+                  <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+                    {trees.map((t) => (
+                      <button type="button" key={t} onClick={() => setForm({ ...form, tree: t })}
+                        className={`flex w-16 flex-shrink-0 flex-col items-center rounded-lg border pt-1 pb-1.5 transition-colors ${form.tree === t
+                          ? 'border-brand-400/70 bg-brand-400/[0.12]'
+                          : 'border-gray-200/70 dark:border-white/[0.08]'}`}>
+                        <PlantIcon species={t} size={40} />
+                        <span className="text-[10px] leading-3 text-center text-gray-600 dark:text-gray-300">{SPECIES[t]?.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
                 <button type="submit" className="btn-primary flex-1">Create Plan</button>
                 <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>

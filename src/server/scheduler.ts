@@ -1,12 +1,14 @@
 import db from './database.js';
-import { localDate } from './date.js';
+import { localDate, effectiveDate } from './date.js';
+import { intervalFor } from './fsrs.js';
 
-const REVIEW_INTERVALS = [1, 3, 7, 15, 30, 60, 120, 240];
 
 export function scheduleJob() {
-  const now = new Date();
-  const today = localDate(now);
-  const prev = new Date(now);
+  // The app's day runs until DAY_START_HOUR (06:00), not midnight: check-ins done at
+  // 01:00 belong to the day before. Using calendar dates here closed "yesterday" at
+  // midnight and froze its score before those late check-ins landed.
+  const today = effectiveDate();
+  const prev = new Date(`${today}T12:00:00`);
   prev.setDate(prev.getDate() - 1);
   const yesterday = localDate(prev);
 
@@ -52,11 +54,12 @@ export function scheduleJob() {
         db.prepare('UPDATE checkin_tasks SET is_timeout = 1 WHERE id = ?').run(t.id);
       }
 
-      // Record yesterday's earned score (sum of completed task scores — daily + non-daily)
+      // Record yesterday's earned score (sum of completed task scores — daily + non-daily).
+      // Recomputed on every run, so a late completion or undo still corrects it.
       const existingScore = db.prepare(
         'SELECT id FROM scores WHERE score_date = ? AND user_id = ?'
-      ).get(yesterday, user_id);
-      if (!existingScore) {
+      ).get(yesterday, user_id) as { id: number } | undefined;
+      {
         const earned = (db.prepare(`
           SELECT COALESCE(SUM(s.score), 0) as total
           FROM checkin_tasks t
@@ -66,8 +69,12 @@ export function scheduleJob() {
               OR (t.schedule_type != 'daily' AND t.is_completed = 1 AND DATE(t.completed_at) = ?))
         `).get(user_id, yesterday, yesterday) as any).total;
 
-        db.prepare('INSERT INTO scores (score_date, score, user_id) VALUES (?, ?, ?)')
-          .run(yesterday, earned, user_id);
+        if (existingScore) {
+          db.prepare('UPDATE scores SET score = ? WHERE id = ?').run(earned, existingScore.id);
+        } else {
+          db.prepare('INSERT INTO scores (score_date, score, user_id) VALUES (?, ?, ?)')
+            .run(yesterday, earned, user_id);
+        }
       }
 
       // Ensure non-daily tasks exist if no uncompleted ones
@@ -157,33 +164,25 @@ export function scheduleJob() {
       }
     }
 
-    // Generate next review records for all completed reviews
-    const courses = db.prepare(`
-      SELECT r.* FROM review_records r
-      JOIN (
-        SELECT course_id, MAX(reviewed_times) as max_times
-        FROM review_records GROUP BY course_id
-      ) latest ON r.course_id = latest.course_id AND r.reviewed_times = latest.max_times
-      WHERE r.is_reviewed = 1
+    // Safety net for review courses left without a pending review (the normal path,
+    // POST /reviews/records/:id/complete, always schedules the next one with FSRS).
+    // This replaced a legacy job that re-derived "next" reviews from a fixed
+    // 1/3/7/15/30/60/120/240-day ladder, a second scheduler that fought FSRS.
+    const orphans = db.prepare(`
+      SELECT c.id, c.fsrs_stability, c.fsrs_last_review,
+        (SELECT MAX(reviewed_times) FROM review_records WHERE course_id = c.id) AS times
+      FROM review_courses c
+      WHERE EXISTS (SELECT 1 FROM review_records WHERE course_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM review_records WHERE course_id = c.id AND is_reviewed = 0)
     `).all() as any[];
-
     const insertRecord = db.prepare(
-      'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date) VALUES (?, 0, ?, ?)'
+      'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date, interval_days) VALUES (?, 0, ?, ?, ?)'
     );
-    const existingRecords = db.prepare(
-      'SELECT course_id, reviewed_times FROM review_records WHERE is_reviewed = 0'
-    ).all() as any[];
-    const existingSet = new Set(existingRecords.map((e: any) => `${e.course_id}-${e.reviewed_times}`));
-
-    for (const r of courses) {
-      const nextTimes = r.reviewed_times + 1;
-      if (nextTimes >= REVIEW_INTERVALS.length) continue;
-      const key = `${r.course_id}-${nextTimes}`;
-      if (existingSet.has(key)) continue;
-
-      const nextDate = new Date(r.reviewed_date || r.planned_date);
-      nextDate.setDate(nextDate.getDate() + REVIEW_INTERVALS[nextTimes]);
-      insertRecord.run(r.course_id, nextTimes, localDate(nextDate));
+    for (const c of orphans) {
+      const interval = c.fsrs_stability ? intervalFor(c.fsrs_stability) : 1;
+      const due = new Date(`${c.fsrs_last_review ?? today}T12:00:00`);
+      due.setDate(due.getDate() + interval);
+      insertRecord.run(c.id, (c.times ?? 0) + 1, localDate(due), interval);
     }
   });
 

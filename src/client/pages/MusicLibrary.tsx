@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, Plus, Trash2, ListMusic, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PageHeader } from '../components/PageKit';
 import { api } from '../hooks/api';
 
 const PAGE_SIZE = 8;
@@ -99,21 +100,12 @@ export default function MusicLibrary() {
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
       <audio ref={audioRef} onEnded={() => setPlayingId(null)} />
 
-      <div>
-        <button
-          onClick={() => navigate(-1)}
-          className="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 mb-3 block"
-        >
-          ← Back
-        </button>
-        <div className="flex items-center gap-2">
-          <ListMusic size={22} className="text-brand-600 dark:text-brand-400" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Manage Music</h1>
-        </div>
-        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-          {activeIds.length} of {available.length} tracks active in the focus-music rotation.
-        </p>
-      </div>
+      <PageHeader
+        icon={ListMusic}
+        title="Manage Music"
+        subtitle={`${activeIds.length} of ${available.length} tracks active in the focus-music rotation.`}
+        onBack={() => navigate(-1)}
+      />
 
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
@@ -127,7 +119,7 @@ export default function MusicLibrary() {
 
       {error && <div className="text-sm text-red-500">{error}</div>}
 
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-[14px] border border-gray-200/70 dark:border-white/[0.08] divide-y divide-gray-100 dark:divide-white/[0.06] overflow-hidden">
         {!catalog && <div className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">Loading…</div>}
         {catalog && filtered.length === 0 && (
           <div className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">No matches</div>

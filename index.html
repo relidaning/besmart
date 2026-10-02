@@ -3,12 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, user-scalable=no"
     />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#7c3aed" />
+    <meta name="theme-color" content="#0d0e13" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -23,7 +25,6 @@
   </head>
   <body
     class="bg-gray-50 text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100"
-    style="word-break: break-all"
   >
     <div id="root"></div>
     <script type="module" src="/src/client/main.tsx"></script>

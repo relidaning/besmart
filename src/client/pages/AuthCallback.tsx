@@ -34,8 +34,8 @@ export default function AuthCallback() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-12 h-12 bg-brand-600 rounded-2xl flex items-center justify-center">
-          <Brain size={24} className="text-white" />
+        <div className="w-12 h-12 bg-brand-400 rounded-2xl flex items-center justify-center">
+          <Brain size={24} className="text-ink" />
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">Signing you in…</p>
       </div>

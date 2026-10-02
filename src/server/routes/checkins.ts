@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import db from '../database.js';
 import { localDate, effectiveDate } from '../date.js';
+import fs from 'fs';
+import path from 'path';
+import { awardXp, revokeXp, scheduleCategory, isAttribute, MIN_CHECKIN_XP } from '../garden.js';
+import { getUserVaultConfig } from './reviews.js';
+import { diaryPeriod, diaryHeadingKey, isDiaryType, type DiaryType } from '../../shared/diary.js';
 
 export const checkinRoutes = Router();
 
@@ -9,7 +14,7 @@ checkinRoutes.get('/today', (req, res) => {
   const date = (req.query.date as string) || effectiveDate();
 
   const tasks = db.prepare(`
-    SELECT t.*, s.score
+    SELECT t.*, s.score, s.category, s.name
     FROM checkin_tasks t
     JOIN checkin_schedules s ON t.schedule_id = s.id
     WHERE s.user_id = ?
@@ -24,8 +29,9 @@ checkinRoutes.get('/today', (req, res) => {
   res.json({
     data: {
       date,
-      tasks: tasks.map((t) => ({
+      tasks: tasks.map(({ name, ...t }) => ({
         ...t,
+        category: scheduleCategory({ category: t.category, name }),
         is_completed: Boolean(t.is_completed),
         is_timeout: Boolean(t.is_timeout),
       })),
@@ -39,7 +45,7 @@ checkinRoutes.get('/today', (req, res) => {
 checkinRoutes.post('/tasks/:id/complete', (req, res) => {
   const userId = req.user!.id;
   const task = db.prepare(`
-    SELECT t.* FROM checkin_tasks t
+    SELECT t.*, s.score, s.category, s.name FROM checkin_tasks t
     JOIN checkin_schedules s ON t.schedule_id = s.id
     WHERE t.id = ? AND s.user_id = ?
   `).get(req.params.id, userId) as any;
@@ -50,7 +56,8 @@ checkinRoutes.post('/tasks/:id/complete', (req, res) => {
     'UPDATE checkin_tasks SET is_completed = 1, completed_at = ? WHERE id = ?'
   ).run(now, req.params.id);
 
-  res.json({ success: true });
+  const xp = awardXp(userId, 'checkin', task.id, scheduleCategory(task), Math.max(task.score || 0, MIN_CHECKIN_XP));
+  res.json({ success: true, xp });
 });
 
 checkinRoutes.post('/tasks/:id/uncomplete', (req, res) => {
@@ -65,6 +72,7 @@ checkinRoutes.post('/tasks/:id/uncomplete', (req, res) => {
   db.prepare(
     'UPDATE checkin_tasks SET is_completed = 0, completed_at = NULL, is_timeout = 0 WHERE id = ?'
   ).run(req.params.id);
+  revokeXp('checkin', task.id);
   res.json({ success: true });
 });
 
@@ -78,6 +86,7 @@ checkinRoutes.get('/schedules', (req, res) => {
   res.json({
     data: (schedules as any[]).map((s) => ({
       ...s,
+      category: scheduleCategory(s),
       is_active: Boolean(s.is_active),
     })),
   });
@@ -85,14 +94,14 @@ checkinRoutes.get('/schedules', (req, res) => {
 
 checkinRoutes.post('/schedules', (req, res) => {
   const userId = req.user!.id;
-  const { name, type, score } = req.body;
+  const { name, type, score, category } = req.body;
   if (!name || !type) {
     return res.status(400).json({ error: 'name and type are required' });
   }
 
   const result = db.prepare(
-    'INSERT INTO checkin_schedules (name, type, score, user_id) VALUES (?, ?, ?, ?)'
-  ).run(name, type, score || 0, userId);
+    'INSERT INTO checkin_schedules (name, type, score, user_id, category) VALUES (?, ?, ?, ?, ?)'
+  ).run(name, type, score || 0, userId, isAttribute(category) ? category : null);
 
   const scheduleId = result.lastInsertRowid;
 
@@ -109,7 +118,7 @@ checkinRoutes.post('/schedules', (req, res) => {
 
 checkinRoutes.put('/schedules/:id', (req, res) => {
   const userId = req.user!.id;
-  const { name, type, score, is_active } = req.body;
+  const { name, type, score, is_active, category } = req.body;
   const existing = db.prepare(
     'SELECT * FROM checkin_schedules WHERE id = ? AND user_id = ?'
   ).get(req.params.id, userId) as any;
@@ -120,12 +129,13 @@ checkinRoutes.put('/schedules/:id', (req, res) => {
   const becomingActive = is_active === true && !existing.is_active;
 
   db.prepare(
-    'UPDATE checkin_schedules SET name = ?, type = ?, score = ?, is_active = ? WHERE id = ?'
+    'UPDATE checkin_schedules SET name = ?, type = ?, score = ?, is_active = ?, category = ? WHERE id = ?'
   ).run(
     newName,
     newType,
     score ?? existing.score,
     is_active !== undefined ? (is_active ? 1 : 0) : existing.is_active,
+    isAttribute(category) ? category : existing.category,
     req.params.id
   );
 
@@ -214,3 +224,53 @@ export function computeStreak(userId: number): number {
   }
   return streak;
 }
+
+// ── Diary ─────────────────────────────────────────────────────────────────────
+// A diary entry appended to the vault's diary folder (0_lidaning/Diaries). A daily
+// entry is a short note about the day, written the way the monthly note's other
+// entries are: a "### YYYY-MM-DD" heading per day, then "- HH:MM text". Weekly,
+// monthly and yearly diaries are longer and go in as written, under a heading for
+// their period. shared/diary.ts decides the note and the heading.
+
+const DIARY_DIR = process.env.DIARY_DIR ?? '0_lidaning/Diaries';
+const DIARY_MAX = { daily: 4000, weekly: 20000, monthly: 20000, yearly: 20000 };
+
+checkinRoutes.post('/diary', (req, res) => {
+  const text: string = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  const type: DiaryType = isDiaryType(req.body?.type) ? req.body.type : 'daily';
+  if (!text) return res.status(400).json({ error: 'Write something first' });
+  if (text.length > DIARY_MAX[type]) return res.status(400).json({ error: `Too long (${DIARY_MAX[type]} characters at most)` });
+  const cfg = getUserVaultConfig(req.user!.id);
+  if (!cfg) return res.status(400).json({ error: 'No vault configured' });
+
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const period = diaryPeriod(type, localDate(now), type !== 'daily' && req.body?.previous === true);
+  const rel = `${DIARY_DIR}/${period.note}`;
+  const file = path.join(cfg.vaultRoot, rel);
+  try {
+    const owner = fs.statSync(cfg.vaultRoot);
+    if (!fs.existsSync(path.dirname(file))) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      try { fs.chownSync(path.dirname(file), owner.uid, owner.gid); } catch { /* best effort */ }
+    }
+    const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : '';
+    // The entry joins the note's last diary heading when that is its own period,
+    // and starts a new heading otherwise.
+    const lastKey = [...existing.matchAll(/^#{1,6}\s+(.*?)\s*$/gm)]
+      .map((m) => diaryHeadingKey(m[1])).filter(Boolean).pop();
+    const [first, ...rest] = text.split(/\r?\n/);
+    const entry = type === 'daily'
+      ? [`- ${time} ${first}`, ...rest.filter((l) => l.trim()).map((l) => `\t${l}`)].join('\n')
+      : text.replace(/\r\n/g, '\n');
+    let add = lastKey === period.key
+      ? (type === 'daily' ? '' : '\n')
+      : `${existing ? '\n' : ''}### ${period.heading}\n\n`;
+    if (existing && !existing.endsWith('\n')) add = `\n${add}`;
+    fs.appendFileSync(file, `${add}${entry}\n`);
+    if (!existing) { try { fs.chownSync(file, owner.uid, owner.gid); } catch { /* best effort */ } }
+    res.json({ success: true, path: rel, heading: period.heading });
+  } catch (err) {
+    res.status(500).json({ error: `Couldn't write the diary: ${(err as Error).message}` });
+  }
+});
