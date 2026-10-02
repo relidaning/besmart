@@ -4,7 +4,7 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initializeDatabase } from './database.js';
+import db, { initializeDatabase } from './database.js';
 import { studyPlanRoutes } from './routes/studyplans.js';
 import { checkinRoutes } from './routes/checkins.js';
 import { reviewRoutes, syncVaultForAllConfiguredUsers } from './routes/reviews.js';
@@ -137,6 +137,31 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`BeSmart server running on http://localhost:${PORT}`);
 });
+
+// In the container Node is PID 1, where SIGTERM has no default action: without a
+// handler `docker stop`/`restart` waits out its 10 s grace period and then SIGKILLs.
+// Closing the DB also checkpoints the WAL into besmart.db, so a plain file copy of
+// it taken while the app is stopped is complete.
+let shuttingDown = false;
+function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received, shutting down`);
+  const finish = () => {
+    try {
+      db.close();
+    } catch (err) {
+      console.error('Error closing database:', err);
+    }
+    process.exit(0);
+  };
+  // Let in-flight requests finish, but don't wait on one that hangs.
+  server.close(finish);
+  server.closeIdleConnections();
+  setTimeout(finish, 3000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
