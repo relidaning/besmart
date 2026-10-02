@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-02 — Merged `growth-garden` into `master`
+Merged `growth-garden` (49 commits: Growth Garden, FSRS reviews, vault rules, secrets in `.env`, the diary types) into `master` with a merge commit; `master` was 2 commits ahead (PR #3, the single-timer daily push) and the merge had no conflicts. The merged build was deployed via the `dist/` swap (image not rebuilt) and the server came back up clean. The `growth-garden` branch was deleted locally and on GitHub afterwards. Open PR #2 still adds a migration 8, which now clashes with `master`'s migrations 8–15.
+
 ## 2026-10-02 — Diary dialog takes weekly, monthly and yearly entries
 The Check In diary dialog got a Daily/Weekly/Monthly/Yearly switch and, for the longer kinds, a "This / Last" period switch that defaults to the period just ended early in a new one (Mon–Tue, the 1st–5th, January). New `src/shared/diary.ts` picks the note and heading: weekly (`### Weekly 2026-W40 (09-28 – 10-04)`, ISO weeks) and monthly (`### Monthly 2026-10`) entries go into the monthly note, yearly ones (`### Yearly 2026`) into `YYYY/YYYY.md`, as written rather than as `- HH:MM` bullets. All four kinds were tested through the endpoint on a scratch server with a vault copy and in phone-width screenshots, then deployed via the `dist/` swap (image not rebuilt), committed and pushed to origin `growth-garden`. Not checked on the phone, and no entry was written to the real vault.
 
