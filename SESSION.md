@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-03 — Unattended review of PRs #2, #4, #5: #4 and #5 merged, #2 held
+Each PR was tested on top of `master` in a separate worktree, running the old and new server builds on copies of the prod DB. #4 (auth crash: 5 of 6 malformed payloads crashed `master`, none with the PR) and #5 (watcher `EACCES` crash gone; a 503 push is retried and delivered after 5 s) were merged on GitHub but not deployed, and local `master` was left 2 commits behind. #2 was held: it conflicts with `master` (its migration 8 must become 16, and the due query's `r.id ASC` tie-break must be re-applied by hand) and it changes the schema and the image, though its index claim reproduced (`GET /reviews/due` 54 ms → 2.6 ms). The run also found that `POST /api/auth/reset-password` fails with `no such column: "now"` (`datetime("now")` in double quotes in `auth.ts`), which is not fixed.
+
 ## 2026-10-02 — Merged `growth-garden` into `master`
 Merged `growth-garden` (49 commits: Growth Garden, FSRS reviews, vault rules, secrets in `.env`, the diary types) into `master` with a merge commit; `master` was 2 commits ahead (PR #3, the single-timer daily push) and the merge had no conflicts. The merged build was deployed via the `dist/` swap (image not rebuilt) and the server came back up clean. The `growth-garden` branch was deleted locally and on GitHub afterwards. Open PR #2 still adds a migration 8, which now clashes with `master`'s migrations 8–15.
 
