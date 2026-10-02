@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-02 — Diary hint under the text area, on one line
+In the Check In diary dialog the hint now sits under the text area instead of under the title (`126d224`, `CheckIn.tsx`). To fit one line at phone width it was shortened to "Saved to this month's diary note, with the time." and cuts off with an ellipsis rather than wrapping. Pushed to origin `growth-garden` and deployed via the `dist/` swap (image not rebuilt); not checked on the phone.
+
 ## 2026-10-02 — Bigger diary text area, review tables scroll sideways, JSON highlighting
 The Check In diary dialog is wider and its text area takes about a third of a phone screen (45% of the window on desktop) instead of 120px, with the dialog at the top on phones so the buttons stay above the keyboard (`f09d20e`). In `ReviewContent.tsx`, tables now sit on a code-block-style plate that scrolls sideways, and code fences labelled `jsonl`/`jsonc`/`zsh`/`cnf`, upper-case labels, and unlabelled blocks that parse as JSON are highlighted (`80345ac`); PrismLight's `registerLanguage` ignores the name passed to it, so those labels needed `alias()`. Both are pushed to origin `growth-garden` and deployed via the `dist/` swap (image not rebuilt), and were checked only in a phone-width test render, not on the phone; the note where the user saw unhighlighted JSON was not identified.
 
