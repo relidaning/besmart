@@ -135,6 +135,12 @@ services:
     depends_on:
       - besmart
     restart: unless-stopped
+    # Docker's json-file log has no size limit unless one is set.
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
 
   besmart:
     build:
@@ -176,6 +182,12 @@ services:
       - /data/nextcloud_client/obsidian/lidaning:/vault
       - ./config/mkcert:/certs:ro
     restart: unless-stopped
+    # Docker's json-file log has no size limit unless one is set.
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
 #  grocery:
 #    build:
 #      context: ./
