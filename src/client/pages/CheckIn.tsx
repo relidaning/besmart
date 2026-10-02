@@ -6,6 +6,7 @@ import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { ATTRIBUTES, ATTR_META, type Attribute } from '../lib/garden';
 import { PageHeader, StatTiles, XpChip, EmptyState, AttrDot } from '../components/PageKit';
+import { DIARY_TYPES, diaryPeriod, defaultsToPrevious, type DiaryType } from '../../shared/diary';
 
 // Mirrors MIN_CHECKIN_XP in server/garden.ts.
 const checkinXp = (score: number | null) => Math.max(score || 0, 5);
@@ -57,6 +58,19 @@ const typeBadges: Record<string, string> = {
   yearly: 'badge bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
 };
 
+// The diary dialog's wording per kind; the prompts follow the vault's diary templates.
+const DIARY_COPY: Record<DiaryType, { tab: string; title: string; placeholder: string; unit: string }> = {
+  daily: { tab: 'Daily', title: 'A moment of today', placeholder: 'What happened, what you did, how it felt…', unit: 'day' },
+  weekly: { tab: 'Weekly', title: 'Weekly diary', placeholder: 'What you achieved this week, and the plan for the next one…', unit: 'week' },
+  monthly: { tab: 'Monthly', title: 'Monthly diary', placeholder: 'Summary and score, how it went and why, and the plan for next month…', unit: 'month' },
+  yearly: { tab: 'Yearly', title: 'Yearly diary', placeholder: 'What you did this year, and what you want from the next one…', unit: 'year' },
+};
+
+const todayLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 export default function CheckIn() {
   const [data, setData] = useState<CheckinData | null>(null);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -65,6 +79,8 @@ export default function CheckIn() {
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [showDiary, setShowDiary] = useState(false);
   const [diaryText, setDiaryText] = useState('');
+  const [diaryType, setDiaryType] = useState<DiaryType>('daily');
+  const [diaryPrevious, setDiaryPrevious] = useState(false);
   const [savingDiary, setSavingDiary] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [scheduleForm, setScheduleForm] = useState<{ name: string; type: string; score: number; category?: Attribute }>({ name: '', type: 'daily', score: 0 });
@@ -106,10 +122,12 @@ export default function CheckIn() {
     if (!diaryText.trim()) return;
     setSavingDiary(true);
     try {
-      await api.addDiaryEntry(diaryText);
-      toast.success('Added to your diary');
+      await api.addDiaryEntry(diaryText, diaryType, diaryPrevious);
+      toast.success(diaryType === 'daily' ? 'Added to your diary' : `Added to your ${diaryType} diary`);
       setDiaryText('');
       setShowDiary(false);
+      setDiaryType('daily');
+      setDiaryPrevious(false);
     } catch (err: any) { toast.error(err.message); }
     setSavingDiary(false);
   };
@@ -166,7 +184,7 @@ export default function CheckIn() {
           <button onClick={() => { setEditingSchedule(null); setScheduleForm({ name: '', type: 'daily', score: 10 }); setShowScheduleForm(true); }}
             className="btn-primary text-sm">+ New</button>
         ) : (
-          <button onClick={() => setShowDiary(true)} className="btn-primary text-sm flex items-center gap-1.5" title="Add a line to today's diary in your vault">
+          <button onClick={() => setShowDiary(true)} className="btn-primary text-sm flex items-center gap-1.5" title="Write a daily, weekly, monthly or yearly diary entry to your vault">
             <NotebookPen size={15} /> Diary
           </button>
         )}
@@ -335,13 +353,38 @@ export default function CheckIn() {
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-2xl p-5"
           >
-            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">A moment of today</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">{DIARY_COPY[diaryType].title}</h2>
             <form onSubmit={handleDiarySubmit} className="space-y-3">
+              <div className="seg">
+                {DIARY_TYPES.map((t) => (
+                  <button key={t} type="button" className={`!px-1 whitespace-nowrap ${diaryType === t ? 'on' : ''}`}
+                    onClick={() => { setDiaryType(t); setDiaryPrevious(defaultsToPrevious(t, todayLocal())); }}>
+                    {DIARY_COPY[t].tab}
+                  </button>
+                ))}
+              </div>
+              {/* A weekly diary is often written the Monday after, a monthly one on the 1st. */}
+              {diaryType !== 'daily' && (
+                <div className="seg">
+                  {[false, true].map((prev) => (
+                    <button key={String(prev)} type="button" className={`!px-1 ${diaryPrevious === prev ? 'on' : ''}`} onClick={() => setDiaryPrevious(prev)}>
+                      {prev ? 'Last' : 'This'} {DIARY_COPY[diaryType].unit}
+                      <span className="block text-xs font-normal text-gray-500 truncate">{diaryPeriod(diaryType, todayLocal(), prev).label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div>
                 {/* Phone height leaves the buttons above the on-screen keyboard. */}
-                <textarea className="input block h-[32dvh] sm:h-[45vh] min-h-[160px] leading-relaxed" autoFocus value={diaryText} onChange={(e) => setDiaryText(e.target.value)}
-                  placeholder="What happened, what you did, how it felt…" />
-                <p className="text-xs text-gray-500 mt-1.5 truncate">Saved to this month's diary note, with the time.</p>
+                <textarea className={`input block ${diaryType === 'daily' ? 'h-[32dvh]' : 'h-[26dvh]'} sm:h-[45vh] min-h-[140px] leading-relaxed`} autoFocus value={diaryText} onChange={(e) => setDiaryText(e.target.value)}
+                  placeholder={DIARY_COPY[diaryType].placeholder} />
+                <p className="text-xs text-gray-500 mt-1.5 truncate">
+                  {(() => {
+                    const p = diaryPeriod(diaryType, todayLocal(), diaryPrevious);
+                    const note = p.note.split('/')[1];
+                    return diaryType === 'daily' ? `Saved to ${note}, with the time` : `Saved to ${note} · ${DIARY_COPY[diaryType].tab} ${p.key}`;
+                  })()}
+                </p>
               </div>
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setShowDiary(false)} disabled={savingDiary} className="btn-secondary text-sm">Cancel</button>

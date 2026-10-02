@@ -103,7 +103,8 @@ export const api = {
 
   // Reviews
   getDueReviews: (search?: string) => request<any>(`/reviews/due${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-  addDiaryEntry: (text: string) => request<{ success: boolean; path: string }>('/checkins/diary', { method: 'POST', body: JSON.stringify({ text }) }),
+  addDiaryEntry: (text: string, type: string = 'daily', previous = false) =>
+    request<{ success: boolean; path: string; heading: string }>('/checkins/diary', { method: 'POST', body: JSON.stringify({ text, type, previous }) }),
   completeReview: (id: number, rating: 'again' | 'hard' | 'ok' | 'easy') =>
     request<any>(`/reviews/records/${id}/complete`, { method: 'POST', body: JSON.stringify({ rating }) }, { quiet: true }),
   getCourses: () => request<any>('/reviews/courses'),

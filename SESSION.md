@@ -1,5 +1,11 @@
 # Sessions
 
+## 2026-10-02 — Diary dialog takes weekly, monthly and yearly entries
+The Check In diary dialog got a Daily/Weekly/Monthly/Yearly switch and, for the longer kinds, a "This / Last" period switch that defaults to the period just ended early in a new one (Mon–Tue, the 1st–5th, January). New `src/shared/diary.ts` picks the note and heading: weekly (`### Weekly 2026-W40 (09-28 – 10-04)`, ISO weeks) and monthly (`### Monthly 2026-10`) entries go into the monthly note, yearly ones (`### Yearly 2026`) into `YYYY/YYYY.md`, as written rather than as `- HH:MM` bullets. All four kinds were tested through the endpoint on a scratch server with a vault copy and in phone-width screenshots, then deployed via the `dist/` swap (image not rebuilt), committed and pushed to origin `growth-garden`. Not checked on the phone, and no entry was written to the real vault.
+
+## 2026-10-02 — Notes-only run: recorded the diary text area / review tables session (no code changes)
+An automated run wrote the "Bigger diary text area, review tables scroll sideways, JSON highlighting" entry below and added the table plate, lower-case fence labels, unlabelled-JSON highlighting and the PrismLight `alias()` rule to `CLAUDE.md`. It could not commit them itself because its git commands were not approved; the two files were committed later.
+
 ## 2026-10-02 — Diary hint under the text area, on one line
 In the Check In diary dialog the hint now sits under the text area instead of under the title (`126d224`, `CheckIn.tsx`). To fit one line at phone width it was shortened to "Saved to this month's diary note, with the time." and cuts off with an ellipsis rather than wrapping. Pushed to origin `growth-garden` and deployed via the `dist/` swap (image not rebuilt); not checked on the phone.
 
