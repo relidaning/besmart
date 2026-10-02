@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-02 — Unattended optimize run: scheduler on the hour, empty-DB startup, log rotation (branch `opt/besmart-20261002-1131`, not pushed)
+Commit `bc8e041` (worktree branch based on `origin/master`) makes the hourly scheduler job fire at xx:00:01 instead of every 60 min from startup (production ticks at xx:19, so a new day's check-in tasks could show up to 59 min late), lets the server start on an empty database (migration 1 skips `scores` when the table doesn't exist yet; a legacy DB still gets its `user_id`), and caps the `besmart`/`besmart-https` container logs at 10 MB × 3. It builds, starts on fresh and legacy DBs, and merges cleanly with `growth-garden` and the branches of PRs #2, #4, #5 and #6. The session ended while waiting for 12:00 to confirm the on-the-hour tick, so that check, the push and the PR were not done; nothing is deployed and the repo's working tree was not touched.
+
 ## 2026-10-02 — Unattended claude-maxer run skipped again: app hangs after a short interruption (no changes)
 The same vault task (reopened app shows the old page, feels sluggish, a check-in tap hangs until the app is closed and reopened) was picked up a second time and skipped for the same reason: it says to commit to `master`, and the repo is on `growth-garden` (clean, in sync with origin, now 42 commits ahead of local `master`). Nothing was investigated or edited, so the bug is still open; the task will keep being skipped until `master` is checked out (after merging `growth-garden`) or the task allows committing to `growth-garden`.
 

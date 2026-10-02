@@ -24,6 +24,8 @@ docker exec besmart-besmart-1 rm -rf /app/dist && docker cp /data/apps/besmart/d
 ```
 The `rm -rf` first is required — `docker cp dist/. container:/app/dist/` alone only overlays and leaves stale hashed asset files behind, which can mismatch `index.html`. This path replaces the *entire* `dist/` (client + server + shared) — always run the full `npm run build`, not `npm run build:client` alone, or the copied tree will be missing `dist/server` and the container will crash-loop on restart.
 
+**Container logs have no size limit** (`json-file` with no options). Growth is slow, mostly the hourly "Scheduler job completed" line. Branch `opt/besmart-20261002-1131` (local, not merged) adds 10 MB × 3 rotation to both services.
+
 ### App Structure
 - `src/client/` — React frontend
   - `src/client/pages/` — page components (Dashboard, Todos, Plans, CheckIn, Review, ReviewContent, …)
@@ -36,7 +38,7 @@ The `rm -rf` first is required — `docker cp dist/. container:/app/dist/` alone
 - `src/server/` — Express backend with SQLite
   - `src/server/routes/` — `auth.ts`, `todos.ts`, `reviews.ts`, `checkins.ts`, `studyplans.ts`, `dashboard.ts`, `notifications.ts`, `music.ts`
   - `src/server/middleware/auth.ts` — JWT middleware
-  - `src/server/scheduler.ts` — recurring task generation (daily/weekly/monthly/seasonal/yearly check-in tasks), run on startup and hourly via `setInterval`. Each block must check for an existing task before inserting — the seasonal/yearly blocks were missing this check (unlike weekly/monthly) until 2026-07-28, so every hourly tick on a matching day inserted another duplicate `checkin_tasks` row. Also holds a safety net that schedules review courses left with no pending record (see Review Module)
+  - `src/server/scheduler.ts` — recurring task generation (daily/weekly/monthly/seasonal/yearly check-in tasks), run on startup and hourly via `setInterval`. The tick is every 60 min from startup, not on the hour, so a new day's check-in tasks can appear up to 59 min late; branch `opt/besmart-20261002-1131` (local, not merged) runs it at xx:00:01. Each block must check for an existing task before inserting — the seasonal/yearly blocks were missing this check (unlike weekly/monthly) until 2026-07-28, so every hourly tick on a matching day inserted another duplicate `checkin_tasks` row. Also holds a safety net that schedules review courses left with no pending record (see Review Module)
   - `src/server/vaultWatcher.ts` — chokidar watcher; syncs Obsidian vault changes to review courses
   - `src/server/push.ts` — web-push init (`initWebPush()`) and `sendDailyReviewPush()` (called by scheduler)
   - `src/server/musicLibrary.ts` — reads/writes the user's active track selection (see Music Player below)
@@ -162,7 +164,7 @@ A top-bar button opens a small focus-music player (play/pause, 1x–2x speed, vo
 ### Database
 SQLite path defaults to `<project>/data/besmart.db` but can be overridden via `DB_PATH` env var (`database.ts`).
 
-**Known issue — fresh-DB migration ordering:** `database.ts` migration 1 references the `scores` table before migration 2 creates it, so bootstrapping against a genuinely empty DB file fails at startup. Not hit in production (the DB always already exists), but blocks spinning up a fresh dev/demo instance — copy an existing `.db` file instead of starting from empty.
+**Known issue — fresh-DB migration ordering:** `database.ts` migration 1 references the `scores` table before migration 2 creates it, so bootstrapping against a genuinely empty DB file fails at startup. Not hit in production (the DB always already exists), but blocks spinning up a fresh dev/demo instance — copy an existing `.db` file instead of starting from empty. Branch `opt/besmart-20261002-1131` (local, not merged) fixes it by skipping `scores` in migration 1 when the table doesn't exist.
 
 **Shutdown and backups:** the server has no SIGTERM handler, and Node is PID 1 in the container, so every `docker stop`/`restart` waits the 10 s grace period and ends in SIGKILL (exit 137). The WAL is then never checkpointed, and recent writes can sit only in `besmart.db-wal` for hours. Back up with `sqlite3 besmart.db ".backup 'file'"`, never a plain `cp` of `besmart.db` alone. PR #6 (not merged yet) adds a SIGTERM/SIGINT handler in `index.ts` that drains requests (3 s cap) and closes the DB, which checkpoints the WAL.
 
