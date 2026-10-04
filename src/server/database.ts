@@ -143,15 +143,19 @@ export function initializeDatabase() {
       addColIfMissing('checkin_schedules', 'user_id', 'INTEGER');
       addColIfMissing('review_courses', 'user_id', 'INTEGER');
       addColIfMissing('todos', 'user_id', 'INTEGER');
-      addColIfMissing('scores', 'user_id', 'INTEGER');
+      // A fresh database has no scores table yet (migration 2 creates it, with user_id).
+      const hasScores = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='scores'"
+      ).get();
+      if (hasScores) addColIfMissing('scores', 'user_id', 'INTEGER');
 
       db.exec(`
         UPDATE study_plans SET user_id = 1 WHERE user_id IS NULL;
         UPDATE checkin_schedules SET user_id = 1 WHERE user_id IS NULL;
         UPDATE review_courses SET user_id = 1 WHERE user_id IS NULL;
         UPDATE todos SET user_id = 1 WHERE user_id IS NULL;
-        UPDATE scores SET user_id = 1 WHERE user_id IS NULL;
       `);
+      if (hasScores) db.exec('UPDATE scores SET user_id = 1 WHERE user_id IS NULL');
 
       db.prepare('INSERT INTO schema_migrations (version) VALUES (1)').run();
     })();

@@ -37,7 +37,19 @@ startVaultWatchers();
 initWebPush();
 
 scheduleJob();
-setInterval(scheduleJob, 60 * 60 * 1000);
+// Run on the hour rather than every 60 min from startup: this job creates the new day's
+// check-in tasks, so a tick at xx:19 left the day empty for its first 19 minutes.
+function scheduleHourlyJob() {
+  const now = new Date();
+  const next = new Date(now);
+  // One second past the hour, so a timer that fires a hair early still sees the new day.
+  next.setHours(now.getHours() + 1, 0, 1, 0);
+  setTimeout(() => {
+    scheduleJob();
+    scheduleHourlyJob();
+  }, next.getTime() - now.getTime());
+}
+scheduleHourlyJob();
 
 // Daily push notification at configured time (default 10:30 local time)
 const [PUSH_HOUR, PUSH_MINUTE] = (process.env.PUSH_NOTIFY_TIME ?? '10:30').split(':').map(Number);
