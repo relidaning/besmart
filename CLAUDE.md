@@ -26,7 +26,9 @@ The `rm -rf` first is required — `docker cp dist/. container:/app/dist/` alone
 
 **Merged but not deployed (as of 2026-10-03):** PRs #4, #5 and #6 are in `master` on GitHub, but the running container predates them. They take effect after a `git pull` and an image rebuild.
 
-**Container logs have no size limit** (`json-file` with no options). Growth is slow, mostly the hourly "Scheduler job completed" line. Branch `opt/besmart-20261002-1131` (local, not merged) adds 10 MB × 3 rotation to both services.
+**Open PR #7** (`opt/besmart-20261004-0859`, 2026-10-04): the password-reset fix, plus the commit of the local branch `opt/besmart-20261002-1131` (empty-DB start, scheduler on the hour, log rotation), which never got pushed. That local branch can be deleted once #7 is merged.
+
+**Container logs have no size limit** (`json-file` with no options). Growth is slow, mostly the hourly "Scheduler job completed" line. PR #7 (open) adds 10 MB × 3 rotation to both services; it applies when the containers are recreated.
 
 ### App Structure
 - `src/client/` — React frontend
@@ -40,7 +42,7 @@ The `rm -rf` first is required — `docker cp dist/. container:/app/dist/` alone
 - `src/server/` — Express backend with SQLite
   - `src/server/routes/` — `auth.ts`, `todos.ts`, `reviews.ts`, `checkins.ts`, `studyplans.ts`, `dashboard.ts`, `notifications.ts`, `music.ts`
   - `src/server/middleware/auth.ts` — JWT middleware
-  - `src/server/scheduler.ts` — recurring task generation (daily/weekly/monthly/seasonal/yearly check-in tasks), run on startup and hourly via `setInterval`. The tick is every 60 min from startup, not on the hour, so a new day's check-in tasks can appear up to 59 min late; branch `opt/besmart-20261002-1131` (local, not merged) runs it at xx:00:01. Each block must check for an existing task before inserting — the seasonal/yearly blocks were missing this check (unlike weekly/monthly) until 2026-07-28, so every hourly tick on a matching day inserted another duplicate `checkin_tasks` row. Also holds a safety net that schedules review courses left with no pending record (see Review Module)
+  - `src/server/scheduler.ts` — recurring task generation (daily/weekly/monthly/seasonal/yearly check-in tasks), run on startup and hourly via `setInterval`. The tick is every 60 min from startup, not on the hour, so a new day's check-in tasks can appear up to 59 min late; PR #7 (open) runs it at xx:00:01. Each block must check for an existing task before inserting — the seasonal/yearly blocks were missing this check (unlike weekly/monthly) until 2026-07-28, so every hourly tick on a matching day inserted another duplicate `checkin_tasks` row. Also holds a safety net that schedules review courses left with no pending record (see Review Module)
   - `src/server/vaultWatcher.ts` — chokidar watcher; syncs Obsidian vault changes to review courses
   - `src/server/push.ts` — web-push init (`initWebPush()`) and `sendDailyReviewPush()` (called by scheduler)
   - `src/server/musicLibrary.ts` — reads/writes the user's active track selection (see Music Player below)
@@ -56,7 +58,7 @@ Pre-auth data was migrated to `admin@besmart.local` (user id=1). Current main ac
 
 **Async route handlers must forward errors.** On Express 4, a throw or rejection inside an `async` handler is an unhandled rejection, and it kills the Node process. For example, a non-string body field makes better-sqlite3 throw `RangeError`. Wrap async handlers (`asyncHandler` in `auth.ts`, PR #4, merged 2026-10-03) and type-check body fields before querying.
 
-**Password reset is broken (open):** `POST /api/auth/reset-password` with a valid token returns 500, `SqliteError: no such column: "now"`, because `auth.ts` writes `datetime("now")` in double quotes; it must be `datetime('now')`. The email-verification query has the same double-quoted form. Seen 2026-10-03 on a host build, not checked in the production container.
+**Password reset and email verification are broken (fix in open PR #7):** `POST /api/auth/reset-password` and `GET /api/auth/verify-email` return 500 on every request, `SqliteError: no such column: "now"`, because `auth.ts` writes `datetime("now")` in double quotes. The production container has the same code. Single quotes alone would not fix it: the token expiries are stored as ISO strings (`2026-10-04T02:01:02.886Z`), `datetime('now')` returns `2026-10-04 01:00:59`, and as text `T` sorts after a space, so a one-hour token would stay valid until the end of the UTC day. PR #7 binds `new Date().toISOString()` instead; compare stored ISO timestamps only with ISO strings. SMTP is not configured in production, so reset links are only written to the container log.
 
 Required env vars: `JWT_SECRET`, `APP_URL`. Optional: `GOOGLE_*`, `GITHUB_*`, `WECHAT_*`, `SMTP_*`.
 
@@ -100,7 +102,7 @@ Todo interface: `id`, `title`, `description`, `priority` (low/medium/high), `due
 
 Each todo card shows a colored priority pill before its title (red High / yellow Medium / green Low, from `priorityConfig`) and has ▲/▼ buttons to step `priority` through low→medium→high (disabled at the ends), using the existing `PUT /api/todos/:id` partial-update endpoint with optimistic updates and toast-on-failure rollback. The list is sorted server-side by priority tier then due date; `Todos.tsx` has a client-side `sortTodos()` mirroring that `ORDER BY` and re-sorts after every local mutation (create, edit, priority change) — otherwise items land in stale positions (e.g. new todos at the top) until a refetch. Empty due dates must be normalized to `null` client-side, as the server does, or they sort wrong.
 
-**Suspected date bug (open):** `completed_at` is written as a UTC ISO string (`new Date().toISOString()`), but `/todos/stats/overview` compares `date(completed_at)` to `localDate()` (Asia/Shanghai). The "completed today" count, and the 5-a-day bonus check on complete, which also uses a UTC `today`, can therefore miss completions made between 00:00 and 08:00 local time. This was seen as "Done Today" staying at 0 but has not been confirmed.
+**Completed-today counts:** `completed_at` is a UTC ISO string (`new Date().toISOString()`), so the "completed today" count in `/todos/stats/overview` and the 5-a-day bonus check compare it with the ISO bounds of the effective day (it starts at `DAY_START_HOUR`) from `effectiveDayBounds()` (`date.ts`), not with `date(completed_at)`. The old "Done Today stays at 0" date bug is fixed on `master`.
 
 Search uses a two-state debounce pattern: `search` (input value) + `debouncedSearch` (400ms delayed) — the API call uses only `debouncedSearch` to avoid per-keystroke requests. Tab-based filtering (active/completed) and priority filter work alongside search. The search input shows a clear (✕) button when non-empty.
 
@@ -168,7 +170,7 @@ A top-bar button opens a small focus-music player (play/pause, 1x–2x speed, vo
 ### Database
 SQLite path defaults to `<project>/data/besmart.db` but can be overridden via `DB_PATH` env var (`database.ts`).
 
-**Known issue — fresh-DB migration ordering:** `database.ts` migration 1 references the `scores` table before migration 2 creates it, so bootstrapping against a genuinely empty DB file fails at startup. Not hit in production (the DB always already exists), but blocks spinning up a fresh dev/demo instance — copy an existing `.db` file instead of starting from empty. Branch `opt/besmart-20261002-1131` (local, not merged) fixes it by skipping `scores` in migration 1 when the table doesn't exist.
+**Known issue — fresh-DB migration ordering:** `database.ts` migration 1 references the `scores` table before migration 2 creates it, so bootstrapping against a genuinely empty DB file fails at startup. Not hit in production (the DB always already exists), but blocks spinning up a fresh dev/demo instance — copy an existing `.db` file instead of starting from empty. PR #7 (open) fixes it by skipping `scores` in migration 1 when the table doesn't exist.
 
 **Shutdown and backups:** the running container's server has no SIGTERM handler, and Node is PID 1 in the container, so every `docker stop`/`restart` waits the 10 s grace period and ends in SIGKILL (exit 137). The WAL is then never checkpointed, and recent writes can sit only in `besmart.db-wal` for hours. Back up with `sqlite3 besmart.db ".backup 'file'"`, never a plain `cp` of `besmart.db` alone. PR #6 (merged 2026-10-03, not deployed) adds a SIGTERM/SIGINT handler in `index.ts` that drains requests (3 s cap) and closes the DB, which checkpoints the WAL: `docker stop` then takes about 0.1 s and exits 0. Until the image is rebuilt the old behavior stands.
 

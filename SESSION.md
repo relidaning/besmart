@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-04 — Unattended optimize run: PR #7 fixes password reset, delivers the 2026-10-02 fixes
+PR #7 (`opt/besmart-20261004-0859`, open, not merged or deployed) makes the reset-password and verify-email queries compare the token expiry with a bound `new Date().toISOString()`: fixing only the quotes in `datetime("now")` would have left tokens valid until the end of the UTC day, because the expiries are stored as ISO strings and `T` sorts after a space. Tested on a `master` build and the PR build with copies of the prod DB (valid reset 500 → 200, reused or expired token 500 → 400, verify-email 500 → 302); the production container has the same broken queries. The PR also cherry-picks the never-pushed commit of `opt/besmart-20261002-1131` (empty-DB start, scheduler at xx:00:01, log rotation 10 MB × 3), so that local branch can be deleted once #7 is merged; PR #2 is still held.
+
 ## 2026-10-03 — Unattended review of PR #6: SIGTERM shutdown merged, not deployed
 PR #6 was tested on top of `master` (with #4 and #5) in a separate worktree: throwaway containers from the production image ran the `master` and merged `dist/` on copies of the prod DB, and `docker stop` went from 10.1 s (exit 137, a 1.6 MB WAL left behind) to 0.07–0.09 s (exit 0, WAL checkpointed), with a request stalled mid-body stopping at the 3 s cap. It was merged on GitHub (`bdb0452`) but not deployed, so the running container still needs the `.backup` way of copying the DB; `tsc --noEmit` shows one client error in `ReviewContent.tsx` (no types for the Prism `log` language) on `master` too, and the build passes anyway. Left behind: the local `opt/besmart-20261001-2227` branch and the review worktree `besmart-review-20261003-0239`; PR #2 is still held.
 
