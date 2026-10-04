@@ -26,7 +26,7 @@ The `rm -rf` first is required — `docker cp dist/. container:/app/dist/` alone
 
 **Merged but not deployed (as of 2026-10-03):** PRs #4, #5 and #6 are in `master` on GitHub, but the running container predates them. They take effect after a `git pull` and an image rebuild.
 
-**Open PR #7** (`opt/besmart-20261004-0859`, 2026-10-04): the password-reset fix, plus the commit of the local branch `opt/besmart-20261002-1131` (empty-DB start, scheduler on the hour, log rotation), which never got pushed. That local branch can be deleted once #7 is merged.
+**Open PR #7** (`opt/besmart-20261004-0859`, 2026-10-04): the password-reset fix, plus the commit of the local branch `opt/besmart-20261002-1131` (empty-DB start, scheduler on the hour, log rotation), which never got pushed. That local branch can be deleted once #7 is merged. The 2026-10-04 review reproduced every claim except log rotation (only a container recreate can show it) and held the PR: it needs the user's OK on the token check in `auth.ts` and on the compose change, or the compose change split into its own PR.
 
 **Container logs have no size limit** (`json-file` with no options). Growth is slow, mostly the hourly "Scheduler job completed" line. PR #7 (open) adds 10 MB × 3 rotation to both services; it applies when the containers are recreated.
 
