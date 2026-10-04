@@ -209,9 +209,11 @@ authRoutes.get('/verify-email', (req, res) => {
   const { token } = req.query as { token: string };
   if (!token) return res.status(400).send('Missing token');
 
+  // Expiries are stored as ISO strings, so compare with one: datetime('now') has another
+  // format, and the double-quoted "now" this used to say is a column name to SQLite.
   const user = db.prepare(
-    'SELECT * FROM users WHERE verification_token = ? AND verification_expires > datetime("now")'
-  ).get(token) as any;
+    'SELECT * FROM users WHERE verification_token = ? AND verification_expires > ?'
+  ).get(token, new Date().toISOString()) as any;
 
   if (!user) {
     return res.redirect(`${APP_URL}/login?error=invalid_token`);
@@ -259,8 +261,8 @@ authRoutes.post('/reset-password', asyncHandler(async (req, res) => {
   if (password.length < 6) return res.status(400).json({ error: 'password must be at least 6 characters' });
 
   const user = db.prepare(
-    'SELECT * FROM users WHERE password_reset_token = ? AND password_reset_expires > datetime("now")'
-  ).get(token) as any;
+    'SELECT * FROM users WHERE password_reset_token = ? AND password_reset_expires > ?'
+  ).get(token, new Date().toISOString()) as any;
 
   if (!user) return res.status(400).json({ error: 'Invalid or expired reset token' });
 
