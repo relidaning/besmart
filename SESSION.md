@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-05 — Unattended optimize run: PR #8 idles the Garden particle loop
+PR #8 (`opt/besmart-20261005-1738`, open, not merged or deployed) changes only `Garden.tsx`: an `IntersectionObserver` stops the canvas animation loop while the canvas is off screen, and once the entrance animation is over and nothing is being zoomed or dragged it repaints at 30 fps instead of every frame. Measured in headless Chrome on a `master` build with a copy of the prod DB, main-thread use in spring/winter went from 21–23% (the same when scrolled away) to 13–14% on screen and 0% off screen; summer was already idle, and autumn is idle only until a deciduous tree grows. Nothing else new was found (server endpoints answer in 0.7–5 ms except `GET /reviews/due` at 50 ms, which held PR #2 covers); PRs #2 and #7 are still open, and the running container still predates #4–#6.
+
 ## 2026-10-04 — Unattended review of PR #7: everything testable works, held for approval
 PR #7 was tested on top of `master` in a separate worktree, with the `master` and PR builds each on a copy of the prod DB: password reset (valid token 500 → 200, reused, unknown or expired token 500 → 400), email verification (500 → 302, expired tokens rejected), the empty-DB start (exit 1 with `no such table: scores` → running) and the scheduler tick at xx:00:01 (clock shifted to xx:59:45) all reproduced. It was held anyway, with the evidence in a PR comment: the `auth.ts` change alters how tokens are checked and the `docker-compose.yml` log rotation can only be proven by a redeploy, so both need the user's OK (or the compose change moved to its own PR). Left behind: the review worktree `besmart-review-20261004-0902`; PR #2 is still held, and #4–#6 are still not deployed.
 
