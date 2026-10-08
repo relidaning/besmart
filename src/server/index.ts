@@ -121,6 +121,9 @@ if (process.env.NODE_ENV === 'production') {
   const clientDist = path.join(__dirname, '..');
   // Vite's hashed bundles never change under the same name — cache them for a year.
   app.use('/assets', express.static(path.join(clientDist, 'assets'), { maxAge: '1y', immutable: true }));
+  // A bundle from before the last deploy is gone: say so, or the catch-all below answers
+  // 200 with index.html and the service worker caches that page under the bundle's name.
+  app.use('/assets', (_req, res) => res.status(404).end());
   app.use(express.static(clientDist, {
     // index.html and sw.js must always revalidate so a new deploy is picked up.
     setHeaders: (res, filePath) => {
