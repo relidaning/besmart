@@ -13,7 +13,11 @@ export function scheduleJob() {
   const yesterday = localDate(prev);
 
   const run = db.transaction(() => {
-    const now = new Date();
+    // The weekly/monthly/seasonal/yearly triggers follow the effective day as well. With
+    // the wall clock they fired from midnight, when the effective day is still the day
+    // before: the task got that date, and after 06:00 the same-date check below no longer
+    // found it, so every such task was inserted twice.
+    const now = new Date(`${today}T12:00:00`);
 
     // Get all users with active schedules
     const userIds = db.prepare(
