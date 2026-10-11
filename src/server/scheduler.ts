@@ -1,5 +1,5 @@
 import db from './database.js';
-import { localDate, effectiveDate } from './date.js';
+import { localDate, effectiveDate, effectiveDayBounds } from './date.js';
 import { intervalFor } from './fsrs.js';
 
 
@@ -70,8 +70,8 @@ export function scheduleJob() {
           JOIN checkin_schedules s ON t.schedule_id = s.id
           WHERE s.user_id = ?
             AND ((t.task_date = ? AND t.schedule_type = 'daily' AND t.is_completed = 1)
-              OR (t.schedule_type != 'daily' AND t.is_completed = 1 AND DATE(t.completed_at) = ?))
-        `).get(user_id, yesterday, yesterday) as any).total;
+              OR (t.schedule_type != 'daily' AND t.is_completed = 1 AND t.completed_at >= ? AND t.completed_at < ?))
+        `).get(user_id, yesterday, ...effectiveDayBounds(yesterday)) as any).total;
 
         if (existingScore) {
           db.prepare('UPDATE scores SET score = ? WHERE id = ?').run(earned, existingScore.id);
