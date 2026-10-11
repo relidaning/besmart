@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../database.js';
-import { localDate, effectiveDate } from '../date.js';
+import { localDate, effectiveDate, effectiveDayBounds } from '../date.js';
 import fs from 'fs';
 import path from 'path';
 import { awardXp, revokeXp, scheduleCategory, isAttribute, MIN_CHECKIN_XP } from '../garden.js';
@@ -185,8 +185,8 @@ checkinRoutes.get('/scores', (req, res) => {
     JOIN checkin_schedules s ON t.schedule_id = s.id
     WHERE s.user_id = ?
       AND ((t.task_date = ? AND t.schedule_type = 'daily' AND t.is_completed = 1)
-        OR (t.schedule_type != 'daily' AND t.is_completed = 1 AND DATE(t.completed_at) = ?))
-  `).get(userId, today, today) as any;
+        OR (t.schedule_type != 'daily' AND t.is_completed = 1 AND t.completed_at >= ? AND t.completed_at < ?))
+  `).get(userId, today, ...effectiveDayBounds(today)) as any;
 
   const todayRecord = { id: -1, score_date: today, score: todayLive.score };
   const withoutToday = (scores as any[]).filter((s: any) => s.score_date !== today);
@@ -215,8 +215,10 @@ export function computeStreak(userId: number): number {
   const todayComplete = t?.total > 0 && t.done === t.total;
 
   let streak = 0;
+  // Count back from the effective day, not the calendar one: between midnight and
+  // DAY_START_HOUR the calendar day has no tasks yet, which read as a broken streak.
   for (let i = todayComplete ? 0 : 1; i < 365; i++) {
-    const d = new Date();
+    const d = new Date(`${today}T12:00:00`);
     d.setDate(d.getDate() - i);
     const s = getDayStats.get(localDate(d), userId) as any;
     if (!s || s.total === 0 || s.done < s.total) break;
