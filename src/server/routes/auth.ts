@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
@@ -9,6 +9,12 @@ import { createDefaultSchedules } from '../database.js';
 export const authRoutes = Router();
 
 const APP_URL = process.env.APP_URL || 'http://localhost:3001';
+
+// Express 4 doesn't catch rejected promises from async handlers: an unhandled rejection
+// crashes the whole server. Forward them to the error handler (500) instead.
+const asyncHandler = (fn: RequestHandler): RequestHandler => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
 
 // ── Email helpers ────────────────────────────────────────────────────────────
 
@@ -122,9 +128,9 @@ authRoutes.get('/config', (_req, res) => {
 
 // ── Email / password auth ─────────────────────────────────────────────────────
 
-authRoutes.post('/signup', async (req, res) => {
+authRoutes.post('/signup', asyncHandler(async (req, res) => {
   const { email, password, display_name } = req.body;
-  if (!email || !password) {
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
     return res.status(400).json({ error: 'email and password are required' });
   }
   if (password.length < 6) {
@@ -171,11 +177,11 @@ authRoutes.post('/signup', async (req, res) => {
   res.status(201).json({
     data: { token, user: { id: user.id, email: user.email, display_name: user.display_name, avatar_url: user.avatar_url } },
   });
-});
+}));
 
-authRoutes.post('/login', async (req, res) => {
+authRoutes.post('/login', asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
     return res.status(400).json({ error: 'email and password are required' });
   }
 
@@ -197,7 +203,7 @@ authRoutes.post('/login', async (req, res) => {
   res.json({
     data: { token, user: { id: user.id, email: user.email, display_name: user.display_name, avatar_url: user.avatar_url } },
   });
-});
+}));
 
 authRoutes.get('/verify-email', (req, res) => {
   const { token } = req.query as { token: string };
@@ -218,9 +224,9 @@ authRoutes.get('/verify-email', (req, res) => {
   res.redirect(`${APP_URL}/login?verified=1`);
 });
 
-authRoutes.post('/forgot-password', async (req, res) => {
+authRoutes.post('/forgot-password', asyncHandler(async (req, res) => {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'email is required' });
+  if (typeof email !== 'string' || !email) return res.status(400).json({ error: 'email is required' });
 
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
   // Always return success to prevent email enumeration
@@ -245,11 +251,11 @@ authRoutes.post('/forgot-password', async (req, res) => {
       ? 'If that email exists, a reset link has been sent'
       : 'SMTP not configured — reset link logged to server console',
   });
-});
+}));
 
-authRoutes.post('/reset-password', async (req, res) => {
+authRoutes.post('/reset-password', asyncHandler(async (req, res) => {
   const { token, password } = req.body;
-  if (!token || !password) return res.status(400).json({ error: 'token and password are required' });
+  if (typeof token !== 'string' || typeof password !== 'string' || !token || !password) return res.status(400).json({ error: 'token and password are required' });
   if (password.length < 6) return res.status(400).json({ error: 'password must be at least 6 characters' });
 
   const user = db.prepare(
@@ -264,7 +270,7 @@ authRoutes.post('/reset-password', async (req, res) => {
   ).run(hash, user.id);
 
   res.json({ message: 'Password updated successfully' });
-});
+}));
 
 authRoutes.get('/me', requireAuth, (req, res) => {
   const user = db.prepare('SELECT id, email, display_name, avatar_url, created_at FROM users WHERE id = ?').get(req.user!.id);
@@ -285,7 +291,7 @@ authRoutes.get('/oauth/google', (_req, res) => {
   );
 });
 
-authRoutes.get('/oauth/google/callback', async (req, res) => {
+authRoutes.get('/oauth/google/callback', asyncHandler(async (req, res) => {
   const { code, state, error } = req.query as Record<string, string>;
   if (error || !code || !verifyState(state, 'google')) {
     return res.redirect(`${APP_URL}/login?error=oauth_failed`);
@@ -316,7 +322,7 @@ authRoutes.get('/oauth/google/callback', async (req, res) => {
     console.error('Google OAuth error:', err);
     res.redirect(`${APP_URL}/login?error=oauth_failed`);
   }
-});
+}));
 
 // ── GitHub OAuth ──────────────────────────────────────────────────────────────
 
@@ -330,7 +336,7 @@ authRoutes.get('/oauth/github', (_req, res) => {
   );
 });
 
-authRoutes.get('/oauth/github/callback', async (req, res) => {
+authRoutes.get('/oauth/github/callback', asyncHandler(async (req, res) => {
   const { code, state, error } = req.query as Record<string, string>;
   if (error || !code || !verifyState(state, 'github')) {
     return res.redirect(`${APP_URL}/login?error=oauth_failed`);
@@ -367,7 +373,7 @@ authRoutes.get('/oauth/github/callback', async (req, res) => {
     console.error('GitHub OAuth error:', err);
     res.redirect(`${APP_URL}/login?error=oauth_failed`);
   }
-});
+}));
 
 // ── WeChat OAuth ──────────────────────────────────────────────────────────────
 
@@ -397,7 +403,7 @@ authRoutes.get('/oauth/wechat', (_req, res) => {
   );
 });
 
-authRoutes.get('/oauth/wechat/callback', async (req, res) => {
+authRoutes.get('/oauth/wechat/callback', asyncHandler(async (req, res) => {
   const { code, state } = req.query as Record<string, string>;
   if (!code || !verifyState(state, 'wechat')) {
     return res.redirect(`${APP_URL}/login?error=oauth_failed`);
@@ -425,4 +431,4 @@ authRoutes.get('/oauth/wechat/callback', async (req, res) => {
     console.error('WeChat OAuth error:', err);
     res.redirect(`${APP_URL}/login?error=oauth_failed`);
   }
-});
+}));

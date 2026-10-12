@@ -1,5 +1,5 @@
 import db from './database.js';
-import { localDate, effectiveDate } from './date.js';
+import { localDate, effectiveDate, effectiveDayBounds } from './date.js';
 import { intervalFor } from './fsrs.js';
 
 
@@ -13,7 +13,11 @@ export function scheduleJob() {
   const yesterday = localDate(prev);
 
   const run = db.transaction(() => {
-    const now = new Date();
+    // The weekly/monthly/seasonal/yearly triggers follow the effective day as well. With
+    // the wall clock they fired from midnight, when the effective day is still the day
+    // before: the task got that date, and after 06:00 the same-date check below no longer
+    // found it, so every such task was inserted twice.
+    const now = new Date(`${today}T12:00:00`);
 
     // Get all users with active schedules
     const userIds = db.prepare(
@@ -66,8 +70,8 @@ export function scheduleJob() {
           JOIN checkin_schedules s ON t.schedule_id = s.id
           WHERE s.user_id = ?
             AND ((t.task_date = ? AND t.schedule_type = 'daily' AND t.is_completed = 1)
-              OR (t.schedule_type != 'daily' AND t.is_completed = 1 AND DATE(t.completed_at) = ?))
-        `).get(user_id, yesterday, yesterday) as any).total;
+              OR (t.schedule_type != 'daily' AND t.is_completed = 1 AND t.completed_at >= ? AND t.completed_at < ?))
+        `).get(user_id, yesterday, ...effectiveDayBounds(yesterday)) as any).total;
 
         if (existingScore) {
           db.prepare('UPDATE scores SET score = ? WHERE id = ?').run(earned, existingScore.id);
@@ -191,5 +195,14 @@ export function scheduleJob() {
     console.log('Scheduler job completed');
   } catch (err) {
     console.error('Scheduler error:', err);
+  }
+
+  // SQLite only checkpoints on its own once the WAL holds 1000 pages (about 4 MB), which
+  // takes this app around two weeks: until then besmart.db itself is that far behind, and
+  // a plain copy of it is an old backup. PASSIVE never waits on a reader.
+  try {
+    db.pragma('wal_checkpoint(PASSIVE)');
+  } catch (err) {
+    console.error('WAL checkpoint failed:', err);
   }
 }

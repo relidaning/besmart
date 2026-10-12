@@ -127,6 +127,7 @@ function gardenLayout(all: Plant[], shown: Plant[], whole: boolean) {
 
 const easeOutBack = (t: number) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
 const MAX_ZOOM = 6;
+const PARTICLE_FRAME_MS = 30; // just under two 60 Hz frames, so every second frame paints
 
 interface Particle { x: number; y: number; vy: number; r: number; rot: number; spin: number; color: string; phase: number }
 
@@ -290,9 +291,13 @@ function GardenCanvas({ plants, all, whole, season, layoutKey, highlight, onPick
     let last = start;
     let raf = 0;
     let running = false;
+    let visible = true;
     dirtyRef.current = true;
     const frame = (now: number) => {
       const t = Math.min(1, (now - start) / 900);
+      // Particles drift well under a pixel per frame, so once nothing else moves, repaint the
+      // canvas at 30 fps instead of every frame.
+      if (t >= 1 && !dirtyRef.current && now - last < PARTICLE_FRAME_MS) { raf = requestAnimationFrame(frame); return; }
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       if (t < 1 || dirtyRef.current) { paintScene(t); dirtyRef.current = t < 1; }
@@ -319,13 +324,18 @@ function GardenCanvas({ plants, all, whole, season, layoutKey, highlight, onPick
           }
         }
       }
-      running = t < 1 || particles.length > 0 || dirtyRef.current;
+      running = visible && (t < 1 || particles.length > 0 || dirtyRef.current);
       if (running) raf = requestAnimationFrame(frame);
     };
-    kickRef.current = () => { if (!running) { running = true; last = performance.now(); raf = requestAnimationFrame(frame); } };
+    const kick = () => { if (!running && visible) { running = true; last = performance.now(); raf = requestAnimationFrame(frame); } };
+    kickRef.current = kick;
     running = true;
     raf = requestAnimationFrame(frame);
-    return () => { cancelAnimationFrame(raf); kickRef.current = () => {}; };
+    // Scrolled out of view (the journal and species lists are below), the loop stops; it
+    // would otherwise keep repainting the whole canvas for particles nobody sees.
+    const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; kick(); });
+    io.observe(canvas);
+    return () => { cancelAnimationFrame(raf); io.disconnect(); kickRef.current = () => {}; };
   }, [layout, width, dark, season, highlight]);
 
   // Gestures: pinch / drag / double-tap on touch and mouse, ctrl/⌘ + wheel to zoom.
