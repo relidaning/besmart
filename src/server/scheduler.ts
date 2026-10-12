@@ -196,4 +196,13 @@ export function scheduleJob() {
   } catch (err) {
     console.error('Scheduler error:', err);
   }
+
+  // SQLite only checkpoints on its own once the WAL holds 1000 pages (about 4 MB), which
+  // takes this app around two weeks: until then besmart.db itself is that far behind, and
+  // a plain copy of it is an old backup. PASSIVE never waits on a reader.
+  try {
+    db.pragma('wal_checkpoint(PASSIVE)');
+  } catch (err) {
+    console.error('WAL checkpoint failed:', err);
+  }
 }
