@@ -5,9 +5,13 @@ const BASE = '/api';
 
 const _cache = new Map<string, { data: unknown; at: number }>();
 const TTL = 30_000;
+// GETs on their way, so components that ask for the same URL at once (Layout and the
+// page both want /dashboard/stats on every page change) share one request.
+const _inflight = new Map<string, Promise<unknown>>();
 
 export function clearApiCache() {
   _cache.clear();
+  _inflight.clear();
 }
 
 function authHeaders(): HeadersInit {
@@ -18,12 +22,33 @@ function authHeaders(): HeadersInit {
 // `quiet` skips the XP toast, for callers that show it themselves with more detail.
 async function request<T>(url: string, options?: RequestInit, { quiet = false } = {}): Promise<T> {
   const method = (options?.method ?? 'GET').toUpperCase();
+  if (method !== 'GET') return send<T>(url, method, options, quiet);
 
-  if (method === 'GET') {
-    const hit = _cache.get(url);
-    if (hit && Date.now() - hit.at < TTL) return hit.data as T;
-  }
+  const hit = _cache.get(url);
+  if (hit && Date.now() - hit.at < TTL) return hit.data as T;
+  const pending = _inflight.get(url);
+  if (pending) return pending as Promise<T>;
 
+  const p: Promise<T> = send<T>(url, method, options, quiet).then((data) => {
+    // A mutation or logout since this was sent took it out of the map: the answer may
+    // predate that change, so it goes to its callers but not into the cache.
+    if (_inflight.get(url) === p) {
+      // Search and paging URLs would otherwise pile up for as long as the page lives.
+      if (_cache.size >= 100) {
+        const now = Date.now();
+        for (const [k, v] of _cache) if (now - v.at >= TTL) _cache.delete(k);
+      }
+      _cache.set(url, { data, at: Date.now() });
+    }
+    return data;
+  }).finally(() => {
+    if (_inflight.get(url) === p) _inflight.delete(url);
+  });
+  _inflight.set(url, p);
+  return p;
+}
+
+async function send<T>(url: string, method: string, options: RequestInit | undefined, quiet: boolean): Promise<T> {
   // A connection that died while the phone slept can leave fetch pending forever,
   // freezing whatever waits on it, so give up after 15 s and let the user retry.
   const res = await fetch(`${BASE}${url}`, {
@@ -46,14 +71,14 @@ async function request<T>(url: string, options?: RequestInit, { quiet = false } 
   }
   const data = await res.json();
 
-  if (method === 'GET') {
-    _cache.set(url, { data, at: Date.now() });
-  } else {
+  if (method !== 'GET') {
     const resource = url.split('/')[1];
-    for (const k of _cache.keys()) {
-      const r = k.split('?')[0].split('/')[1];
-      // Any completion can move XP, so garden/dashboard views are always stale after a mutation.
-      if (r === resource || r === 'garden' || r === 'dashboard') _cache.delete(k);
+    for (const m of [_cache, _inflight]) {
+      for (const k of m.keys()) {
+        const r = k.split('?')[0].split('/')[1];
+        // Any completion can move XP, so garden/dashboard views are always stale after a mutation.
+        if (r === resource || r === 'garden' || r === 'dashboard') m.delete(k);
+      }
     }
     if (!quiet) celebrate(data?.xp);
     celebrate(data?.bonus, 'Check-in done'); // the "Complete 5 todos" check-in ticked itself

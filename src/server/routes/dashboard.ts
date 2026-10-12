@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import db from '../database.js';
 import { computeStreak } from './checkins.js';
-import { effectiveDate } from '../date.js';
+import { effectiveDate, effectiveDayBounds } from '../date.js';
 
 export const dashboardRoutes = Router();
 
 dashboardRoutes.get('/stats', (req, res) => {
   const userId = req.user!.id;
   const today = effectiveDate();
+  // completed_at is a UTC ISO string, so its SQL date is a day behind from 06:00 to 08:00 here.
+  const [dayStart, dayEnd] = effectiveDayBounds(today);
 
   const activePlans = (db.prepare(
     'SELECT COUNT(*) as c FROM study_plans WHERE user_id = ? AND is_completed = 0'
@@ -30,8 +32,8 @@ dashboardRoutes.get('/stats', (req, res) => {
     JOIN checkin_schedules cs ON ct.schedule_id = cs.id
     WHERE cs.user_id = ?
       AND ((ct.task_date = ? AND ct.schedule_type = 'daily' AND ct.is_completed = 1)
-        OR (ct.schedule_type != 'daily' AND ct.is_completed = 1 AND DATE(ct.completed_at) = ?))
-  `).get(userId, today, today) as any;
+        OR (ct.schedule_type != 'daily' AND ct.is_completed = 1 AND ct.completed_at >= ? AND ct.completed_at < ?))
+  `).get(userId, today, dayStart, dayEnd) as any;
 
   const streak = computeStreak(userId);
 
@@ -42,8 +44,8 @@ dashboardRoutes.get('/stats', (req, res) => {
     JOIN checkin_schedules s ON t.schedule_id = s.id
     WHERE s.user_id = ?
       AND ((t.task_date = ? AND t.schedule_type = 'daily' AND t.is_completed = 1)
-        OR (t.schedule_type != 'daily' AND t.is_completed = 1 AND DATE(t.completed_at) = ?))
-  `).get(userId, today, today) as any;
+        OR (t.schedule_type != 'daily' AND t.is_completed = 1 AND t.completed_at >= ? AND t.completed_at < ?))
+  `).get(userId, today, dayStart, dayEnd) as any;
 
   const dueReviews = (db.prepare(`
     SELECT COUNT(*) as c FROM review_records r

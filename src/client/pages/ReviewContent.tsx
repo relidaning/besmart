@@ -3,10 +3,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
 import c from 'react-syntax-highlighter/dist/esm/languages/prism/c';
@@ -100,6 +96,31 @@ const KATEX_OPTIONS = { strict: false, throwOnError: false };
 const DOLLAR_TOKENS = /(`+)[\s\S]*?\1|\$\$[\s\S]*?\$\$|\$[^\s$](?:[^$\n]*?[^\s$\\])?\$(?!\d)|\\\$|\$/g;
 const escapeLoneDollars = (md: string) => md.replace(DOLLAR_TOKENS, (m) => (m === '$' ? '\\$' : m));
 
+// Few notes have math or HTML, so KaTeX (lib/noteMath.ts) and the HTML parser
+// (lib/noteHtml.ts) are each loaded only for a note that needs them. Both checks look
+// outside code fences, on the markdown as it is rendered.
+const FENCE_SPLIT = /(^```[\s\S]*?^```)/m;
+
+// Any dollar remark-math could open math with (escapeLoneDollars has escaped the lone
+// ones, and a dollar after an even run of backslashes is not escaped), or a ```math fence.
+const hasMath = (md: string) => md.split(FENCE_SPLIT)
+  .some((p, i) => (i % 2 ? /^```+\s*math\b/.test(p) : /(^|[^\\])(\\\\)*\$/.test(p)));
+
+// Anything that can open a tag, comment or declaration: <mark>, <img …>, <br>, <!-- -->.
+const hasHtml = (md: string) => md.split(FENCE_SPLIT).some((p, i) => i % 2 === 0 && /<[a-zA-Z!/?]/.test(p));
+
+// Imports a chunk once it is wanted: null while it loads, 'failed' if it can't be fetched.
+function useLazy<T>(wanted: boolean, load: () => Promise<T>): T | 'failed' | null {
+  const [mod, setMod] = useState<T | 'failed' | null>(null);
+  useEffect(() => {
+    if (!wanted || mod) return;
+    let alive = true;
+    load().then((m) => { if (alive) setMod(() => m); }).catch(() => { if (alive) setMod('failed'); });
+    return () => { alive = false; };
+  }, [wanted, mod]);
+  return mod;
+}
+
 // ── Vault images ──────────────────────────────────────────────────────────────
 
 const IMAGE_EMBED = /!\[\[([^\]|]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif))(?:\|([^\]]*))?\]\]/gi;
@@ -160,6 +181,31 @@ export default function ReviewContent() {
   const [activeId, setActiveId] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
 
+  const rawContent = (data?.content ?? '') as string;
+  // Strip frontmatter, then convert ==highlight== → <mark> outside code fences
+  const content = useMemo(() => {
+    const stripped = rawContent.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
+    // Split on fenced code blocks; only transform even-indexed segments (non-code)
+    const parts = stripped.split(/(^```[\s\S]*?^```)/m);
+    return parts.map((p, i) => i % 2 === 0 ? embedImages(escapeLoneDollars(p).replace(/==([^=\n]+)==/g, '<mark>$1</mark>')) : p).join('');
+  }, [rawContent]);
+
+  const headings = useMemo(() => extractHeadings(content), [content]);
+
+  // A note that needs a plugin waits for it before it renders, so formulas and tags never
+  // flash as source. If a chunk can't be loaded, the note is shown without it.
+  const needsMath = useMemo(() => hasMath(content), [content]);
+  const needsHtml = useMemo(() => hasHtml(content), [content]);
+  const mathChunk = useLazy(needsMath, () => import('../lib/noteMath'));
+  const htmlChunk = useLazy(needsHtml, () => import('../lib/noteHtml'));
+  const pluginsPending = (needsMath && !mathChunk) || (needsHtml && !htmlChunk);
+  const katex = needsMath && mathChunk && mathChunk !== 'failed' ? mathChunk : null;
+  const rehypeRaw = needsHtml && htmlChunk && htmlChunk !== 'failed' ? htmlChunk.rehypeRaw : null;
+  const rehypePlugins = useMemo(() => [
+    ...(rehypeRaw ? [rehypeRaw] : []),
+    ...(katex ? [[katex.rehypeKatex, KATEX_OPTIONS] as [typeof katex.rehypeKatex, typeof KATEX_OPTIONS]] : []),
+  ], [rehypeRaw, katex]);
+
   // Per-user, per-record reading position key
   const posKey = user && id ? `rpos-${user.id}-${id}` : null;
 
@@ -198,7 +244,7 @@ export default function ReviewContent() {
       const max = document.documentElement.scrollHeight - window.innerHeight;
       if (max > 0) window.scrollTo({ top: fraction * max, behavior: 'instant' });
     }));
-  }, [data, posKey]);
+  }, [data, posKey, pluginsPending]);
 
   // Track active heading via IntersectionObserver
   useEffect(() => {
@@ -215,7 +261,7 @@ export default function ReviewContent() {
     );
     els.forEach((el) => obs.observe(el));
     return () => obs.disconnect();
-  }, [data]);
+  }, [data, pluginsPending]);
 
   const handleRating = async (rating: Rating) => {
     if (!data?.record) return;
@@ -230,17 +276,6 @@ export default function ReviewContent() {
     } catch (err: any) { toast.error(err.message); }
     setRatingLoading(false);
   };
-
-  const rawContent = (data?.content ?? '') as string;
-  // Strip frontmatter, then convert ==highlight== → <mark> outside code fences
-  const content = useMemo(() => {
-    const stripped = rawContent.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
-    // Split on fenced code blocks; only transform even-indexed segments (non-code)
-    const parts = stripped.split(/(^```[\s\S]*?^```)/m);
-    return parts.map((p, i) => i % 2 === 0 ? embedImages(escapeLoneDollars(p).replace(/==([^=\n]+)==/g, '<mark>$1</mark>')) : p).join('');
-  }, [rawContent]);
-
-  const headings = useMemo(() => extractHeadings(content), [content]);
 
   // Reset to 0 every render so heading IDs stay consistent with extractHeadings
   const hCountRef = useRef(0);
@@ -354,7 +389,7 @@ export default function ReviewContent() {
 
         {/* Main content */}
         <div ref={contentRef} className="flex-1 min-w-0 overflow-x-hidden">
-          {content ? (
+          {pluginsPending ? null : content ? (
             <div className="prose prose-sm max-w-none dark:prose-invert
               prose-headings:font-semibold prose-headings:text-gray-800 dark:prose-headings:text-gray-100
               prose-p:text-gray-600 dark:prose-p:text-gray-300 prose-p:leading-relaxed
@@ -365,7 +400,11 @@ export default function ReviewContent() {
               prose-blockquote:border-brand-300 dark:prose-blockquote:border-brand-700 prose-blockquote:text-gray-500 dark:prose-blockquote:text-gray-400
               prose-li:text-gray-600 dark:prose-li:text-gray-300 prose-strong:text-gray-800 dark:prose-strong:text-gray-100 prose-hr:border-gray-200 dark:prose-hr:border-gray-800">
               <NotePathContext.Provider value={paths[0] ?? null}>
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeRaw, [rehypeKatex, KATEX_OPTIONS]]} components={mdComponents}>
+                <ReactMarkdown
+                  remarkPlugins={katex ? [remarkGfm, katex.remarkMath] : [remarkGfm]}
+                  rehypePlugins={rehypePlugins}
+                  components={mdComponents}
+                >
                   {content}
                 </ReactMarkdown>
               </NotePathContext.Provider>
