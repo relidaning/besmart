@@ -373,7 +373,7 @@ reviewRoutes.get('/courses', (req, res) => {
       (SELECT COUNT(*) FROM review_records WHERE course_id = c.id AND is_reviewed = 0 AND planned_date <= date('now')) as due_reviews
     FROM review_courses c
     WHERE c.user_id = ?
-    ORDER BY c.studied_date DESC
+    ORDER BY c.studied_date DESC, c.id ASC
   `).all(userId) as any[];
 
   res.json({ data: courses.map(serializeCourse) });

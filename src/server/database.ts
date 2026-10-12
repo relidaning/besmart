@@ -502,6 +502,21 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 16: indexes for the hot read paths. GET /reviews/due runs two correlated
+  // subqueries per pending record (oldest pending of the course, oldest due of the
+  // name), and without indexes each one scanned review_records in full. checkin_tasks
+  // is read by day on every Home / Check In load and only ever grows.
+  if (version < 16) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_review_records_course ON review_records(course_id, is_reviewed, planned_date);
+        CREATE INDEX IF NOT EXISTS idx_review_courses_user_name ON review_courses(user_id, name);
+        CREATE INDEX IF NOT EXISTS idx_checkin_tasks_date_type ON checkin_tasks(task_date, schedule_type);
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (16)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'
