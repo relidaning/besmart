@@ -30,6 +30,8 @@ The `rm -rf` first is required — `docker cp dist/. container:/app/dist/` alone
 
 **Container logs have no size limit** (`json-file` with no options). Growth is slow, mostly the hourly "Scheduler job completed" line. PR #7 (open) adds 10 MB × 3 rotation to both services; it applies when the containers are recreated.
 
+**A stopped container stays down after a reboot:** the restart policy is `unless-stopped`, so containers that were stopped before the host reboots are not started again. On 2026-10-13 a host-wide stop at 10:10 followed by a reboot at 12:32 kept the app down until `docker compose start besmart besmart-https` was run by hand. If the app is down with both containers `Exited` and no error in the log, check `who -b` and `journalctl -u docker` before suspecting a crash.
+
 **No healthcheck** on the `besmart` service: Docker restarts it on a crash but not when it hangs. Adding one is a compose change, left for the user's OK.
 
 ### App Structure
