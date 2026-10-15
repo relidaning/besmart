@@ -56,9 +56,9 @@ interface GardenEvent {
   species: string | null;
 }
 
-type Period = 'today' | 'week' | 'month' | 'year' | 'all';
+type Period = 'today' | 'week' | 'month' | 'season' | 'year' | 'all';
 const PERIODS: { id: Period; label: string }[] = [
-  { id: 'all', label: 'All' }, { id: 'year', label: 'Year' }, { id: 'month', label: 'Month' },
+  { id: 'all', label: 'All' }, { id: 'year', label: 'Year' }, { id: 'season', label: 'Season' }, { id: 'month', label: 'Month' },
   { id: 'week', label: 'Week' }, { id: 'today', label: 'Today' },
 ];
 
@@ -80,16 +80,22 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 function addDays(day: string, n: number) {
   const d = new Date(`${day}T12:00:00`);
   d.setDate(d.getDate() + n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return ymd(d);
 }
 
 function periodStart(period: Period, today: string) {
   if (period === 'today') return today;
   if (period === 'week') return addDays(today, -((new Date(`${today}T12:00:00`).getDay() + 6) % 7));
   if (period === 'month') return `${today.slice(0, 8)}01`;
+  if (period === 'season') { // Mar/Jun/Sep/Dec 1, as in seasonOf
+    const m = +today.slice(5, 7) - 1;
+    return ymd(new Date(+today.slice(0, 4), m - ((m + 1) % 3), 1));
+  }
   if (period === 'year') return `${today.slice(0, 5)}01-01`;
   return '';
 }
@@ -102,32 +108,30 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 // A period's areas, one per day in date order. Year and All are keyed by MM-DD (Feb 29
 // always there), so the same date of every year is the same area.
-interface Area { key: string; label: string; today: boolean }
+interface Area { key: string; today: boolean }
 function periodAreas(period: Period, today: string): Area[] {
   if (period === 'year' || period === 'all') {
-    return MONTHS.flatMap((m, mi) => Array.from({ length: new Date(2024, mi + 1, 0).getDate() }, (_, d) => {
+    return Array.from({ length: 12 }, (_, mi) => mi).flatMap((mi) => Array.from({ length: new Date(2024, mi + 1, 0).getDate() }, (_, d) => {
       const key = `${String(mi + 1).padStart(2, '0')}-${String(d + 1).padStart(2, '0')}`;
-      return { key, label: d === 0 ? m : String(d + 1), today: key === today.slice(5) };
+      return { key, today: key === today.slice(5) };
     }));
   }
-  if (period === 'today') return [{ key: today, label: `${MONTHS[+today.slice(5, 7) - 1]} ${+today.slice(8)}`, today: true }];
+  if (period === 'today') return [{ key: today, today: true }];
   const start = periodStart(period, today);
-  const days = period === 'week' ? 7 : new Date(+today.slice(0, 4), +today.slice(5, 7), 0).getDate();
-  return Array.from({ length: days }, (_, k) => {
-    const key = addDays(start, k);
-    return { key, label: period === 'week' ? `${WEEKDAYS[k]} ${+key.slice(8)}` : String(k + 1), today: key === today };
-  });
+  const [y, m] = [+start.slice(0, 4), +start.slice(5, 7) - 1];
+  const end = period === 'week' ? addDays(start, 7) : ymd(new Date(y, m + (period === 'season' ? 3 : 1), 1));
+  const areas: Area[] = [];
+  for (let key = start; key < end; key = addDays(key, 1)) areas.push({ key, today: key === today });
+  return areas;
 }
 
-interface Plot { i: number; j: number; s: number; label: string; today: boolean }
+interface Plot { i: number; j: number; s: number; today: boolean }
 
 // Every tab is the same square island: its days' areas fill a side × side grid row by
-// row (Today 1×1, Week 3×3, Month 6×6, Year and All 20×20), and the cells left over
+// row (Today 1×1, Week 3×3, Month 6×6, Season 10×10, Year and All 20×20), and the cells left over
 // are bare ground that only keep the shape. Each area is an s×s plot holding that
 // day's plants.
 function gardenLayout(shown: Plant[], period: Period, today: string) {
@@ -143,7 +147,7 @@ function gardenLayout(shown: Plant[], period: Period, today: string) {
   const plots = areas.map((a, k) => {
     const i = (k % side) * s, j = Math.floor(k / side) * s;
     (groups.get(a.key) ?? []).forEach((p, m) => placed.push({ p, i: i + (m % s), j: j + Math.floor(m / s) }));
-    return { i, j, s, label: a.label, today: a.today };
+    return { i, j, s, today: a.today };
   });
   return { ni: side * s, nj: side * s, placed, plots };
 }
@@ -275,7 +279,7 @@ function GardenCanvas({ plants, period, today, season, highlight, onPick }: {
         for (let j = 1; j < nj; j++) { const a = corner(0, j), b = corner(ni, j); sctx.beginPath(); sctx.moveTo(a.x, a.y); sctx.lineTo(b.x, b.y); sctx.stroke(); }
       }
       // One raised plot per day, inset so neighbouring days read as separate areas;
-      // today's is outlined. Day labels appear once a plot is big enough on screen.
+      // today's is outlined.
       const inset = 0.12;
       for (const pl of plots) {
         const a = pl.i + inset, b = pl.j + inset, e = pl.s - 2 * inset;
@@ -286,15 +290,6 @@ function GardenCanvas({ plants, period, today, season, highlight, onPick }: {
         sctx.strokeStyle = pl.today ? '#f59e0b' : dark ? 'rgba(255,255,255,0.12)' : 'rgba(30,60,20,0.16)';
         sctx.lineWidth = (pl.today ? 2 : 1) / k;
         sctx.stroke();
-        const size = pl.s * tw * k;
-        if (size > 24) {
-          const fs = Math.min(12, size * 0.22);
-          sctx.font = `600 ${fs / k}px system-ui, sans-serif`;
-          sctx.textAlign = 'center';
-          sctx.textBaseline = 'middle';
-          sctx.fillStyle = pl.today ? '#d97706' : dark ? 'rgba(255,255,255,0.4)' : 'rgba(30,50,20,0.45)';
-          sctx.fillText(pl.label, c2.x, c2.y - (fs * 0.9) / k);
-        }
       }
       const hits: typeof hitRef.current = [];
       for (const o of order) {
