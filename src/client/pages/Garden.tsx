@@ -105,61 +105,47 @@ function fmtTime(iso: string) {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-// A period's areas, one per day, laid out like a calendar: `col`/`row` are area
-// coordinates. Year areas are keyed by MM-DD (12 rows of up to 31, Feb 29 always
-// there), so the same day of every year is the same area.
-interface Area { key: string; col: number; row: number; label: string; today: boolean }
+// A period's areas, one per day in date order. Year and All are keyed by MM-DD (Feb 29
+// always there), so the same date of every year is the same area.
+interface Area { key: string; label: string; today: boolean }
 function periodAreas(period: Period, today: string): Area[] {
-  if (period === 'all') return [];
-  if (period === 'year') {
+  if (period === 'year' || period === 'all') {
     return MONTHS.flatMap((m, mi) => Array.from({ length: new Date(2024, mi + 1, 0).getDate() }, (_, d) => {
       const key = `${String(mi + 1).padStart(2, '0')}-${String(d + 1).padStart(2, '0')}`;
-      return { key, col: d, row: mi, label: d === 0 ? m : String(d + 1), today: key === today.slice(5) };
+      return { key, label: d === 0 ? m : String(d + 1), today: key === today.slice(5) };
     }));
   }
-  if (period === 'today') return [{ key: today, col: 0, row: 0, label: `${MONTHS[+today.slice(5, 7) - 1]} ${+today.slice(8)}`, today: true }];
+  if (period === 'today') return [{ key: today, label: `${MONTHS[+today.slice(5, 7) - 1]} ${+today.slice(8)}`, today: true }];
   const start = periodStart(period, today);
   const days = period === 'week' ? 7 : new Date(+today.slice(0, 4), +today.slice(5, 7), 0).getDate();
-  const offset = period === 'week' ? 0 : (new Date(`${start}T12:00:00`).getDay() + 6) % 7; // Monday first
   return Array.from({ length: days }, (_, k) => {
     const key = addDays(start, k);
-    const label = period === 'week' ? `${WEEKDAYS[k]} ${+key.slice(8)}` : String(k + 1);
-    return { key, col: (offset + k) % 7, row: Math.floor((offset + k) / 7), label, today: key === today };
+    return { key, label: period === 'week' ? `${WEEKDAYS[k]} ${+key.slice(8)}` : String(k + 1), today: key === today };
   });
 }
 
 interface Plot { i: number; j: number; s: number; label: string; today: boolean }
 
-// All: one garden where every plant has a fixed tile, filled in planting order row by
-// row (snaking). The period views divide the island into one area (an s×s plot) per
-// day of the period and put each day's plants in its area.
-function gardenLayout(all: Plant[], shown: Plant[], period: Period, today: string) {
-  const byAge = (a: Plant, b: Plant) => a.planted_at.localeCompare(b.planted_at) || a.id - b.id;
-  if (period === 'all') {
-    const N = Math.max(4, Math.ceil(Math.sqrt(all.length * 1.3)));
-    const tile = new Map<number, [number, number]>();
-    [...all].sort(byAge).forEach((p, k) => {
-      const j = Math.floor(k / N), c = k % N;
-      tile.set(p.id, [j % 2 ? N - 1 - c : c, j]);
-    });
-    const placed = shown.flatMap((p) => { const t = tile.get(p.id); return t ? [{ p, i: t[0], j: t[1] }] : []; });
-    return { ni: N, nj: N, placed, plots: [] as Plot[] };
-  }
+// Every tab is the same square island: its days' areas fill a side × side grid row by
+// row (Today 1×1, Week 3×3, Month 6×6, Year and All 20×20), and the cells left over
+// are bare ground that only keep the shape. Each area is an s×s plot holding that
+// day's plants.
+function gardenLayout(shown: Plant[], period: Period, today: string) {
   const areas = periodAreas(period, today);
-  const keyOf = (p: Plant) => (period === 'year' ? p.day.slice(5) : p.day);
+  const side = Math.ceil(Math.sqrt(areas.length));
+  const keyOf = (p: Plant) => (period === 'year' || period === 'all' ? p.day.slice(5) : p.day);
   const groups = new Map<string, Plant[]>();
-  [...shown].sort(byAge).forEach((p) => groups.set(keyOf(p), [...(groups.get(keyOf(p)) ?? []), p]));
+  [...shown]
+    .sort((a, b) => a.planted_at.localeCompare(b.planted_at) || a.id - b.id)
+    .forEach((p) => groups.set(keyOf(p), [...(groups.get(keyOf(p)) ?? []), p]));
   const s = Math.max(1, Math.ceil(Math.sqrt(Math.max(0, ...[...groups.values()].map((g) => g.length)))));
   const placed: { p: Plant; i: number; j: number }[] = [];
-  const plots = areas.map((a) => {
-    (groups.get(a.key) ?? []).forEach((p, k) => placed.push({ p, i: a.col * s + (k % s), j: a.row * s + Math.floor(k / s) }));
-    return { i: a.col * s, j: a.row * s, s, label: a.label, today: a.today };
+  const plots = areas.map((a, k) => {
+    const i = (k % side) * s, j = Math.floor(k / side) * s;
+    (groups.get(a.key) ?? []).forEach((p, m) => placed.push({ p, i: i + (m % s), j: j + Math.floor(m / s) }));
+    return { i, j, s, label: a.label, today: a.today };
   });
-  return {
-    ni: (Math.max(...areas.map((a) => a.col)) + 1) * s,
-    nj: (Math.max(...areas.map((a) => a.row)) + 1) * s,
-    placed, plots,
-  };
+  return { ni: side * s, nj: side * s, placed, plots };
 }
 
 const easeOutBack = (t: number) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
@@ -173,9 +159,8 @@ interface Particle { x: number; y: number; vy: number; r: number; rot: number; s
 // it and animate seasonal particles on top. Pinch or ctrl/⌘-scroll to zoom,
 // drag to pan when zoomed, double-tap to zoom in / reset.
 
-function GardenCanvas({ plants, all, period, today, season, highlight, onPick }: {
+function GardenCanvas({ plants, period, today, season, highlight, onPick }: {
   plants: Plant[];
-  all: Plant[];
   period: Period;
   today: string;
   season: Season;
@@ -203,7 +188,7 @@ function GardenCanvas({ plants, all, period, today, season, highlight, onPick }:
     return () => ro.disconnect();
   }, []);
 
-  const layout = useMemo(() => gardenLayout(all, plants, period, today), [all, plants, period, today]);
+  const layout = useMemo(() => gardenLayout(plants, period, today), [plants, period, today]);
 
   // A new layout starts un-zoomed.
   useEffect(() => { viewRef.current = { k: 1, x: 0, y: 0 }; setZoom(1); }, [layout]);
@@ -233,8 +218,8 @@ function GardenCanvas({ plants, all, period, today, season, highlight, onPick }:
     const { ni, nj, placed, plots } = layout;
     const W = width;
     // The island is a ni × nj diamond, (ni + nj) / 2 tiles wide.
-    const tw = Math.min((W * 0.86 * 2) / (ni + nj), (W * 0.86) / 3), th = tw / 2;
-    const wall = Math.min(22, Math.max(6, tw * 0.5));
+    const tw = (W * 0.86 * 2) / (ni + nj), th = tw / 2;
+    const wall = 16; // fixed, like topPad, so every tab has the same height
     const unit = Math.min(64, tw * 0.95);
     const grown = placed.map(({ p }) => {
       const sp = SPECIES[p.species] ?? SPECIES.sprout;
@@ -242,7 +227,9 @@ function GardenCanvas({ plants, all, period, today, season, highlight, onPick }:
       // Cap height so a big tree at the island's edge stays inside the canvas.
       return { sp, young: g.young, pct: g.pct, fruit: !!p.finished, h: Math.min(unit * sp.size * g.scale, W * 0.36) };
     });
-    const topPad = Math.max(40, ...grown.map((g, k) => g.h - (placed[k].i + placed[k].j) * th / 2)) + 6;
+    // Room for the tallest plant allowed (h ≤ W·0.36) at the back corner, the same in every
+    // tab, so switching tabs never moves the island.
+    const topPad = W * 0.36 + 6;
     const H = topPad + ((ni + nj) * th) / 2 + wall + 6;
     sizeRef.current = { W, H };
     const dpr = window.devicePixelRatio || 1;
@@ -557,7 +544,7 @@ export default function Garden() {
 
   const shown = useMemo(() => {
     if (!data) return [];
-    if (period === 'year') return data.plants; // every year: each lands on its day's area
+    if (period === 'all') return data.plants; // every year: each lands on its date's area
     const from = periodStart(period, data.today);
     return data.plants.filter((p) => p.day >= from && p.day <= data.today);
   }, [data, period]);
@@ -628,15 +615,14 @@ export default function Garden() {
         </div>
         <div className="flex items-baseline justify-between px-1 mb-1">
           <span className="text-[11px] text-gray-500">
-            {period === 'all' ? 'Your whole garden' : period === 'today' ? `Planted ${fmtDay(data.today)}`
-              : period === 'year' ? 'One area per day of the year, every year' : `One area per day since ${fmtDay(periodStart(period, data.today))}`}
+            {period === 'all' ? 'Every year · one area per date' : period === 'today' ? `Planted ${fmtDay(data.today)}`
+              : `One area per day since ${fmtDay(periodStart(period, data.today))}`}
           </span>
           <span className="text-[11px] text-gray-500">{shown.length} plants · {speciesShown} species</span>
         </div>
         <div className="relative">
           <GardenCanvas
             plants={shown}
-            all={data.plants}
             period={period}
             today={data.today}
             season={season}
