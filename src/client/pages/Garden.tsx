@@ -128,12 +128,19 @@ function periodAreas(period: Period, today: string): Area[] {
   return areas;
 }
 
+// The plants a tab shows: All every year's, the others only the current period's.
+function plantsIn(all: Plant[], period: Period, today: string) {
+  if (period === 'all') return all;
+  const from = periodStart(period, today);
+  return all.filter((p) => p.day >= from && p.day <= today);
+}
+
 interface Plot { i: number; j: number; s: number; today: boolean }
 
 // Every tab is the same square island: its days' areas fill a side × side grid row by
-// row (Today 1×1, Week 3×3, Month 6×6, Season 10×10, Year and All 20×20), and the cells left over
-// are bare ground that only keep the shape. Each area is an s×s plot holding that
-// day's plants.
+// row (Today 1×1, Week 3×3, Month 6×6, Season 10×10, Year and All 20×20). The cells left
+// over look the same as day areas, so the square reads as one garden. Each area is an
+// s×s plot holding that day's plants.
 function gardenLayout(shown: Plant[], period: Period, today: string) {
   const areas = periodAreas(period, today);
   const side = Math.ceil(Math.sqrt(areas.length));
@@ -144,12 +151,26 @@ function gardenLayout(shown: Plant[], period: Period, today: string) {
     .forEach((p) => groups.set(keyOf(p), [...(groups.get(keyOf(p)) ?? []), p]));
   const s = Math.max(1, Math.ceil(Math.sqrt(Math.max(0, ...[...groups.values()].map((g) => g.length)))));
   const placed: { p: Plant; i: number; j: number }[] = [];
-  const plots = areas.map((a, k) => {
+  const plots = Array.from({ length: side * side }, (_, k) => {
     const i = (k % side) * s, j = Math.floor(k / side) * s;
-    (groups.get(a.key) ?? []).forEach((p, m) => placed.push({ p, i: i + (m % s), j: j + Math.floor(m / s) }));
-    return { i, j, s, today: a.today };
+    (groups.get(areas[k]?.key) ?? []).forEach((p, m) => placed.push({ p, i: i + (m % s), j: j + Math.floor(m / s) }));
+    return { i, j, s, today: !!areas[k]?.today };
   });
   return { ni: side * s, nj: side * s, placed, plots };
+}
+type Layout = ReturnType<typeof gardenLayout>;
+
+// Tile width and plant heights of a layout drawn W px wide.
+function layoutSizes({ ni, nj, placed }: Layout, W: number) {
+  const tw = (W * 0.86 * 2) / (ni + nj);
+  const unit = Math.min(64, tw * 0.95);
+  const grown = placed.map(({ p }) => {
+    const sp = SPECIES[p.species] ?? SPECIES.sprout;
+    const g = growthFor(p.growth, p.target);
+    // Cap height so a big tree at the island's edge stays inside the canvas.
+    return { sp, young: g.young, pct: g.pct, fruit: !!p.finished, h: Math.min(unit * sp.size * g.scale, W * 0.36) };
+  });
+  return { tw, unit, grown };
 }
 
 const easeOutBack = (t: number) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
@@ -163,8 +184,8 @@ interface Particle { x: number; y: number; vy: number; r: number; rot: number; s
 // it and animate seasonal particles on top. Pinch or ctrl/⌘-scroll to zoom,
 // drag to pan when zoomed, double-tap to zoom in / reset.
 
-function GardenCanvas({ plants, period, today, season, highlight, onPick }: {
-  plants: Plant[];
+function GardenCanvas({ all, period, today, season, highlight, onPick }: {
+  all: Plant[];
   period: Period;
   today: string;
   season: Season;
@@ -192,7 +213,11 @@ function GardenCanvas({ plants, period, today, season, highlight, onPick }: {
     return () => ro.disconnect();
   }, []);
 
-  const layout = useMemo(() => gardenLayout(plants, period, today), [plants, period, today]);
+  // Every tab's layout: the room above the island is sized for the tallest plant of any
+  // tab, so it hugs the plants yet stays put when the tab changes.
+  const layouts = useMemo(() => Object.fromEntries(PERIODS.map(({ id }) =>
+    [id, gardenLayout(plantsIn(all, id, today), id, today)])) as Record<Period, Layout>, [all, today]);
+  const layout = layouts[period];
 
   // A new layout starts un-zoomed.
   useEffect(() => { viewRef.current = { k: 1, x: 0, y: 0 }; setZoom(1); }, [layout]);
@@ -222,18 +247,13 @@ function GardenCanvas({ plants, period, today, season, highlight, onPick }: {
     const { ni, nj, placed, plots } = layout;
     const W = width;
     // The island is a ni × nj diamond, (ni + nj) / 2 tiles wide.
-    const tw = (W * 0.86 * 2) / (ni + nj), th = tw / 2;
+    const { tw, unit, grown } = layoutSizes(layout, W);
+    const th = tw / 2;
     const wall = 16; // fixed, like topPad, so every tab has the same height
-    const unit = Math.min(64, tw * 0.95);
-    const grown = placed.map(({ p }) => {
-      const sp = SPECIES[p.species] ?? SPECIES.sprout;
-      const g = growthFor(p.growth, p.target);
-      // Cap height so a big tree at the island's edge stays inside the canvas.
-      return { sp, young: g.young, pct: g.pct, fruit: !!p.finished, h: Math.min(unit * sp.size * g.scale, W * 0.36) };
-    });
-    // Room for the tallest plant allowed (h ≤ W·0.36) at the back corner, the same in every
-    // tab, so switching tabs never moves the island.
-    const topPad = W * 0.36 + 6;
+    const topPad = 6 + Math.max(16, ...Object.values(layouts).flatMap((l) => {
+      const z = layoutSizes(l, W);
+      return z.grown.map((g, k) => g.h - ((l.placed[k].i + l.placed[k].j) * z.tw) / 4);
+    }));
     const H = topPad + ((ni + nj) * th) / 2 + wall + 6;
     sizeRef.current = { W, H };
     const dpr = window.devicePixelRatio || 1;
@@ -278,8 +298,7 @@ function GardenCanvas({ plants, period, today, season, highlight, onPick }: {
         for (let i = 1; i < ni; i++) { const a = corner(i, 0), b = corner(i, nj); sctx.beginPath(); sctx.moveTo(a.x, a.y); sctx.lineTo(b.x, b.y); sctx.stroke(); }
         for (let j = 1; j < nj; j++) { const a = corner(0, j), b = corner(ni, j); sctx.beginPath(); sctx.moveTo(a.x, a.y); sctx.lineTo(b.x, b.y); sctx.stroke(); }
       }
-      // One raised plot per day, inset so neighbouring days read as separate areas;
-      // today's is outlined.
+      // One plot per cell, inset so neighbouring areas read as separate; today's is outlined.
       const inset = 0.12;
       for (const pl of plots) {
         const a = pl.i + inset, b = pl.j + inset, e = pl.s - 2 * inset;
@@ -378,7 +397,7 @@ function GardenCanvas({ plants, period, today, season, highlight, onPick }: {
     const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; kick(); });
     io.observe(canvas);
     return () => { cancelAnimationFrame(raf); io.disconnect(); kickRef.current = () => {}; };
-  }, [layout, width, dark, season, highlight]);
+  }, [layout, layouts, width, dark, season, highlight]);
 
   // Gestures: pinch / drag / double-tap on touch and mouse, ctrl/⌘ + wheel to zoom.
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -537,12 +556,7 @@ export default function Garden() {
     api.getGardenEvents({ plant: picked.id, limit: 6 }).then((r: { data: GardenEvent[] }) => setPickedLog(r.data));
   }, [picked?.id]);
 
-  const shown = useMemo(() => {
-    if (!data) return [];
-    if (period === 'all') return data.plants; // every year: each lands on its date's area
-    const from = periodStart(period, data.today);
-    return data.plants.filter((p) => p.day >= from && p.day <= data.today);
-  }, [data, period]);
+  const shown = useMemo(() => (data ? plantsIn(data.plants, period, data.today) : []), [data, period]);
 
   if (!data) {
     return (
@@ -608,16 +622,16 @@ export default function Garden() {
             </button>
           ))}
         </div>
-        <div className="flex items-baseline justify-between px-1 mb-1">
-          <span className="text-[11px] text-gray-500">
-            {period === 'all' ? 'Every year · one area per date' : period === 'today' ? `Planted ${fmtDay(data.today)}`
-              : `One area per day since ${fmtDay(periodStart(period, data.today))}`}
+        {/* One line in every tab, so the island below never moves. */}
+        <div className="flex items-baseline justify-between gap-2 px-1 mb-1 whitespace-nowrap">
+          <span className="min-w-0 truncate text-[11px] text-gray-500">
+            {period === 'all' ? 'Every year' : period === 'today' ? fmtDay(data.today) : `Since ${fmtDay(periodStart(period, data.today))}`}
           </span>
           <span className="text-[11px] text-gray-500">{shown.length} plants · {speciesShown} species</span>
         </div>
         <div className="relative">
           <GardenCanvas
-            plants={shown}
+            all={data.plants}
             period={period}
             today={data.today}
             season={season}
