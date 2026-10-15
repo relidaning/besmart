@@ -3,6 +3,21 @@ import { localDate, effectiveDate, effectiveDayBounds } from './date.js';
 import { intervalFor } from './fsrs.js';
 
 
+const PERIOD_TYPES = ['weekly', 'monthly', 'seasonly', 'yearly'] as const;
+
+// Whether `day` (noon of a local date) is the last day of a period of this type.
+function isPeriodEnd(type: typeof PERIOD_TYPES[number], day: Date): boolean {
+  const next = new Date(day);
+  next.setDate(next.getDate() + 1);
+  const lastOfMonth = next.getDate() === 1;
+  switch (type) {
+    case 'weekly': return day.getDay() === 0;
+    case 'monthly': return lastOfMonth;
+    case 'seasonly': return lastOfMonth && day.getMonth() % 3 === 2;
+    case 'yearly': return lastOfMonth && day.getMonth() === 11;
+  }
+}
+
 export function scheduleJob() {
   // The app's day runs until DAY_START_HOUR (06:00), not midnight: check-ins done at
   // 01:00 belong to the day before. Using calendar dates here closed "yesterday" at
@@ -81,89 +96,23 @@ export function scheduleJob() {
         }
       }
 
-      // Ensure non-daily tasks exist if no uncompleted ones
-      for (const type of ['weekly', 'monthly', 'seasonly', 'yearly']) {
-        const hasSchedules = (db.prepare(
-          'SELECT COUNT(*) as c FROM checkin_schedules WHERE is_active = 1 AND type = ? AND user_id = ?'
-        ).get(type, user_id) as any).c;
-        if (hasSchedules > 0) {
-          const hasUncompleted = (db.prepare(`
-            SELECT COUNT(*) as c FROM checkin_tasks t
-            JOIN checkin_schedules s ON t.schedule_id = s.id
-            WHERE t.schedule_type = ? AND t.is_completed = 0 AND s.user_id = ?
-          `).get(type, user_id) as any).c;
-          if (hasUncompleted === 0) {
-            const typeSchedules = db.prepare(
-              'SELECT * FROM checkin_schedules WHERE is_active = 1 AND type = ? AND user_id = ?'
-            ).all(type, user_id) as any[];
-            for (const s of typeSchedules) {
-              insertTask.run(s.id, s.name, today, type);
-            }
-          }
-        }
-      }
-
-      // Weekly tasks on Saturday
-      if (now.getDay() === 6) {
-        const weeklies = db.prepare(
-          "SELECT * FROM checkin_schedules WHERE is_active = 1 AND type = 'weekly' AND user_id = ?"
-        ).all(user_id) as any[];
-        const existingWeekly = db.prepare(`
+      // Each weekly/monthly/seasonal/yearly task opens once, on the last day of its period
+      // (Sunday, the month's last day, Mar 31/Jun 30/Sep 30/Dec 31, Dec 31), so it is done
+      // looking back on the period. The same-date check keeps the hourly runs from
+      // inserting it again.
+      for (const type of PERIOD_TYPES) {
+        if (!isPeriodEnd(type, now)) continue;
+        const schedules = db.prepare(
+          'SELECT * FROM checkin_schedules WHERE is_active = 1 AND type = ? AND user_id = ?'
+        ).all(type, user_id) as any[];
+        const existing = db.prepare(`
           SELECT t.schedule_id FROM checkin_tasks t
           JOIN checkin_schedules s ON t.schedule_id = s.id
-          WHERE t.task_date = ? AND t.schedule_type = 'weekly' AND s.user_id = ?
-        `).all(today, user_id) as any[];
-        const existingWeeklyIds = new Set(existingWeekly.map((e) => e.schedule_id));
-        for (const s of weeklies) {
-          if (!existingWeeklyIds.has(s.id)) insertTask.run(s.id, s.name, today, 'weekly');
-        }
-      }
-
-      // Monthly tasks on 1st of month
-      if (now.getDate() === 1) {
-        const monthlies = db.prepare(
-          "SELECT * FROM checkin_schedules WHERE is_active = 1 AND type = 'monthly' AND user_id = ?"
-        ).all(user_id) as any[];
-        const existingMonthly = db.prepare(`
-          SELECT t.schedule_id FROM checkin_tasks t
-          JOIN checkin_schedules s ON t.schedule_id = s.id
-          WHERE t.task_date = ? AND t.schedule_type = 'monthly' AND s.user_id = ?
-        `).all(today, user_id) as any[];
-        const existingMonthlyIds = new Set(existingMonthly.map((e) => e.schedule_id));
-        for (const s of monthlies) {
-          if (!existingMonthlyIds.has(s.id)) insertTask.run(s.id, s.name, today, 'monthly');
-        }
-      }
-
-      // Seasonal tasks
-      if (now.getDate() === 1 && [3, 6, 9, 0].includes(now.getMonth())) {
-        const seasonlies = db.prepare(
-          "SELECT * FROM checkin_schedules WHERE is_active = 1 AND type = 'seasonly' AND user_id = ?"
-        ).all(user_id) as any[];
-        const existingSeasonly = db.prepare(`
-          SELECT t.schedule_id FROM checkin_tasks t
-          JOIN checkin_schedules s ON t.schedule_id = s.id
-          WHERE t.task_date = ? AND t.schedule_type = 'seasonly' AND s.user_id = ?
-        `).all(today, user_id) as any[];
-        const existingSeasonlyIds = new Set(existingSeasonly.map((e) => e.schedule_id));
-        for (const s of seasonlies) {
-          if (!existingSeasonlyIds.has(s.id)) insertTask.run(s.id, s.name, today, 'seasonly');
-        }
-      }
-
-      // Yearly tasks on Jan 1
-      if (now.getDate() === 1 && now.getMonth() === 0) {
-        const yearlies = db.prepare(
-          "SELECT * FROM checkin_schedules WHERE is_active = 1 AND type = 'yearly' AND user_id = ?"
-        ).all(user_id) as any[];
-        const existingYearly = db.prepare(`
-          SELECT t.schedule_id FROM checkin_tasks t
-          JOIN checkin_schedules s ON t.schedule_id = s.id
-          WHERE t.task_date = ? AND t.schedule_type = 'yearly' AND s.user_id = ?
-        `).all(today, user_id) as any[];
-        const existingYearlyIds = new Set(existingYearly.map((e) => e.schedule_id));
-        for (const s of yearlies) {
-          if (!existingYearlyIds.has(s.id)) insertTask.run(s.id, s.name, today, 'yearly');
+          WHERE t.task_date = ? AND t.schedule_type = ? AND s.user_id = ?
+        `).all(today, type, user_id) as any[];
+        const existingIds = new Set(existing.map((e) => e.schedule_id));
+        for (const s of schedules) {
+          if (!existingIds.has(s.id)) insertTask.run(s.id, s.name, today, type);
         }
       }
     }
