@@ -11,21 +11,14 @@ interface CatalogTrack {
   id: string;
   title: string;
   composer: string;
-  filename: string;
-  durationSec: number;
-  downloaded: boolean;
+  url: string;
+  active: boolean;
 }
 
 const container = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.02 } },
 };
-
-function formatDuration(sec: number) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
 
 export default function MusicLibrary() {
   const navigate = useNavigate();
@@ -39,17 +32,18 @@ export default function MusicLibrary() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    api.getMusicCatalog().then((r) => setCatalog(r.data)).catch(() => setError('Failed to load music catalog'));
-    api.getMusicLibrary().then((r) => setActiveIds(r.data.map((t: { id: string }) => t.id))).catch(() => {});
+    api.getMusicCatalog().then((r) => {
+      setCatalog(r.data);
+      setActiveIds(r.data.filter((t: CatalogTrack) => t.active).map((t: CatalogTrack) => t.id));
+    }).catch(() => setError('Failed to load music'));
   }, []);
 
   useEffect(() => () => audioRef.current?.pause(), []);
 
   const activeSet = useMemo(() => new Set(activeIds), [activeIds]);
 
-  // Only the locally-downloaded tracks are playable/manageable — nothing to do with an
-  // entry that hasn't been fetched to disk, so don't clutter the list with it.
-  const available = useMemo(() => (catalog ?? []).filter((t) => t.downloaded), [catalog]);
+  // Every file in ~/Videos and ~/Music (but not the Rain sleep folder), read from disk.
+  const available = catalog ?? [];
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -91,7 +85,7 @@ export default function MusicLibrary() {
     }
     // avoid overlapping with the persistent top-bar player or a different preview
     document.querySelectorAll('audio').forEach((a) => { if (a !== audio) a.pause(); });
-    audio.src = `/media/music/${track.filename}`;
+    audio.src = track.url;
     audio.play().catch(() => {});
     setPlayingId(track.id);
   }
@@ -103,7 +97,7 @@ export default function MusicLibrary() {
       <PageHeader
         icon={ListMusic}
         title="Manage Music"
-        subtitle={`${activeIds.length} of ${available.length} tracks active in the focus-music rotation.`}
+        subtitle={`${activeIds.length} of ${available.length} tracks from ~/Videos and ~/Music in the focus rotation.`}
         onBack={() => navigate(-1)}
       />
 
@@ -112,7 +106,7 @@ export default function MusicLibrary() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search title or composer…"
+          placeholder="Search title or folder…"
           className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-brand-500"
         />
       </div>
@@ -141,7 +135,7 @@ export default function MusicLibrary() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm text-gray-800 dark:text-gray-100">{track.title}</div>
                 <div className="text-xs text-gray-400 dark:text-gray-500">
-                  {track.composer} · {formatDuration(track.durationSec)}
+                  {track.composer}
                 </div>
               </div>
 

@@ -154,6 +154,8 @@ services:
       - 'VAPID_EMAIL=re453882101@gmail.com'
       - 'PUSH_NOTIFY_TIME=11:30'
       - 'CA_CERT_PATH=/certs/rootCA.pem'
+      - 'MUSIC_VIDEOS_DIR=/media/videos'
+      - 'MUSIC_DIR=/media/music'
       # Hours before this are treated as the previous day (default: 6)
       # - 'DAY_START_HOUR=6'
       # Email verification (optional — omit to skip email verification)
@@ -175,6 +177,9 @@ services:
       - ./data/besmart:/app/data
       - /data/nextcloud_client/obsidian/lidaning:/vault
       - ./config/mkcert:/certs:ro
+      # Focus music plays ~/Videos (audio only); ~/Music/Rain is Sleep, other ~/Music tracks can join Focus at /music
+      - /home/shake/Videos:/media/videos:ro
+      - /home/shake/Music:/media/music:ro
     restart: unless-stopped
 #  grocery:
 #    build:

@@ -15,8 +15,7 @@ interface Track {
   id: string;
   title: string;
   composer: string;
-  filename: string;
-  durationSec: number;
+  url: string;
 }
 
 interface StoredPrefs {
@@ -60,7 +59,7 @@ export default function MusicPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [open, setOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  // Focus plays the managed piano library; Sleep plays the rain recordings, each looped.
+  // Focus plays ~/Videos (audio only) plus the ~/Music tracks turned on at /music; Sleep plays ~/Music/Rain, each looped.
   const [mode, setMode] = useState<Mode>(initialPrefs.mode);
   const [focusTracks, setFocusTracks] = useState<Track[]>([]);
   const [sleepTracks, setSleepTracks] = useState<Track[]>([]);
@@ -239,7 +238,7 @@ export default function MusicPlayer() {
 
         {!track ? (
           <div className="py-4 text-center text-sm text-gray-500">
-            {mode === 'sleep' ? 'No rain recordings downloaded.' : 'No tracks active.'}
+            {mode === 'sleep' ? 'No tracks in ~/Music/Rain.' : 'No tracks in ~/Videos.'}
             {mode === 'focus' && <button onClick={goManage} className="btn-secondary mt-3 block w-full text-xs">Manage music</button>}
           </div>
         ) : (
@@ -248,7 +247,7 @@ export default function MusicPlayer() {
               <div className="min-w-0">
                 <div className={`truncate font-bold text-gray-900 dark:text-gray-100 ${big ? 'text-base' : 'text-sm'}`}>{track.title}</div>
                 <div className="text-xs text-gray-500">
-                  {mode === 'sleep' ? `${Math.round(track.durationSec / 60)} min · loops` : track.composer}
+                  {mode === 'sleep' ? 'Loops' : track.composer}
                 </div>
               </div>
               {mode === 'focus' && (
@@ -328,7 +327,7 @@ export default function MusicPlayer() {
       {track && (
         <audio
           ref={audioRef}
-          src={`/media/music/${track.filename}`}
+          src={track.url}
           onPlay={() => setIsPlaying(true)}
           onTimeUpdate={tickSleepTimer}
           onPause={() => setIsPlaying(false)}

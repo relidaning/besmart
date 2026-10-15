@@ -18,7 +18,7 @@ import { notificationRoutes } from './routes/notifications.js';
 import { musicRoutes } from './routes/music.js';
 import { gardenRoutes } from './routes/garden.js';
 import { initGarden } from './garden.js';
-import { MUSIC_DIR } from './musicLibrary.js';
+import { MUSIC_DIR, VIDEOS_DIR } from './musicLibrary.js';
 import { initWebPush, sendDailyReviewReminders } from './push.js';
 import { localDate } from './date.js';
 
@@ -112,10 +112,11 @@ app.use('/api/dashboard', requireAuth, dashboardRoutes);
 app.use('/api/music', requireAuth, musicRoutes);
 app.use('/api/garden', requireAuth, gardenRoutes);
 
-// Locally-downloaded public-domain music (see scripts/download-music.mjs) served straight
-// from disk. The .library.json state file lives alongside the mp3s but express.static
-// ignores dotfiles by default, so it isn't exposed here.
-app.use('/media/music', express.static(MUSIC_DIR, { maxAge: '30d', immutable: true }));
+// The user's own ~/Videos and ~/Music folders (mounted read-only in the container), served
+// straight from disk; express.static answers Range requests, so long tracks seek without a
+// full download. Files may be replaced under the same name, so no immutable caching.
+app.use('/media/videos', express.static(VIDEOS_DIR, { maxAge: '1d' }));
+app.use('/media/music', express.static(MUSIC_DIR, { maxAge: '1d' }));
 
 if (process.env.NODE_ENV === 'production') {
   const clientDist = path.join(__dirname, '..');
