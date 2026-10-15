@@ -351,7 +351,7 @@ export default function CheckIn() {
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-2xl p-5"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-2xl lg:max-w-4xl p-5 lg:p-6"
           >
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-3">{DIARY_COPY[diaryType].title}</h2>
             <form onSubmit={handleDiarySubmit} className="space-y-3">
@@ -376,7 +376,7 @@ export default function CheckIn() {
               )}
               <div>
                 {/* Phone height leaves the buttons above the on-screen keyboard. */}
-                <textarea className={`input block ${diaryType === 'daily' ? 'h-[32dvh]' : 'h-[26dvh]'} sm:h-[45vh] min-h-[140px] leading-relaxed`} autoFocus value={diaryText} onChange={(e) => setDiaryText(e.target.value)}
+                <textarea className={`input block ${diaryType === 'daily' ? 'h-[32dvh]' : 'h-[26dvh]'} sm:h-[45vh] lg:h-[60vh] min-h-[140px] leading-relaxed lg:text-base`} autoFocus value={diaryText} onChange={(e) => setDiaryText(e.target.value)}
                   placeholder={DIARY_COPY[diaryType].placeholder} />
                 <p className="text-xs text-gray-500 mt-1.5 truncate">
                   {(() => {
