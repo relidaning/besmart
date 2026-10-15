@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-15 — Bigger diary dialog on laptops; image rebuilt from `master`, PRs #4–#6 and #8–#13 now live
+At 1024px and wider, Check In's diary dialog (`CheckIn.tsx`) is now 896px wide instead of 672px, its text area takes 60% of the window height instead of 45%, and the text is 16px; phones and tablets are unchanged. The user said to deploy every requested change without asking (saved as a memory), so the image was rebuilt through the host proxy and recreated, which also put the merged PRs #4–#6 and #8–#13 live for the first time. The change and the updated deploy note in `CLAUDE.md` were pushed as `33a670c`. Left over: the six local branches of the squash-merged PRs #8–#13 still need `git branch -D`.
+
 ## 2026-10-13 — BeSmart down for six hours after a host-wide container stop and a reboot; started again
 The app was down from 10:10 to about 16:20: something stopped about a dozen containers on the host at 10:10 (`besmart` took the 10 s grace period and exited 137, `besmart-https` exited 0), the machine rebooted at 12:32, and Docker's `unless-stopped` policy does not bring back containers that were stopped before a reboot, so it was not a crash. `docker compose start besmart besmart-https` brought both back (ports 5090 and 5443 return 200, clean startup log, no restarts); `start` was chosen over `up` so the same container and old image keep running, still without the merged-but-undeployed PRs. Left for the user: what issued the 10:10 stop was not found (nothing in the shell history), and the `mybackup` container, stopped in the same sweep, is still down.
 
