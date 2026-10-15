@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-15 — Music player plays from ~/Videos and ~/Music instead of app storage
+The music now comes from the user's own folders, not the app. `~/Videos` and `~/Music` are mounted read-only and scanned on every request by the new `musicLibrary.ts`, so the catalog file, the download script and `data/besmart/music/` are gone. Focus plays only the 3 `~/Videos` tracks (audio only), and Sleep plays the 4 tracks in `~/Music/Rain`. The 20 Chopin recordings went to `~/Music/Chopin`, and the option to add them to Focus was removed after the user said they didn't want them for now. The only app state left is the list of switched-off `~/Videos` tracks in `music-library.json`, so new downloads join on their own. Both commits are deployed and pushed (`be505bf`, `4de9fa6`).
+
 ## 2026-10-15 — Bigger diary dialog on laptops; image rebuilt from `master`, PRs #4–#6 and #8–#13 now live
 At 1024px and wider, Check In's diary dialog (`CheckIn.tsx`) is now 896px wide instead of 672px, its text area takes 60% of the window height instead of 45%, and the text is 16px; phones and tablets are unchanged. The user said to deploy every requested change without asking (saved as a memory), so the image was rebuilt through the host proxy and recreated, which also put the merged PRs #4–#6 and #8–#13 live for the first time. The change and the updated deploy note in `CLAUDE.md` were pushed as `33a670c`. Left over: the six local branches of the squash-merged PRs #8–#13 still need `git branch -D`.
 
