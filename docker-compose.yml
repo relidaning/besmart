@@ -177,7 +177,7 @@ services:
       - ./data/besmart:/app/data
       - /data/nextcloud_client/obsidian/lidaning:/vault
       - ./config/mkcert:/certs:ro
-      # Focus music plays ~/Videos (audio only); ~/Music/Rain is Sleep, other ~/Music tracks can join Focus at /music
+      # Focus music plays ~/Videos (audio only); Sleep plays ~/Music/Rain
       - /home/shake/Videos:/media/videos:ro
       - /home/shake/Music:/media/music:ro
     restart: unless-stopped

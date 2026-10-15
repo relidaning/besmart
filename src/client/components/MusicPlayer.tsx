@@ -59,7 +59,7 @@ export default function MusicPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [open, setOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  // Focus plays ~/Videos (audio only) plus the ~/Music tracks turned on at /music; Sleep plays ~/Music/Rain, each looped.
+  // Focus plays ~/Videos (audio only); Sleep plays ~/Music/Rain, each looped.
   const [mode, setMode] = useState<Mode>(initialPrefs.mode);
   const [focusTracks, setFocusTracks] = useState<Track[]>([]);
   const [sleepTracks, setSleepTracks] = useState<Track[]>([]);

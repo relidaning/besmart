@@ -42,7 +42,7 @@ export default function MusicLibrary() {
 
   const activeSet = useMemo(() => new Set(activeIds), [activeIds]);
 
-  // Every file in ~/Videos and ~/Music (but not the Rain sleep folder), read from disk.
+  // Every file in ~/Videos, read from disk.
   const available = catalog ?? [];
 
   const filtered = useMemo(() => {
@@ -97,7 +97,7 @@ export default function MusicLibrary() {
       <PageHeader
         icon={ListMusic}
         title="Manage Music"
-        subtitle={`${activeIds.length} of ${available.length} tracks from ~/Videos and ~/Music in the focus rotation.`}
+        subtitle={`${activeIds.length} of ${available.length} tracks from ~/Videos in the focus rotation.`}
         onBack={() => navigate(-1)}
       />
 
@@ -106,7 +106,7 @@ export default function MusicLibrary() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search title or folder…"
+          placeholder="Search title…"
           className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-brand-500"
         />
       </div>
