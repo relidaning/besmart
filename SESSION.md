@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-15 — Diary entries in the snippet format, with Weekly/Monthly/Yearly labels and headings in date order
+Diary entries of every type are now written as `- HH:MM **Diary**` with each line of the text as a `\t- ` sub-item, the same format as the note's other snippets. Weekly, monthly and yearly entries are labelled `**Weekly**`/`**Monthly**`/`**Yearly**`, and a new heading is inserted in date order by the last day of its period (so the W41 entry for 5–11 Oct sits before 15 Oct even when it is written on the 15th). `diaryHeadingKey` now skips the `⁠N. ` prefix (with a U+2060 word joiner) that the user's heading-numbering plugin adds, because that prefix had stopped the app from recognizing the weekly heading. The user's `2026-10.md` note was converted by hand and its heading numbers 5/6 were swapped to match the new order. Deployed and pushed (`a070fba`, `d82088d`).
+
 ## 2026-10-15 — Music player plays from ~/Videos and ~/Music instead of app storage
 The music now comes from the user's own folders, not the app. `~/Videos` and `~/Music` are mounted read-only and scanned on every request by the new `musicLibrary.ts`, so the catalog file, the download script and `data/besmart/music/` are gone. Focus plays only the 3 `~/Videos` tracks (audio only), and Sleep plays the 4 tracks in `~/Music/Rain`. The 20 Chopin recordings went to `~/Music/Chopin`, and the option to add them to Focus was removed after the user said they didn't want them for now. The only app state left is the list of switched-off `~/Videos` tracks in `music-library.json`, so new downloads join on their own. Both commits are deployed and pushed (`be505bf`, `4de9fa6`).
 
