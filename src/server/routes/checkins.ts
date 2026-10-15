@@ -228,10 +228,10 @@ export function computeStreak(userId: number): number {
 }
 
 // ── Diary ─────────────────────────────────────────────────────────────────────
-// A diary entry appended to the vault's diary folder (0_lidaning/Diaries). A daily
-// entry is a short note about the day, written the way the monthly note's other
-// entries are: a "### YYYY-MM-DD" heading per day, then "- HH:MM text". Weekly,
-// monthly and yearly diaries are longer and go in as written, under a heading for
+// A diary entry appended to the vault's diary folder (0_lidaning/Diaries), written
+// the way the monthly note's other snippets are: "- HH:MM **Diary**", then each
+// line of the text as an indented sub-item. A daily entry goes under the day's
+// "### YYYY-MM-DD" heading; weekly, monthly and yearly ones under a heading for
 // their period. shared/diary.ts decides the note and the heading.
 
 const DIARY_DIR = process.env.DIARY_DIR ?? '0_lidaning/Diaries';
@@ -261,13 +261,10 @@ checkinRoutes.post('/diary', (req, res) => {
     // and starts a new heading otherwise.
     const lastKey = [...existing.matchAll(/^#{1,6}\s+(.*?)\s*$/gm)]
       .map((m) => diaryHeadingKey(m[1])).filter(Boolean).pop();
-    const [first, ...rest] = text.split(/\r?\n/);
-    const entry = type === 'daily'
-      ? [`- ${time} ${first}`, ...rest.filter((l) => l.trim()).map((l) => `\t${l}`)].join('\n')
-      : text.replace(/\r\n/g, '\n');
-    let add = lastKey === period.key
-      ? (type === 'daily' ? '' : '\n')
-      : `${existing ? '\n' : ''}### ${period.heading}\n\n`;
+    // A line typed as a list item ("- x") is not bulleted twice.
+    const lines = text.split(/\r?\n/).map((l) => l.trim().replace(/^[-*+]\s+/, '')).filter(Boolean);
+    const entry = [`- ${time} **Diary**`, ...lines.map((l) => `\t- ${l}`)].join('\n');
+    let add = lastKey === period.key ? '' : `${existing ? '\n' : ''}### ${period.heading}\n\n`;
     if (existing && !existing.endsWith('\n')) add = `\n${add}`;
     fs.appendFileSync(file, `${add}${entry}\n`);
     if (!existing) { try { fs.chownSync(file, owner.uid, owner.gid); } catch { /* best effort */ } }
