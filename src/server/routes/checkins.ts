@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { awardXp, revokeXp, scheduleCategory, isAttribute, MIN_CHECKIN_XP } from '../garden.js';
 import { getUserVaultConfig } from './reviews.js';
-import { diaryPeriod, diaryHeadingKey, isDiaryType, type DiaryType } from '../../shared/diary.js';
+import { diaryPeriod, diaryHeadingKey, diaryKeyEnd, isDiaryType, type DiaryType } from '../../shared/diary.js';
 
 export const checkinRoutes = Router();
 
@@ -229,10 +229,12 @@ export function computeStreak(userId: number): number {
 
 // ── Diary ─────────────────────────────────────────────────────────────────────
 // A diary entry appended to the vault's diary folder (0_lidaning/Diaries), written
-// the way the monthly note's other snippets are: "- HH:MM **Diary**", then each
-// line of the text as an indented sub-item. A daily entry goes under the day's
-// "### YYYY-MM-DD" heading; weekly, monthly and yearly ones under a heading for
-// their period. shared/diary.ts decides the note and the heading.
+// the way the monthly note's other snippets are: "- HH:MM **Diary**" (**Weekly**,
+// **Monthly**, **Yearly** for the longer kinds), then each line of the text as an
+// indented sub-item. A daily entry goes under the day's "### YYYY-MM-DD" heading;
+// weekly, monthly and yearly ones under a heading for their period. Headings stay
+// in date order by the day their period ends, so last week's diary written today
+// lands before today's heading. shared/diary.ts decides the note and the heading.
 
 const DIARY_DIR = process.env.DIARY_DIR ?? '0_lidaning/Diaries';
 const DIARY_MAX = { daily: 4000, weekly: 20000, monthly: 20000, yearly: 20000 };
@@ -257,16 +259,31 @@ checkinRoutes.post('/diary', (req, res) => {
       try { fs.chownSync(path.dirname(file), owner.uid, owner.gid); } catch { /* best effort */ }
     }
     const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : '';
-    // The entry joins the note's last diary heading when that is its own period,
-    // and starts a new heading otherwise.
-    const lastKey = [...existing.matchAll(/^#{1,6}\s+(.*?)\s*$/gm)]
-      .map((m) => diaryHeadingKey(m[1])).filter(Boolean).pop();
     // A line typed as a list item ("- x") is not bulleted twice.
     const lines = text.split(/\r?\n/).map((l) => l.trim().replace(/^[-*+]\s+/, '')).filter(Boolean);
-    const entry = [`- ${time} **Diary**`, ...lines.map((l) => `\t- ${l}`)].join('\n');
-    let add = lastKey === period.key ? '' : `${existing ? '\n' : ''}### ${period.heading}\n\n`;
-    if (existing && !existing.endsWith('\n')) add = `\n${add}`;
-    fs.appendFileSync(file, `${add}${entry}\n`);
+    const label = { daily: 'Diary', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' }[type];
+    const entry = [`- ${time} **${label}**`, ...lines.map((l) => `\t- ${l}`)];
+
+    const note = existing ? existing.replace(/\r\n/g, '\n').replace(/\n*$/, '').split('\n') : [];
+    const headings = note.flatMap((l, i) => {
+      const m = l.match(/^(#{1,6})\s+(.*?)\s*$/);
+      return m ? [{ i, level: m[1].length, key: diaryHeadingKey(m[2]) }] : [];
+    });
+    const own = headings.filter((h) => h.key === period.key).pop();
+    if (own) {
+      // Append to the end of the period's section, before any blank lines that
+      // separate it from the next heading.
+      let end = headings.find((h) => h.i > own.i && h.level <= own.level)?.i ?? note.length;
+      while (end > own.i + 1 && !note[end - 1].trim()) end--;
+      note.splice(end, 0, ...entry);
+    } else {
+      const periodEnd = diaryKeyEnd(period.key);
+      const next = headings.find((h) => h.key && diaryKeyEnd(h.key) > periodEnd);
+      const section = [`### ${period.heading}`, '', ...entry];
+      if (next) note.splice(next.i, 0, ...section, '');
+      else note.push(...(note.length ? [''] : []), ...section);
+    }
+    fs.writeFileSync(file, `${note.join('\n')}\n`);
     if (!existing) { try { fs.chownSync(file, owner.uid, owner.gid); } catch { /* best effort */ } }
     res.json({ success: true, path: rel, heading: period.heading });
   } catch (err) {

@@ -65,9 +65,25 @@ export function defaultsToPrevious(type: DiaryType, today: string): boolean {
 }
 
 // The period a note heading stands for, or null when it isn't a diary heading.
-// Day headings may be numbered ("### 5. 2026-09-22"), so only their end is matched.
+// Headings may be numbered by a heading-numbering plugin ("### ⁠5. 2026-09-22", with
+// a word joiner before the number), so that prefix is skipped.
 export function diaryHeadingKey(heading: string): string | null {
+  heading = heading.replace(/^\u2060?\d+(?:\.\d+)*\.?\s+/, '');
   const period = heading.match(/^(?:Weekly (\d{4}-W\d{2})|Monthly (\d{4}-\d{2})|Yearly (\d{4}))(?!\S)/);
   if (period) return period[1] ?? period[2] ?? period[3];
   return heading.match(/(\d{4}-\d{2}-\d{2})$/)?.[1] ?? null;
+}
+
+// The last day a diary period covers ('YYYY-MM-DD'), so that headings can be kept
+// in date order: a week ends on its Sunday, a month and a year on their last day.
+export function diaryKeyEnd(key: string): string {
+  const week = key.match(/^(\d{4})-W(\d{2})$/);
+  if (week) {
+    const jan4 = Date.UTC(+week[1], 0, 4); // always in ISO week 1
+    const monday1 = jan4 - ((new Date(jan4).getUTCDay() + 6) % 7) * DAY;
+    return ymd(monday1 + ((+week[2] - 1) * 7 + 6) * DAY);
+  }
+  if (/^\d{4}-\d{2}$/.test(key)) return ymd(Date.UTC(+key.slice(0, 4), +key.slice(5, 7), 0));
+  if (/^\d{4}$/.test(key)) return `${key}-12-31`;
+  return key;
 }
