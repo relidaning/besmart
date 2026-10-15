@@ -102,27 +102,64 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-// One garden: every plant has a fixed tile, filled in planting order row by row
-// (snaking), so a period's plants sit together. A period view shows only its plants
-// and crops the island to their tiles, so Today is close up and Month is wider.
-function gardenLayout(all: Plant[], shown: Plant[], whole: boolean) {
-  const N = Math.max(4, Math.ceil(Math.sqrt(all.length * 1.3)));
-  const tile = new Map<number, [number, number]>();
-  [...all]
-    .sort((a, b) => a.planted_at.localeCompare(b.planted_at) || a.id - b.id)
-    .forEach((p, k) => {
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+// A period's areas, one per day, laid out like a calendar: `col`/`row` are area
+// coordinates. Year areas are keyed by MM-DD (12 rows of up to 31, Feb 29 always
+// there), so the same day of every year is the same area.
+interface Area { key: string; col: number; row: number; label: string; today: boolean }
+function periodAreas(period: Period, today: string): Area[] {
+  if (period === 'all') return [];
+  if (period === 'year') {
+    return MONTHS.flatMap((m, mi) => Array.from({ length: new Date(2024, mi + 1, 0).getDate() }, (_, d) => {
+      const key = `${String(mi + 1).padStart(2, '0')}-${String(d + 1).padStart(2, '0')}`;
+      return { key, col: d, row: mi, label: d === 0 ? m : String(d + 1), today: key === today.slice(5) };
+    }));
+  }
+  if (period === 'today') return [{ key: today, col: 0, row: 0, label: `${MONTHS[+today.slice(5, 7) - 1]} ${+today.slice(8)}`, today: true }];
+  const start = periodStart(period, today);
+  const days = period === 'week' ? 7 : new Date(+today.slice(0, 4), +today.slice(5, 7), 0).getDate();
+  const offset = period === 'week' ? 0 : (new Date(`${start}T12:00:00`).getDay() + 6) % 7; // Monday first
+  return Array.from({ length: days }, (_, k) => {
+    const key = addDays(start, k);
+    const label = period === 'week' ? `${WEEKDAYS[k]} ${+key.slice(8)}` : String(k + 1);
+    return { key, col: (offset + k) % 7, row: Math.floor((offset + k) / 7), label, today: key === today };
+  });
+}
+
+interface Plot { i: number; j: number; s: number; label: string; today: boolean }
+
+// All: one garden where every plant has a fixed tile, filled in planting order row by
+// row (snaking). The period views divide the island into one area (an s×s plot) per
+// day of the period and put each day's plants in its area.
+function gardenLayout(all: Plant[], shown: Plant[], period: Period, today: string) {
+  const byAge = (a: Plant, b: Plant) => a.planted_at.localeCompare(b.planted_at) || a.id - b.id;
+  if (period === 'all') {
+    const N = Math.max(4, Math.ceil(Math.sqrt(all.length * 1.3)));
+    const tile = new Map<number, [number, number]>();
+    [...all].sort(byAge).forEach((p, k) => {
       const j = Math.floor(k / N), c = k % N;
       tile.set(p.id, [j % 2 ? N - 1 - c : c, j]);
     });
-  const cells = shown.flatMap((p) => { const t = tile.get(p.id); return t ? [{ p, i: t[0], j: t[1] }] : []; });
-  if (cells.length === 0) return { n: 4, placed: [] };
-  if (whole) return { n: N, placed: cells };
-  const is = cells.map((c) => c.i), js = cells.map((c) => c.j);
-  const i0 = Math.min(...is), j0 = Math.min(...js);
-  const wi = Math.max(...is) - i0 + 1, wj = Math.max(...js) - j0 + 1;
-  const n = Math.max(3, wi, wj);
-  const oi = Math.floor((n - wi) / 2), oj = Math.floor((n - wj) / 2);
-  return { n, placed: cells.map((c) => ({ p: c.p, i: c.i - i0 + oi, j: c.j - j0 + oj })) };
+    const placed = shown.flatMap((p) => { const t = tile.get(p.id); return t ? [{ p, i: t[0], j: t[1] }] : []; });
+    return { ni: N, nj: N, placed, plots: [] as Plot[] };
+  }
+  const areas = periodAreas(period, today);
+  const keyOf = (p: Plant) => (period === 'year' ? p.day.slice(5) : p.day);
+  const groups = new Map<string, Plant[]>();
+  [...shown].sort(byAge).forEach((p) => groups.set(keyOf(p), [...(groups.get(keyOf(p)) ?? []), p]));
+  const s = Math.max(1, Math.ceil(Math.sqrt(Math.max(0, ...[...groups.values()].map((g) => g.length)))));
+  const placed: { p: Plant; i: number; j: number }[] = [];
+  const plots = areas.map((a) => {
+    (groups.get(a.key) ?? []).forEach((p, k) => placed.push({ p, i: a.col * s + (k % s), j: a.row * s + Math.floor(k / s) }));
+    return { i: a.col * s, j: a.row * s, s, label: a.label, today: a.today };
+  });
+  return {
+    ni: (Math.max(...areas.map((a) => a.col)) + 1) * s,
+    nj: (Math.max(...areas.map((a) => a.row)) + 1) * s,
+    placed, plots,
+  };
 }
 
 const easeOutBack = (t: number) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2);
@@ -136,12 +173,12 @@ interface Particle { x: number; y: number; vy: number; r: number; rot: number; s
 // it and animate seasonal particles on top. Pinch or ctrl/⌘-scroll to zoom,
 // drag to pan when zoomed, double-tap to zoom in / reset.
 
-function GardenCanvas({ plants, all, whole, season, layoutKey, highlight, onPick }: {
+function GardenCanvas({ plants, all, period, today, season, highlight, onPick }: {
   plants: Plant[];
   all: Plant[];
-  whole: boolean; // the All view: the whole island, not cropped to the plants shown
+  period: Period;
+  today: string;
   season: Season;
-  layoutKey: string;
   highlight: number | null;
   onPick: (p: Plant | null) => void;
 }) {
@@ -166,7 +203,7 @@ function GardenCanvas({ plants, all, whole, season, layoutKey, highlight, onPick
     return () => ro.disconnect();
   }, []);
 
-  const layout = useMemo(() => gardenLayout(all, plants, whole), [all, plants, whole, layoutKey]);
+  const layout = useMemo(() => gardenLayout(all, plants, period, today), [all, plants, period, today]);
 
   // A new layout starts un-zoomed.
   useEffect(() => { viewRef.current = { k: 1, x: 0, y: 0 }; setZoom(1); }, [layout]);
@@ -193,9 +230,10 @@ function GardenCanvas({ plants, all, whole, season, layoutKey, highlight, onPick
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || width === 0) return;
-    const { n, placed } = layout;
+    const { ni, nj, placed, plots } = layout;
     const W = width;
-    const tw = (W * 0.86) / n, th = tw / 2;
+    // The island is a ni × nj diamond, (ni + nj) / 2 tiles wide.
+    const tw = Math.min((W * 0.86 * 2) / (ni + nj), (W * 0.86) / 3), th = tw / 2;
     const wall = Math.min(22, Math.max(6, tw * 0.5));
     const unit = Math.min(64, tw * 0.95);
     const grown = placed.map(({ p }) => {
@@ -205,7 +243,7 @@ function GardenCanvas({ plants, all, whole, season, layoutKey, highlight, onPick
       return { sp, young: g.young, pct: g.pct, fruit: !!p.finished, h: Math.min(unit * sp.size * g.scale, W * 0.36) };
     });
     const topPad = Math.max(40, ...grown.map((g, k) => g.h - (placed[k].i + placed[k].j) * th / 2)) + 6;
-    const H = topPad + n * th + wall + 6;
+    const H = topPad + ((ni + nj) * th) / 2 + wall + 6;
     sizeRef.current = { W, H };
     const dpr = window.devicePixelRatio || 1;
     canvas.width = W * dpr;
@@ -217,9 +255,9 @@ function GardenCanvas({ plants, all, whole, season, layoutKey, highlight, onPick
     scene.height = canvas.height;
     const sctx = scene.getContext('2d')!;
     const g = GROUND[season][dark ? 'dark' : 'light'];
-    const ox = W / 2, oy = topPad;
-    const L = { x: ox - (n * tw) / 2, y: oy + (n * th) / 2 }, R = { x: ox + (n * tw) / 2, y: oy + (n * th) / 2 };
-    const B = { x: ox, y: oy + n * th };
+    const ox = W / 2 - ((ni - nj) * tw) / 4, oy = topPad;
+    const corner = (i: number, j: number) => ({ x: ox + ((i - j) * tw) / 2, y: oy + ((i + j) * th) / 2 });
+    const L = corner(0, nj), R = corner(ni, 0), B = corner(ni, nj);
     const order = placed.map((pl, k) => ({ ...pl, ...grown[k], k }))
       .sort((a, b) => a.i + a.j - (b.i + b.j) || a.i - b.i);
     const many = placed.length > 180;
@@ -242,12 +280,33 @@ function GardenCanvas({ plants, all, whole, season, layoutKey, highlight, onPick
       grad.addColorStop(1, g.top);
       sctx.fillStyle = grad;
       sctx.beginPath(); sctx.moveTo(ox, oy); sctx.lineTo(R.x, R.y); sctx.lineTo(B.x, B.y); sctx.lineTo(L.x, L.y); sctx.closePath(); sctx.fill();
-      if (tw * viewRef.current.k > 9) {
+      const k = viewRef.current.k;
+      if (tw * k > 9) {
         sctx.strokeStyle = g.line;
-        sctx.lineWidth = 1 / viewRef.current.k;
-        for (let k = 1; k < n; k++) {
-          sctx.beginPath(); sctx.moveTo(ox + (k * tw) / 2, oy + (k * th) / 2); sctx.lineTo(L.x + (k * tw) / 2, L.y + (k * th) / 2); sctx.stroke();
-          sctx.beginPath(); sctx.moveTo(ox - (k * tw) / 2, oy + (k * th) / 2); sctx.lineTo(R.x - (k * tw) / 2, R.y + (k * th) / 2); sctx.stroke();
+        sctx.lineWidth = 1 / k;
+        for (let i = 1; i < ni; i++) { const a = corner(i, 0), b = corner(i, nj); sctx.beginPath(); sctx.moveTo(a.x, a.y); sctx.lineTo(b.x, b.y); sctx.stroke(); }
+        for (let j = 1; j < nj; j++) { const a = corner(0, j), b = corner(ni, j); sctx.beginPath(); sctx.moveTo(a.x, a.y); sctx.lineTo(b.x, b.y); sctx.stroke(); }
+      }
+      // One raised plot per day, inset so neighbouring days read as separate areas;
+      // today's is outlined. Day labels appear once a plot is big enough on screen.
+      const inset = 0.12;
+      for (const pl of plots) {
+        const a = pl.i + inset, b = pl.j + inset, e = pl.s - 2 * inset;
+        const c0 = corner(a, b), c1 = corner(a + e, b), c2 = corner(a + e, b + e), c3 = corner(a, b + e);
+        sctx.beginPath(); sctx.moveTo(c0.x, c0.y); sctx.lineTo(c1.x, c1.y); sctx.lineTo(c2.x, c2.y); sctx.lineTo(c3.x, c3.y); sctx.closePath();
+        sctx.fillStyle = dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.32)';
+        sctx.fill();
+        sctx.strokeStyle = pl.today ? '#f59e0b' : dark ? 'rgba(255,255,255,0.12)' : 'rgba(30,60,20,0.16)';
+        sctx.lineWidth = (pl.today ? 2 : 1) / k;
+        sctx.stroke();
+        const size = pl.s * tw * k;
+        if (size > 24) {
+          const fs = Math.min(12, size * 0.22);
+          sctx.font = `600 ${fs / k}px system-ui, sans-serif`;
+          sctx.textAlign = 'center';
+          sctx.textBaseline = 'middle';
+          sctx.fillStyle = pl.today ? '#d97706' : dark ? 'rgba(255,255,255,0.4)' : 'rgba(30,50,20,0.45)';
+          sctx.fillText(pl.label, c2.x, c2.y - (fs * 0.9) / k);
         }
       }
       const hits: typeof hitRef.current = [];
@@ -283,8 +342,9 @@ function GardenCanvas({ plants, all, whole, season, layoutKey, highlight, onPick
     const target = reduced ? 0 : season === 'winter' ? 70 : season === 'autumn' ? Math.min(28, sources.length * 3) : season === 'spring' ? 14 : 0;
     for (let k = 0; k < target; k++) { const p = spawn(true); if (p) particles.push(p); }
     const floorAt = (x: number) => {
-      const dx = Math.abs(x - ox) / ((n * tw) / 2);
-      return dx > 1 ? H : oy + (n * th) / 2 + (n * th) / 2 * (1 - dx) - 2;
+      if (x < L.x || x > R.x) return H;
+      const [a, b] = x < B.x ? [L, B] : [B, R];
+      return a.y + ((x - a.x) / (b.x - a.x || 1)) * (b.y - a.y) - 2;
     };
 
     const start = performance.now();
@@ -497,6 +557,7 @@ export default function Garden() {
 
   const shown = useMemo(() => {
     if (!data) return [];
+    if (period === 'year') return data.plants; // every year: each lands on its day's area
     const from = periodStart(period, data.today);
     return data.plants.filter((p) => p.day >= from && p.day <= data.today);
   }, [data, period]);
@@ -567,7 +628,8 @@ export default function Garden() {
         </div>
         <div className="flex items-baseline justify-between px-1 mb-1">
           <span className="text-[11px] text-gray-500">
-            {period === 'all' ? 'Your whole garden' : period === 'today' ? `Planted ${fmtDay(data.today)}` : `Planted since ${fmtDay(periodStart(period, data.today))}`}
+            {period === 'all' ? 'Your whole garden' : period === 'today' ? `Planted ${fmtDay(data.today)}`
+              : period === 'year' ? 'One area per day of the year, every year' : `One area per day since ${fmtDay(periodStart(period, data.today))}`}
           </span>
           <span className="text-[11px] text-gray-500">{shown.length} plants · {speciesShown} species</span>
         </div>
@@ -575,9 +637,9 @@ export default function Garden() {
           <GardenCanvas
             plants={shown}
             all={data.plants}
-            whole={period === 'all'}
+            period={period}
+            today={data.today}
             season={season}
-            layoutKey={`${period}:${periodStart(period, data.today)}`}
             highlight={highlight}
             onPick={setPicked}
           />
