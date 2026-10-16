@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-15 — Garden island: one area per day in every tab, new Season tab
+At the user's request, every Garden tab now splits the island into one area per day, laid out on the same square grid (Today 1×1, Week 3×3, Month 6×6, the new Season tab 10×10, Year and All 20×20). Year and All key areas by `MM-DD`, so the same date in different years shares an area. The areas have no date labels, and the leftover filler cells look the same as day areas. `topPad` is sized for the tallest layout across all tabs and the caption stays on one line, so the island stays put when switching tabs. Committed and pushed as `7d7da5e`, `35df73a`, `c6ef963` and `041d2ca`.
+
 ## 2026-10-15 — Duplicate weekly/monthly check-ins removed; non-daily check-ins now open on the last day of their period
 The extra weekly items (10-09 next to 10-10, 10-02 next to 10-03) came from the scheduler's old wall-clock triggers, which created each task once between 00:00 and 06:00 dated the day before and again after 06:00. PR #9, now deployed, had already fixed the cause, so the 12 pending duplicates were deleted after a backup (`besmart.db.bak-2026-10-15-pre-dup-checkins`). At the user's request, weekly/monthly/seasonal/yearly tasks now open on the last day of their period (Sunday, the month's last day, quarter end, Dec 31) through one `isPeriodEnd` loop in `scheduler.ts`. The same change also removed the "none of this type pending → insert one dated today" block, which gave a second task in the same period once the user had finished one. Deployed and pushed (`e977a77`, `054c676`). Left for the user: whether the open tasks that still carry old dates (Weekly 09-26 and 10-03, Monthly/ppt/Seasonly on 10-01) should be moved to their period end or deleted.
 
