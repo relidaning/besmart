@@ -231,7 +231,8 @@ export function computeStreak(userId: number): number {
 // A diary entry appended to the vault's diary folder (0_lidaning/Diaries), written
 // the way the monthly note's other snippets are: "- HH:MM **Diary**" (**Weekly**,
 // **Monthly**, **Yearly** for the longer kinds), then each line of the text as an
-// indented sub-item. A daily entry goes under the day's "### YYYY-MM-DD" heading;
+// indented sub-item; a later entry of the same kind in the same period adds its
+// lines to the earlier one's sub-items. A daily entry goes under the day's "### YYYY-MM-DD" heading;
 // weekly, monthly and yearly ones under a heading for their period. Headings stay
 // in date order by the day their period ends, so last week's diary written today
 // lands before today's heading. shared/diary.ts decides the note and the heading.
@@ -271,11 +272,23 @@ checkinRoutes.post('/diary', (req, res) => {
     });
     const own = headings.filter((h) => h.key === period.key).pop();
     if (own) {
-      // Append to the end of the period's section, before any blank lines that
-      // separate it from the next heading.
-      let end = headings.find((h) => h.i > own.i && h.level <= own.level)?.i ?? note.length;
-      while (end > own.i + 1 && !note[end - 1].trim()) end--;
-      note.splice(end, 0, ...entry);
+      const sectionEnd = headings.find((h) => h.i > own.i && h.level <= own.level)?.i ?? note.length;
+      // The period already has an entry of this kind: its new lines join that
+      // entry's sub-items instead of starting a second "- HH:MM **Diary**".
+      const entryRe = new RegExp(`^- \\d{1,2}:\\d{2} \\*\\*${label}\\*\\*\\s*$`);
+      let prev = -1;
+      for (let i = own.i + 1; i < sectionEnd; i++) if (entryRe.test(note[i])) prev = i;
+      if (prev >= 0) {
+        let end = prev + 1;
+        while (end < sectionEnd && /^\s+\S/.test(note[end])) end++;
+        note.splice(end, 0, ...entry.slice(1));
+      } else {
+        // Append to the end of the period's section, before any blank lines that
+        // separate it from the next heading.
+        let end = sectionEnd;
+        while (end > own.i + 1 && !note[end - 1].trim()) end--;
+        note.splice(end, 0, ...entry);
+      }
     } else {
       const periodEnd = diaryKeyEnd(period.key);
       const next = headings.find((h) => h.key && diaryKeyEnd(h.key) > periodEnd);
