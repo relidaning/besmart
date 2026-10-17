@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -35,7 +35,7 @@ import { api, trackLoading } from '../hooks/api';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import { PageSpinner } from '../components/Loading';
-import NoteEditor, { readDraft } from '../components/NoteEditor';
+import NoteEditor, { readDraft, type ScreenLine } from '../components/NoteEditor';
 
 // The full Prism build bundles ~300 grammars (~1MB). Register only what the vault's
 // notes actually use; unknown fence languages still render, just unhighlighted.
@@ -133,6 +133,19 @@ function useLazy<T>(wanted: boolean, load: () => Promise<T>): T | 'failed' | nul
   return mod;
 }
 
+// Marks each rendered block with the markdown line it starts on (data-line), so the
+// editor can open on the line being read and the note can reopen where editing ended.
+const BLOCK_TAGS = new Set(['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'blockquote', 'table', 'tr', 'hr', 'img']);
+function rehypeSourceLines() {
+  const walk = (node: any) => {
+    if (node.type === 'element' && BLOCK_TAGS.has(node.tagName) && node.position?.start?.line) {
+      node.properties = { ...node.properties, dataLine: node.position.start.line };
+    }
+    node.children?.forEach(walk);
+  };
+  return (tree: any) => walk(tree);
+}
+
 // ── Vault images ──────────────────────────────────────────────────────────────
 
 const IMAGE_EMBED = /!\[\[([^\]|]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif))(?:\|([^\]]*))?\]\]/gi;
@@ -190,7 +203,9 @@ export default function ReviewContent() {
   const [loading, setLoading] = useState(true);
   const [ratingLoading, setRatingLoading] = useState(false);
   // Editing the note's markdown in place; startHeading is where the reader was.
-  const [editing, setEditing] = useState<{ startHeading?: string } | null>(null);
+  const [editing, setEditing] = useState<{ start?: ScreenLine } | null>(null);
+  // Where the note should reopen once the editor closes.
+  const returnTo = useRef<ScreenLine | null>(null);
   const editingRef = useRef(false);
   editingRef.current = !!editing;
   const [activeId, setActiveId] = useState('');
@@ -201,6 +216,8 @@ export default function ReviewContent() {
 
   const rawContent = (data?.content ?? '') as string;
   // Strip frontmatter, then convert ==highlight== → <mark> outside code fences
+  // Lines of frontmatter cut from the top, to map a rendered line back to the file's.
+  const frontLines = useMemo(() => (rawContent.match(/^---\s*\n[\s\S]*?\n---\s*\n?/)?.[0].split('\n').length ?? 1) - 1, [rawContent]);
   const content = useMemo(() => {
     const stripped = rawContent.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
     // Split on fenced code blocks; only transform even-indexed segments (non-code)
@@ -220,6 +237,7 @@ export default function ReviewContent() {
   const rehypeRaw = needsHtml && htmlChunk && htmlChunk !== 'failed' ? htmlChunk.rehypeRaw : null;
   const rehypePlugins = useMemo(() => [
     ...(rehypeRaw ? [rehypeRaw] : []),
+    rehypeSourceLines,
     ...(katex ? [[katex.rehypeKatex, KATEX_OPTIONS] as [typeof katex.rehypeKatex, typeof KATEX_OPTIONS]] : []),
   ], [rehypeRaw, katex]);
 
@@ -264,8 +282,10 @@ export default function ReviewContent() {
   }, [posKey]);
 
   // Restore scroll position after content renders
+  const restored = useRef(false);
   useEffect(() => {
-    if (!posKey || !data) return;
+    if (!posKey || !data || pluginsPending || restored.current) return;
+    restored.current = true; // once per visit: after an edit the note reopens where it ended
     const saved = localStorage.getItem(posKey);
     if (!saved) return;
     const fraction = parseFloat(saved);
@@ -305,6 +325,27 @@ export default function ReviewContent() {
   }, [data, pluginsPending, editing]);
 
   const trail = useMemo(() => headingTrail(shown, activeId), [shown, activeId]);
+
+  // The editor opens with the first block just below the breadcrumb at the same spot.
+  const startEditing = () => {
+    const blocks = contentRef.current?.querySelectorAll<HTMLElement>('[data-line]') ?? [];
+    const first = Array.from(blocks).find((el) => el.getBoundingClientRect().top >= READ_LINE - 8);
+    setEditing({
+      start: first ? { line: Number(first.dataset.line) - 1 + frontLines, y: first.getBoundingClientRect().top } : undefined,
+    });
+  };
+  const stopEditing = (at: ScreenLine | null) => { returnTo.current = at; setEditing(null); };
+
+  // Back from the editor: put the block that starts on its top line where that line was.
+  useLayoutEffect(() => {
+    const at = returnTo.current;
+    if (editing || !at || !contentRef.current) return;
+    returnTo.current = null;
+    const line = at.line + 1 - frontLines;
+    const blocks = Array.from(contentRef.current.querySelectorAll<HTMLElement>('[data-line]'));
+    const el = blocks.find((b) => Number(b.dataset.line) >= line);
+    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - at.y, behavior: 'instant' });
+  }, [editing, data]);
   const outlineActive = trail.filter((t) => t.level <= 3).pop()?.id;
   const jumpTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -413,7 +454,7 @@ export default function ReviewContent() {
           {title}
         </h1>
         {canEdit && !editing && (
-          <button onClick={() => setEditing({ startHeading: trail[trail.length - 1]?.text })} title="Edit note"
+          <button onClick={startEditing} title="Edit note"
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors flex-shrink-0">
             <Pencil size={16} />
           </button>
@@ -473,9 +514,9 @@ export default function ReviewContent() {
               content={rawContent}
               baseHash={data.content_hash}
               draftKey={draftKey}
-              startHeading={editing.startHeading}
-              onSaved={(text, hash) => { setData((d: any) => ({ ...d, content: text, content_hash: hash })); setEditing(null); }}
-              onClose={() => setEditing(null)}
+              start={editing.start}
+              onSaved={(text, hash, at) => { setData((d: any) => ({ ...d, content: text, content_hash: hash })); stopEditing(at); }}
+              onClose={stopEditing}
             />
           ) : pluginsPending ? <PageSpinner /> : content ? (
             <div className="prose prose-sm max-w-none dark:prose-invert
@@ -521,8 +562,20 @@ export default function ReviewContent() {
               </div>
             </div>
           )}
+
+          {/* Room to scroll the last lines (and the rating buttons) out from under the edit button */}
+          {canEdit && !editing && <div className="h-16 md:h-10" />}
         </div>
       </div>
+
+      {/* Edit button, always at hand: above the bottom nav on phones, in the corner on desktop */}
+      {canEdit && !editing && !pluginsPending && (
+        <button onClick={startEditing} title="Edit note" aria-label="Edit note"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + var(--fab-gap))' }}
+          className="fixed right-4 md:right-6 z-30 w-12 h-12 rounded-full flex items-center justify-center bg-brand-400 text-ink shadow-lg shadow-black/20 hover:bg-brand-300 active:scale-95 transition-all [--fab-gap:5rem] md:[--fab-gap:1.5rem]">
+          <Pencil size={18} />
+        </button>
+      )}
     </motion.div>
   );
 }

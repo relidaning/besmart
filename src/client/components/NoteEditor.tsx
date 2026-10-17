@@ -17,34 +17,47 @@ export function readDraft(key: string): Draft | null {
 const writeDraft = (key: string, d: Draft) => { try { localStorage.setItem(key, JSON.stringify(d)); } catch { /* full or blocked */ } };
 const dropDraft = (key: string) => { try { localStorage.removeItem(key); } catch { /* blocked */ } };
 
-// Distance from the textarea's top to the start of `line`, measured on a hidden copy
-// with the same width and font, since wrapped lines make line × height wrong.
-function lineOffset(area: HTMLTextAreaElement, text: string, line: number) {
-  const mirror = document.createElement('div');
+// Where each line starts, from the textarea's top edge. Measured on a hidden copy with
+// the same width and font, one block per line, since wrapped lines make line × height wrong.
+function lineTops(area: HTMLTextAreaElement, text: string): number[] {
   const cs = getComputedStyle(area);
-  for (const p of ['font', 'letterSpacing', 'lineHeight', 'padding', 'border', 'boxSizing', 'tabSize'] as const) {
-    (mirror.style as any)[p] = cs[p];
+  const mirror = document.createElement('div');
+  Object.assign(mirror.style, {
+    position: 'absolute', visibility: 'hidden', top: '0', left: '0', boxSizing: 'border-box',
+    width: `${area.clientWidth}px`, padding: cs.padding, font: cs.font, letterSpacing: cs.letterSpacing,
+    lineHeight: cs.lineHeight, tabSize: cs.tabSize, whiteSpace: 'pre-wrap', overflowWrap: 'break-word',
+  });
+  for (const line of text.split('\n')) {
+    const row = document.createElement('div');
+    row.textContent = line || '​';
+    mirror.appendChild(row);
   }
-  Object.assign(mirror.style, { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', width: `${area.clientWidth}px` });
-  mirror.textContent = text.split('\n').slice(0, line).join('\n') + '\n';
   document.body.appendChild(mirror);
-  const h = line ? mirror.offsetHeight - parseFloat(cs.lineHeight || '0') : 0;
+  const border = parseFloat(cs.borderTopWidth) || 0;
+  const tops = Array.from(mirror.children, (row) => (row as HTMLElement).offsetTop + border);
   mirror.remove();
-  return h;
+  return tops;
 }
+
+// The screen spot where a line of the note sits: line index (0-based) and its top in px.
+export interface ScreenLine { line: number; y: number; }
+
+// The editor's toolbar ends 92px down (header 48 + toolbar 44).
+const TOOLBAR_BOTTOM = 92;
 
 interface Props {
   courseId: number;
   content: string;
   baseHash: string | null;
   draftKey: string;
-  // The heading the reader was at, to open the editor on that line.
-  startHeading?: string;
-  onSaved: (content: string, hash: string) => void;
-  onClose: () => void;
+  // The line the reader was looking at, put back at the same spot on screen.
+  start?: ScreenLine;
+  // Both report the line at the top of the editor, so the note reopens there.
+  onSaved: (content: string, hash: string, at: ScreenLine | null) => void;
+  onClose: (at: ScreenLine | null) => void;
 }
 
-export default function NoteEditor({ courseId, content, baseHash, draftKey, startHeading, onSaved, onClose }: Props) {
+export default function NoteEditor({ courseId, content, baseHash, draftKey, start, onSaved, onClose }: Props) {
   const [initial] = useState(() => readDraft(draftKey) ?? { text: content, base: baseHash });
   const [text, setText] = useState(initial.text);
   const [saving, setSaving] = useState(false);
@@ -59,21 +72,27 @@ export default function NoteEditor({ courseId, content, baseHash, draftKey, star
     el.style.height = `${el.scrollHeight}px`;
   }, [text]);
 
-  // Open where the reader was: the line of the heading they were reading.
+  // Open where the reader was: their line stays where it was on screen.
   useLayoutEffect(() => {
     const el = areaRef.current;
-    if (!el) return;
+    if (!el || !start) return;
     const lines = text.split('\n');
-    const at = startHeading
-      ? lines.findIndex((l) => /^#{1,6}\s/.test(l) && l.replace(/[#*`⁠=~]/g, '').trim() === startHeading)
-      : -1;
+    const line = Math.min(start.line, lines.length - 1);
     const top = el.getBoundingClientRect().top + window.scrollY;
-    window.scrollTo({ top: at > 0 ? top + lineOffset(el, text, at) - 100 : 0, behavior: 'instant' });
-    if (at > 0) {
-      const pos = lines.slice(0, at).join('\n').length + 1;
-      el.setSelectionRange(pos, pos);
-    }
+    window.scrollTo({ top: top + lineTops(el, text)[line] - start.y, behavior: 'instant' });
+    const pos = lines.slice(0, line).join('\n').length + (line ? 1 : 0);
+    el.setSelectionRange(pos, pos);
   }, []);
+
+  // The first line fully below the toolbar, to reopen the rendered note at.
+  const screenLine = (t: string): ScreenLine | null => {
+    const el = areaRef.current;
+    if (!el) return null;
+    const top = el.getBoundingClientRect().top;
+    const tops = lineTops(el, t);
+    const line = tops.findIndex((y) => top + y >= TOOLBAR_BOTTOM);
+    return line < 0 ? null : { line, y: top + tops[line] };
+  };
 
   useEffect(() => {
     if (dirty) writeDraft(draftKey, { text, base: initial.base });
@@ -89,13 +108,13 @@ export default function NoteEditor({ courseId, content, baseHash, draftKey, star
 
   const save = async (force = false) => {
     if (saving) return;
-    if (!dirty) { onClose(); return; }
+    if (!dirty) { onClose(screenLine(text)); return; }
     setSaving(true);
     try {
       const r = await api.saveNote(courseId, text, initial.base, force);
       dropDraft(draftKey);
       toast.success('Note saved');
-      onSaved(r.content, r.content_hash);
+      onSaved(r.content, r.content_hash, screenLine(text));
     } catch (err: any) {
       setSaving(false);
       if (err.status === 409) {
@@ -111,7 +130,7 @@ export default function NoteEditor({ courseId, content, baseHash, draftKey, star
   const cancel = () => {
     if (dirty && !confirm('Discard your changes to this note?')) return;
     dropDraft(draftKey);
-    onClose();
+    onClose(screenLine(text));
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
