@@ -64,12 +64,17 @@ export default function NoteEditor({ courseId, content, baseHash, draftKey, star
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const dirty = text !== content;
 
-  // Grow with the text, so the page scrolls rather than a box inside it.
+  // Grow with the text, so the page scrolls rather than a box inside it. Measuring means
+  // collapsing the box for a moment, which shortens the page; the browser then clamps the
+  // scroll and, after a deletion near the end, dropped the caret under the keyboard. So
+  // the scroll position is put back.
   useLayoutEffect(() => {
     const el = areaRef.current;
     if (!el) return;
+    const y = window.scrollY;
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
+    if (window.scrollY !== y) window.scrollTo({ top: y, behavior: 'instant' });
   }, [text]);
 
   // Open where the reader was: their line stays where it was on screen.
