@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-17 — Loading spinner and top loading bar
+Added `components/Loading.tsx`. `PageSpinner` replaces each page's first-load spinner and the blank lazy-chunk `Suspense` fallback, centered between header and nav. `LoadingBar` under the header runs while any `api.ts` request is pending, and through `trackLoading()` also while a note's images and KaTeX/HTML chunks load, so a note no longer looks finished too early. Both wait 150 ms before showing. Deployed by swapping `dist/` into the container, then committed and pushed as `cdff2d4`, with the earlier Garden Today-tab change in its own commit `378afcb`.
+
 ## 2026-10-17 — Garden opens on Today; per-day plot sizing explained
 The user asked whether a day with many notes, split into many plot cells in every tab, slows loading. It doesn't: `gardenLayout` only computes coordinates (0.37 ms for 100 plants on one day in Year), but every day area is sized by the busiest day, so one 100-note day would shrink every plant on every tab to 1–2 px. Two fixes were offered (fixed-size areas with stored random `x`/`y`, which needs migration 17, or a fixed-size area with a scattered spot derived from the plant id, the recommended one), and the user didn't pick one. At the user's request the Garden page now opens on the Today tab instead of All (`Garden.tsx:530`), deployed by swapping `dist/` into the container; the change was left uncommitted.
 
