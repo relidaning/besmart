@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-17 — Forgotten password: can't be recovered, only reset
+The user asked for their password. Only bcrypt hashes are stored (`453882101@qq.com`, id 2; `admin@besmart.local` has none), so it can't be read back. The in-app reset is broken until PR #7 and SMTP isn't set up, so the offer was to back up the DB and write a new bcrypt hash into `users.password_hash`. The user hadn't replied by the end of the session, and nothing was changed.
+
 ## 2026-10-16 — Slow reviews on the phone traced to the network; MTP note merged into the speculative decoding note
 The slow review page and rating on the phone are a network problem, not the app: the server answers in 6–74 ms, but the phone (`192.168.255.3`, over WireGuard) had 30–40% packet loss and ~230 ms RTT while the hub was clean, and nginx showed 499s from the 15 s client timeout right after a rating plus full-size 3 MB note images crawling at ~6 KB/s. Server-side image shrinking was offered but not made (it needs a new dependency); no code changed. Also explained that deleting a review course moves its note to the vault's `.trash/`, and merged `0_LLM/MTP(multi-token predicting).md` into `2_SERVING/投机解码.md` as section 2.2 (original moved to `.trash/`).
 
