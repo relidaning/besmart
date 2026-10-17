@@ -528,7 +528,7 @@ function JournalRow({ e }: { e: GardenEvent }) {
 
 export default function Garden() {
   const [data, setData] = useState<GardenData | null>(null);
-  const [period, setPeriod] = useState<Period>('all');
+  const [period, setPeriod] = useState<Period>('today');
   const [picked, setPicked] = useState<Plant | null>(null);
   const [pickedLog, setPickedLog] = useState<GardenEvent[]>([]);
   const [highlight, setHighlight] = useState<number | null>(null);
