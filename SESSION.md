@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-17 — Garden opens on Today; per-day plot sizing explained
+The user asked whether a day with many notes, split into many plot cells in every tab, slows loading. It doesn't: `gardenLayout` only computes coordinates (0.37 ms for 100 plants on one day in Year), but every day area is sized by the busiest day, so one 100-note day would shrink every plant on every tab to 1–2 px. Two fixes were offered (fixed-size areas with stored random `x`/`y`, which needs migration 17, or a fixed-size area with a scattered spot derived from the plant id, the recommended one), and the user didn't pick one. At the user's request the Garden page now opens on the Today tab instead of All (`Garden.tsx:530`), deployed by swapping `dist/` into the container; the change was left uncommitted.
+
 ## 2026-10-17 — Forgotten password: can't be recovered, only reset
 The user asked for their password. Only bcrypt hashes are stored (`453882101@qq.com`, id 2; `admin@besmart.local` has none), so it can't be read back. The in-app reset is broken until PR #7 and SMTP isn't set up, so the offer was to back up the DB and write a new bcrypt hash into `users.password_hash`. The user hadn't replied by the end of the session, and nothing was changed.
 
