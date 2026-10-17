@@ -31,9 +31,10 @@ import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/pris
 import toast from 'react-hot-toast';
 import { celebrate } from '../lib/garden';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
-import { api } from '../hooks/api';
+import { api, trackLoading } from '../hooks/api';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
+import { PageSpinner } from '../components/Loading';
 
 // The full Prism build bundles ~300 grammars (~1MB). Register only what the vault's
 // notes actually use; unknown fence languages still render, just unhighlighted.
@@ -115,7 +116,7 @@ function useLazy<T>(wanted: boolean, load: () => Promise<T>): T | 'failed' | nul
   useEffect(() => {
     if (!wanted || mod) return;
     let alive = true;
-    load().then((m) => { if (alive) setMod(() => m); }).catch(() => { if (alive) setMod('failed'); });
+    trackLoading(load()).then((m) => { if (alive) setMod(() => m); }).catch(() => { if (alive) setMod('failed'); });
     return () => { alive = false; };
   }, [wanted, mod]);
   return mod;
@@ -151,10 +152,9 @@ function VaultImage({ src, alt, node: _node, ...rest }: any) {
     let objectUrl: string | null = null;
     let alive = true;
     setFailed(false);
-    fetch(`/api/reviews/vault/image?src=${encodeURIComponent(link)}&note=${encodeURIComponent(note ?? '')}`, {
+    trackLoading(fetch(`/api/reviews/vault/image?src=${encodeURIComponent(link)}&note=${encodeURIComponent(note ?? '')}`, {
       headers: { Authorization: `Bearer ${useAuth.getState().token ?? ''}` },
-    })
-      .then((r) => (r.ok ? r.blob() : Promise.reject()))
+    }).then((r) => (r.ok ? r.blob() : Promise.reject())))
       .then((b) => { if (!alive) return; objectUrl = URL.createObjectURL(b); setUrl(objectUrl); })
       .catch(() => { if (alive) setFailed(true); });
     return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
@@ -316,11 +316,7 @@ export default function ReviewContent() {
     },
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  if (loading) return <PageSpinner />;
 
   const title = data?.title ?? data?.record?.course_name ?? data?.course?.name ?? 'Note';
   const obsidianUris = (data?.obsidian_uris ?? []) as string[];
@@ -389,7 +385,7 @@ export default function ReviewContent() {
 
         {/* Main content */}
         <div ref={contentRef} className="flex-1 min-w-0 overflow-x-hidden">
-          {pluginsPending ? null : content ? (
+          {pluginsPending ? <PageSpinner /> : content ? (
             <div className="prose prose-sm max-w-none dark:prose-invert
               prose-headings:font-semibold prose-headings:text-gray-800 dark:prose-headings:text-gray-100
               prose-p:text-gray-600 dark:prose-p:text-gray-300 prose-p:leading-relaxed

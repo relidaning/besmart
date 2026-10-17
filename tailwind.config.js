@@ -49,8 +49,14 @@ export default {
         'confetti': 'confetti 1s ease-out forwards',
         'check': 'check 0.4s ease-out',
         'shake': 'shake 0.5s ease-in-out',
+        'loading-bar': 'loadingBar 1.1s ease-in-out infinite',
       },
       keyframes: {
+        loadingBar: {
+          '0%': { transform: 'translateX(-100%) scaleX(0.3)' },
+          '50%': { transform: 'translateX(0) scaleX(0.6)' },
+          '100%': { transform: 'translateX(100%) scaleX(0.3)' },
+        },
         bounceIn: {
           '0%': { transform: 'scale(0.3)', opacity: '0' },
           '50%': { transform: 'scale(1.05)' },

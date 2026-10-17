@@ -7,6 +7,7 @@ import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { PageHeader, StatTiles, XpChip } from '../components/PageKit';
 import type { GardenSummary } from '../components/GardenStats';
+import { PageSpinner } from '../components/Loading';
 
 interface ReviewRecord {
   id: number;
@@ -170,11 +171,7 @@ export default function Review() {
 
   const { visible: dueVisible, setVisible: setDueVisible, sentinelRef: dueSentinelRef } = useInfiniteScroll(dueRecords.length);
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  if (loading) return <PageSpinner />;
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">

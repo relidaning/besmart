@@ -6,6 +6,7 @@ import { FileText, FolderOpen, Check, ChevronRight, ChevronDown, Plus, ArrowUp, 
 import { api } from '../hooks/api';
 import DatePicker from '../components/ui/DatePicker';
 import { PageHeader, StatTiles, XpChip } from '../components/PageKit';
+import { PageSpinner } from '../components/Loading';
 
 // Mirrors the plan XP table in server/garden.ts.
 const TASK_XP = 15;
@@ -214,11 +215,7 @@ export default function PlanDetail() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   if (!plan) {

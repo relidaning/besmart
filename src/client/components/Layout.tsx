@@ -7,6 +7,7 @@ import { checkForUpdate } from '../lib/autoUpdate';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import MusicPlayer from './MusicPlayer';
+import { LoadingBar, PageSpinner } from './Loading';
 
 // Its modal pulls in the garden art, so it loads in its own chunk.
 const AchievementWatcher = lazy(() => import('./AchievementWatcher'));
@@ -233,6 +234,7 @@ export default function Layout() {
             </div>
           </div>
         </div>
+        <LoadingBar />
       </header>
 
       {/* Main content */}
@@ -246,7 +248,7 @@ export default function Layout() {
             transition={{ duration: 0.2 }}
           >
             {/* Keep header/nav on screen while a lazy page chunk loads */}
-            <Suspense fallback={null}>
+            <Suspense fallback={<PageSpinner />}>
               <Outlet />
             </Suspense>
           </motion.div>

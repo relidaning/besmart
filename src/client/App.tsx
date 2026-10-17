@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { useAuth } from './store/auth';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import Layout from './components/Layout';
+import { PageSpinner } from './components/Loading';
 import Dashboard from './pages/Dashboard';
 
 // Non-landing pages are split into their own chunks so the first load only ships
@@ -57,7 +58,7 @@ function App() {
     <ThemeProvider>
       <BrowserRouter>
         <ThemedToaster />
-        <Suspense fallback={null}>
+        <Suspense fallback={<PageSpinner />}>
         <Routes>
           {/* Auth pages */}
           <Route path="/login" element={<Login />} />

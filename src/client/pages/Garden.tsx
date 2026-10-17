@@ -11,6 +11,7 @@ import {
 } from '../../shared/gardenSpecies';
 import { AttrDot, Bar, CardHead, PageHeader } from '../components/PageKit';
 import PlantIcon from '../components/PlantIcon';
+import { PageSpinner } from '../components/Loading';
 
 // The Growth Garden. Flowers and shrubs are notes: every note you write plants a
 // sapling, finished check-ins and todos water them, reviewing a note grows its
@@ -559,11 +560,7 @@ export default function Garden() {
   const shown = useMemo(() => (data ? plantsIn(data.plants, period, data.today) : []), [data, period]);
 
   if (!data) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   const speciesShown = new Set(shown.map((p) => p.species)).size;

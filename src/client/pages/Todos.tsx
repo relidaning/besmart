@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { ListTodo, Trophy, Check, AlertTriangle, ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { api } from '../hooks/api';
 import { PageHeader, StatTiles, XpChip, EmptyState } from '../components/PageKit';
+import { PageSpinner } from '../components/Loading';
 
 interface Todo {
   id: number;
@@ -223,11 +224,7 @@ export default function Todos() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   return (

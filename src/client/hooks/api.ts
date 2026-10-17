@@ -9,6 +9,24 @@ const TTL = 30_000;
 // page both want /dashboard/stats on every page change) share one request.
 const _inflight = new Map<string, Promise<unknown>>();
 
+// Requests on their way, for the loading bar under the header (LoadingBar.tsx).
+let _pending = 0;
+const _pendingListeners = new Set<(n: number) => void>();
+export function onPendingChange(fn: (n: number) => void) {
+  _pendingListeners.add(fn);
+  fn(_pending);
+  return () => { _pendingListeners.delete(fn); };
+}
+function setPending(delta: number) {
+  _pending += delta;
+  for (const fn of _pendingListeners) fn(_pending);
+}
+// Counts other loads the page waits on (note images, lazy chunks) towards the bar too.
+export function trackLoading<T>(p: Promise<T>): Promise<T> {
+  setPending(1);
+  return p.finally(() => setPending(-1));
+}
+
 export function clearApiCache() {
   _cache.clear();
   _inflight.clear();
@@ -49,6 +67,10 @@ async function request<T>(url: string, options?: RequestInit, { quiet = false } 
 }
 
 async function send<T>(url: string, method: string, options: RequestInit | undefined, quiet: boolean): Promise<T> {
+  return trackLoading(sendNow<T>(url, method, options, quiet));
+}
+
+async function sendNow<T>(url: string, method: string, options: RequestInit | undefined, quiet: boolean): Promise<T> {
   // A connection that died while the phone slept can leave fetch pending forever,
   // freezing whatever waits on it, so give up after 15 s and let the user retry.
   const res = await fetch(`${BASE}${url}`, {

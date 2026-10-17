@@ -9,6 +9,7 @@ import DatePicker from '../components/ui/DatePicker';
 import PlantIcon from '../components/PlantIcon';
 import { SPECIES } from '../../shared/gardenSpecies';
 import { PageHeader, StatTiles, XpChip, EmptyState } from '../components/PageKit';
+import { PageSpinner } from '../components/Loading';
 
 interface Plan {
   id: number;
@@ -72,11 +73,7 @@ export default function Plans() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   return (

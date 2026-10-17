@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import AttributeBar from '../components/AttributeBar';
 import { PageHeader, CardHead } from '../components/PageKit';
 import { Achievements, YearOfGrowth, type GardenSummary } from '../components/GardenStats';
+import { PageSpinner } from '../components/Loading';
 
 interface ScoreRecord {
   id: number;
@@ -97,11 +98,7 @@ export default function Dashboard() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   if (!stats) return null;

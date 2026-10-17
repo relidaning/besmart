@@ -7,6 +7,7 @@ import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { ATTRIBUTES, ATTR_META, type Attribute } from '../lib/garden';
 import { PageHeader, StatTiles, XpChip, EmptyState, AttrDot } from '../components/PageKit';
 import { DIARY_TYPES, diaryPeriod, defaultsToPrevious, type DiaryType } from '../../shared/diary';
+import { PageSpinner } from '../components/Loading';
 
 // Mirrors MIN_CHECKIN_XP in server/garden.ts.
 const checkinXp = (score: number | null) => Math.max(score || 0, 5);
@@ -167,11 +168,7 @@ export default function CheckIn() {
   const { visible: schedsVisible, sentinelRef: schedsSentinelRef } = useInfiniteScroll(schedules.length);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageSpinner />;
   }
 
   return (
