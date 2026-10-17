@@ -30,7 +30,7 @@ import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import toast from 'react-hot-toast';
 import { celebrate } from '../lib/garden';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { api, trackLoading } from '../hooks/api';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
@@ -60,17 +60,27 @@ function looksLikeJson(code: string) {
 
 interface Heading { level: number; text: string; id: string; }
 
-function extractHeadings(md: string): Heading[] {
-  // Strip fenced code blocks so `# inside code` isn't treated as a heading
-  const stripped = md.replace(/^`{3,}.*$[\s\S]*?^`{3,}/gm, '');
-  let idx = 0;
-  return stripped.split('\n')
-    .filter((line) => /^#{1,3}\s/.test(line))
-    .map((line) => {
-      const m = line.match(/^(#{1,3})\s+(.+)$/)!;
-      return { level: m[1].length, text: m[2].trim(), id: `h-${idx++}` };
-    });
+// Heading text as plain words: no **bold**, `code`, [links](…) or the U+2060 the
+// heading-numbering plugin puts before "1.2. ".
+const plainHeading = (text: string) => text
+  .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+  .replace(/<[^>]+>|[*`\u2060]|==|~~/g, '')
+  .trim();
+
+// The heading being read and the headings it sits under: 1. Deep learning › 1.2. … › 1.2.3. …
+function headingTrail(headings: Heading[], activeId: string): Heading[] {
+  const at = headings.findIndex((h) => h.id === activeId);
+  if (at < 0) return [];
+  const trail = [headings[at]];
+  for (let i = at - 1; i >= 0; i--) {
+    if (headings[i].level < trail[0].level) trail.unshift(headings[i]);
+  }
+  return trail;
 }
+
+// The fixed header is 48px and the breadcrumb under it 36px; a heading counts as being
+// read once it has scrolled up to just below them.
+const READ_LINE = 48 + 36 + 8;
 
 // FSRS ratings (server/fsrs.ts): each button shows the gap it would schedule.
 type Rating = 'again' | 'hard' | 'ok' | 'easy';
@@ -179,6 +189,9 @@ export default function ReviewContent() {
   const [loading, setLoading] = useState(true);
   const [ratingLoading, setRatingLoading] = useState(false);
   const [activeId, setActiveId] = useState('');
+  // The headings as rendered: the breadcrumb follows all six levels, the outline the top three.
+  const [shown, setShown] = useState<Heading[]>([]);
+  const outline = useMemo(() => shown.filter((h) => h.level <= 3), [shown]);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const rawContent = (data?.content ?? '') as string;
@@ -190,7 +203,6 @@ export default function ReviewContent() {
     return parts.map((p, i) => i % 2 === 0 ? embedImages(escapeLoneDollars(p).replace(/==([^=\n]+)==/g, '<mark>$1</mark>')) : p).join('');
   }, [rawContent]);
 
-  const headings = useMemo(() => extractHeadings(content), [content]);
 
   // A note that needs a plugin waits for it before it renders, so formulas and tags never
   // flash as source. If a chunk can't be loaded, the note is shown without it.
@@ -246,22 +258,38 @@ export default function ReviewContent() {
     }));
   }, [data, posKey, pluginsPending]);
 
-  // Track active heading via IntersectionObserver
+  // The active heading is the last one scrolled up to the read line; none above the first.
   useEffect(() => {
     if (!contentRef.current) return;
-    const els = contentRef.current.querySelectorAll('h1[id],h2[id],h3[id]');
+    const els = Array.from(contentRef.current.querySelectorAll<HTMLElement>('[data-heading]'));
+    setShown(els.map((el) => ({ id: el.id, level: Number(el.tagName[1]), text: plainHeading(el.textContent ?? '') })));
     if (!els.length) return;
-
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting);
-        if (visible.length) setActiveId(visible[0].target.id);
-      },
-      { rootMargin: '-10% 0px -75% 0px' }
-    );
-    els.forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      let current = '';
+      for (const el of els) {
+        if (el.getBoundingClientRect().top > READ_LINE) break;
+        current = el.id;
+      }
+      setActiveId(current);
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      cancelAnimationFrame(frame);
+    };
   }, [data, pluginsPending]);
+
+  const trail = useMemo(() => headingTrail(shown, activeId), [shown, activeId]);
+  const outlineActive = trail.filter((t) => t.level <= 3).pop()?.id;
+  const jumpTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const handleRating = async (rating: Rating) => {
     if (!data?.record) return;
@@ -277,14 +305,19 @@ export default function ReviewContent() {
     setRatingLoading(false);
   };
 
-  // Reset to 0 every render so heading IDs stay consistent with extractHeadings
+  // Reset to 0 every render so heading IDs keep their document order
   const hCountRef = useRef(0);
   hCountRef.current = 0;
-  const mdComponents = {
+  // scroll-margin keeps a heading jumped to clear of the header and the breadcrumb.
+  const heading = (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') => ({ children, node: _node, ...p }: any) => (
+    <Tag id={`h-${hCountRef.current++}`} data-heading="" style={{ scrollMarginTop: READ_LINE - 4 }} {...p}>{children}</Tag>
+  );
+  // Memoized: new component types on every render would remount every heading whenever
+  // the breadcrumb updates, leaving the scroll handler measuring detached elements.
+  const mdComponents = useMemo(() => ({
     img: VaultImage,
-    h1: ({ children, ...p }: any) => <h1 id={`h-${hCountRef.current++}`} {...p}>{children}</h1>,
-    h2: ({ children, ...p }: any) => <h2 id={`h-${hCountRef.current++}`} {...p}>{children}</h2>,
-    h3: ({ children, ...p }: any) => <h3 id={`h-${hCountRef.current++}`} {...p}>{children}</h3>,
+    h1: heading('h1'), h2: heading('h2'), h3: heading('h3'),
+    h4: heading('h4'), h5: heading('h5'), h6: heading('h6'),
     // A table sits on a plate like a code block and scrolls sideways, so narrow screens
     // don't squeeze its columns.
     table: ({ node: _node, ...p }: any) => (
@@ -314,7 +347,7 @@ export default function ReviewContent() {
       }
       return <code className={className} {...rest}>{children}</code>;
     },
-  };
+  }), [resolvedTheme]);
 
   if (loading) return <PageSpinner />;
 
@@ -325,6 +358,29 @@ export default function ReviewContent() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="md:ml-16">
+
+      {/* Breadcrumb of the headings above the one being read, fixed under the header */}
+      {trail.length > 0 && !pluginsPending && (
+        <nav aria-label="Section"
+          className="fixed top-12 inset-x-0 z-30 h-9 bg-white/90 backdrop-blur-lg border-b border-gray-200/70 dark:bg-gray-950/90 dark:border-white/[0.08]">
+          <div className="max-w-5xl mx-auto px-4 md:pl-20 h-full flex items-center gap-1 text-xs min-w-0">
+            {trail.map((h, i) => {
+              const last = i === trail.length - 1;
+              return (
+                <span key={h.id} className={`flex items-center gap-1 min-w-0 ${last ? 'shrink-0 max-w-[65%]' : ''}`}>
+                  {i > 0 && <ChevronRight size={12} className="flex-shrink-0 text-gray-300 dark:text-gray-600" />}
+                  <button onClick={() => jumpTo(h.id)} title={h.text}
+                    className={`truncate transition-colors ${last
+                      ? 'font-semibold text-gray-800 dark:text-gray-100'
+                      : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'}`}>
+                    {h.text}
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        </nav>
+      )}
 
       {/* Page header */}
       <div className="flex items-center gap-3 mb-4">
@@ -357,21 +413,20 @@ export default function ReviewContent() {
       <div className="flex gap-8 items-start">
 
         {/* Outline sidebar — desktop only, only when there are headings */}
-        {headings.length > 1 && (
+        {outline.length > 1 && (
           <aside className="hidden lg:block w-44 flex-shrink-0">
             <nav className="sticky top-20 space-y-0.5 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
               <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Contents</p>
-              {headings.map((h) => (
+              {outline.map((h) => (
                 <a
                   key={h.id + h.text}
                   href={`#${h.id}`}
                   onClick={(e) => {
                     e.preventDefault();
-                    document.getElementById(h.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    setActiveId(h.id);
+                    jumpTo(h.id);
                   }}
                   style={{ paddingLeft: `${(h.level - 1) * 10}px` }}
-                  className={`block text-xs py-1 rounded truncate transition-colors leading-snug ${activeId === h.id
+                  className={`block text-xs py-1 rounded truncate transition-colors leading-snug ${outlineActive === h.id
                     ? 'text-brand-600 dark:text-brand-400 font-semibold'
                     : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
                     }`}
