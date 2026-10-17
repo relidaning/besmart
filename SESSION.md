@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-16 — Slow reviews on the phone traced to the network; MTP note merged into the speculative decoding note
+The slow review page and rating on the phone are a network problem, not the app: the server answers in 6–74 ms, but the phone (`192.168.255.3`, over WireGuard) had 30–40% packet loss and ~230 ms RTT while the hub was clean, and nginx showed 499s from the 15 s client timeout right after a rating plus full-size 3 MB note images crawling at ~6 KB/s. Server-side image shrinking was offered but not made (it needs a new dependency); no code changed. Also explained that deleting a review course moves its note to the vault's `.trash/`, and merged `0_LLM/MTP(multi-token predicting).md` into `2_SERVING/投机解码.md` as section 2.2 (original moved to `.trash/`).
+
 ## 2026-10-15 — Garden island: one area per day in every tab, new Season tab
 At the user's request, every Garden tab now splits the island into one area per day, laid out on the same square grid (Today 1×1, Week 3×3, Month 6×6, the new Season tab 10×10, Year and All 20×20). Year and All key areas by `MM-DD`, so the same date in different years shares an area. The areas have no date labels, and the leftover filler cells look the same as day areas. `topPad` is sized for the tallest layout across all tabs and the caption stays on one line, so the island stays put when switching tabs. Committed and pushed as `7d7da5e`, `35df73a`, `c6ef963` and `041d2ca`.
 
