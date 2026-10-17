@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import db from '../database.js';
@@ -54,13 +55,17 @@ function buildObsidianUris(paths: string[], vaultName: string): string[] {
   );
 }
 
-function getCourseContent(course: any, vaultRoot: string): { content: string; paths: string[] } {
-  if (!course.vault_path) return { content: '', paths: [] };
+// A note's text as the editor saw it, so a save can tell whether the file changed since.
+const contentHash = (text: string) => crypto.createHash('sha1').update(text).digest('hex');
+
+function getCourseContent(course: any, vaultRoot: string): { content: string; paths: string[]; hash: string | null } {
+  if (!course.vault_path) return { content: '', paths: [], hash: null };
   const p = course.vault_path as string;
   try {
-    return { content: fs.readFileSync(path.join(vaultRoot, p), 'utf-8'), paths: [p] };
+    const content = fs.readFileSync(path.join(vaultRoot, p), 'utf-8');
+    return { content, paths: [p], hash: contentHash(content) };
   } catch {
-    return { content: `*(file not found: ${p})*`, paths: [p] };
+    return { content: `*(file not found: ${p})*`, paths: [p], hash: null };
   }
 }
 
@@ -341,11 +346,12 @@ reviewRoutes.get('/records/:id/detail', (req, res) => {
   if (!record) return res.status(404).json({ error: 'Not found' });
 
   const cfg = getUserVaultConfig(userId);
-  const { content, paths } = cfg ? getCourseContent(record, cfg.vaultRoot) : { content: '', paths: [] };
+  const { content, paths, hash } = cfg ? getCourseContent(record, cfg.vaultRoot) : { content: '', paths: [], hash: null };
 
   res.json({
     record,
     content,
+    content_hash: hash,
     paths,
     title: record.course_name,
     vault_name: cfg?.vaultName ?? '',
@@ -445,16 +451,68 @@ reviewRoutes.get('/courses/:id/detail', (req, res) => {
   if (!course) return res.status(404).json({ error: 'Not found' });
 
   const cfg = getUserVaultConfig(userId);
-  const { content, paths } = cfg ? getCourseContent(course, cfg.vaultRoot) : { content: '', paths: [] };
+  const { content, paths, hash } = cfg ? getCourseContent(course, cfg.vaultRoot) : { content: '', paths: [], hash: null };
 
   res.json({
     course: serializeCourse(course),
     content,
+    content_hash: hash,
     paths,
     title: course.name,
     vault_name: cfg?.vaultName ?? '',
     obsidian_uris: cfg ? buildObsidianUris(paths, cfg.vaultName) : [],
   });
+});
+
+// ── Note editing ──────────────────────────────────────────────────────────────
+
+// A textarea turns every \r\n into \n, and many notes mix the two (CRLF frontmatter
+// written by a tool, LF below). Lines before and after the edited stretch keep their
+// original bytes; the edited lines get \r\n only in a note that is CRLF throughout.
+function keepLineEnds(original: string, edited: string): string {
+  const lines = (t: string) => t.split(/(?<=\n)/);
+  const key = (l: string) => l.replace(/\r\n$/, '\n');
+  const a = lines(original);
+  const b = lines(edited.replace(/\r\n/g, '\n'));
+  let head = 0;
+  while (head < a.length && head < b.length && key(a[head]) === key(b[head])) head++;
+  let tail = 0;
+  while (tail < a.length - head && tail < b.length - head && key(a[a.length - 1 - tail]) === key(b[b.length - 1 - tail])) tail++;
+  const crlf = /\r\n/.test(original) && !/(^|[^\r])\n/.test(original);
+  const middle = b.slice(head, b.length - tail).map((l) => (crlf ? l.replace(/\n$/, '\r\n') : l));
+  return [...a.slice(0, head), ...middle, ...a.slice(a.length - tail)].join('');
+}
+
+// Writes the course's note back to the vault. `base_hash` is the hash of the text the
+// editor started from: if the file has changed since (Obsidian, Nextcloud sync), the
+// save is refused with 409 unless `force` is set. The file is rewritten in place, so it
+// keeps its owner (the container runs as root) and the watcher sees a plain change.
+reviewRoutes.put('/courses/:id/content', (req, res) => {
+  const userId = req.user!.id;
+  const { content, base_hash, force } = req.body ?? {};
+  if (typeof content !== 'string') return res.status(400).json({ error: 'content must be a string' });
+  if (base_hash != null && typeof base_hash !== 'string') return res.status(400).json({ error: 'base_hash must be a string' });
+
+  const course = db.prepare('SELECT * FROM review_courses WHERE id = ? AND user_id = ?').get(req.params.id, userId) as any;
+  if (!course) return res.status(404).json({ error: 'Not found' });
+  const cfg = getUserVaultConfig(userId);
+  if (!cfg || !course.vault_path) return res.status(400).json({ error: 'This course has no vault note' });
+
+  const root = path.resolve(cfg.vaultRoot);
+  const file = path.resolve(root, course.vault_path);
+  if (!file.startsWith(root + path.sep) || !file.endsWith('.md')) return res.status(400).json({ error: 'Invalid note path' });
+
+  let current: string;
+  try { current = fs.readFileSync(file, 'utf-8'); }
+  catch { return res.status(404).json({ error: 'The note no longer exists in the vault' }); }
+  if (!force && base_hash && contentHash(current) !== base_hash) {
+    return res.status(409).json({ error: 'The note was changed elsewhere since you opened it', conflict: true });
+  }
+
+  const text = keepLineEnds(current, content);
+  try { fs.writeFileSync(file, text, 'utf-8'); }
+  catch (err) { return res.status(500).json({ error: `Couldn't save the note: ${(err as Error).message}` }); }
+  res.json({ success: true, content: text, content_hash: contentHash(text) });
 });
 
 // ── Vault ─────────────────────────────────────────────────────────────────────

@@ -30,11 +30,12 @@ import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import toast from 'react-hot-toast';
 import { celebrate } from '../lib/garden';
-import { ArrowLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ExternalLink, Pencil } from 'lucide-react';
 import { api, trackLoading } from '../hooks/api';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import { PageSpinner } from '../components/Loading';
+import NoteEditor, { readDraft } from '../components/NoteEditor';
 
 // The full Prism build bundles ~300 grammars (~1MB). Register only what the vault's
 // notes actually use; unknown fence languages still render, just unhighlighted.
@@ -188,6 +189,10 @@ export default function ReviewContent() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [ratingLoading, setRatingLoading] = useState(false);
+  // Editing the note's markdown in place; startHeading is where the reader was.
+  const [editing, setEditing] = useState<{ startHeading?: string } | null>(null);
+  const editingRef = useRef(false);
+  editingRef.current = !!editing;
   const [activeId, setActiveId] = useState('');
   // The headings as rendered: the breadcrumb follows all six levels, the outline the top three.
   const [shown, setShown] = useState<Heading[]>([]);
@@ -221,6 +226,19 @@ export default function ReviewContent() {
   // Per-user, per-record reading position key
   const posKey = user && id ? `rpos-${user.id}-${id}` : null;
 
+  const courseId = (data?.record?.course_id ?? data?.course?.id) as number | undefined;
+  const draftKey = user && courseId ? `ndraft-${user.id}-${courseId}` : null;
+  // Only a note that was read from the vault can be saved back to it.
+  const canEdit = !!courseId && !!data?.content_hash;
+
+  // An edit left unsaved (the app was reloaded or closed) reopens on its own.
+  useEffect(() => {
+    if (canEdit && draftKey && readDraft(draftKey)) {
+      setEditing({});
+      toast('Restored your unsaved edit', { id: 'note-draft' });
+    }
+  }, [draftKey, canEdit]);
+
   useEffect(() => {
     const req = isRecord ? api.getRecordDetail(Number(id)) : api.getCourseDetail(Number(id));
     req
@@ -236,6 +254,7 @@ export default function ReviewContent() {
     const onScroll = () => {
       clearTimeout(t);
       t = setTimeout(() => {
+        if (editingRef.current) return; // the editor's length isn't the note's
         const max = document.documentElement.scrollHeight - window.innerHeight;
         if (max > 0) localStorage.setItem(posKey, String(window.scrollY / max));
       }, 400);
@@ -283,7 +302,7 @@ export default function ReviewContent() {
       window.removeEventListener('resize', onScroll);
       cancelAnimationFrame(frame);
     };
-  }, [data, pluginsPending]);
+  }, [data, pluginsPending, editing]);
 
   const trail = useMemo(() => headingTrail(shown, activeId), [shown, activeId]);
   const outlineActive = trail.filter((t) => t.level <= 3).pop()?.id;
@@ -360,7 +379,9 @@ export default function ReviewContent() {
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="md:ml-16">
 
       {/* Breadcrumb of the headings above the one being read, fixed under the header */}
-      {trail.length > 0 && !pluginsPending && (
+      {editing && courseId && draftKey ? (
+        <div className="h-8" /> // room for the editor's toolbar over the title row
+      ) : trail.length > 0 && !pluginsPending && (
         <nav aria-label="Section"
           className="fixed top-12 inset-x-0 z-30 h-9 bg-white/90 backdrop-blur-lg border-b border-gray-200/70 dark:bg-gray-950/90 dark:border-white/[0.08]">
           <div className="max-w-5xl mx-auto px-4 md:pl-20 h-full flex items-center gap-1 text-xs min-w-0">
@@ -391,6 +412,12 @@ export default function ReviewContent() {
         <h1 className={`flex-1 font-bold text-lg truncate text-gray-900 dark:text-gray-100`}>
           {title}
         </h1>
+        {canEdit && !editing && (
+          <button onClick={() => setEditing({ startHeading: trail[trail.length - 1]?.text })} title="Edit note"
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors flex-shrink-0">
+            <Pencil size={16} />
+          </button>
+        )}
         {obsidianUris[0] && (
           <a href={obsidianUris[0]} title="Open in Obsidian"
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950 text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0">
@@ -413,7 +440,7 @@ export default function ReviewContent() {
       <div className="flex gap-8 items-start">
 
         {/* Outline sidebar — desktop only, only when there are headings */}
-        {outline.length > 1 && (
+        {outline.length > 1 && !editing && (
           <aside className="hidden lg:block w-44 flex-shrink-0">
             <nav className="sticky top-20 space-y-0.5 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
               <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Contents</p>
@@ -440,7 +467,17 @@ export default function ReviewContent() {
 
         {/* Main content */}
         <div ref={contentRef} className="flex-1 min-w-0 overflow-x-hidden">
-          {pluginsPending ? <PageSpinner /> : content ? (
+          {editing && courseId && draftKey ? (
+            <NoteEditor
+              courseId={courseId}
+              content={rawContent}
+              baseHash={data.content_hash}
+              draftKey={draftKey}
+              startHeading={editing.startHeading}
+              onSaved={(text, hash) => { setData((d: any) => ({ ...d, content: text, content_hash: hash })); setEditing(null); }}
+              onClose={() => setEditing(null)}
+            />
+          ) : pluginsPending ? <PageSpinner /> : content ? (
             <div className="prose prose-sm max-w-none dark:prose-invert
               prose-headings:font-semibold prose-headings:text-gray-800 dark:prose-headings:text-gray-100
               prose-p:text-gray-600 dark:prose-p:text-gray-300 prose-p:leading-relaxed
@@ -465,7 +502,7 @@ export default function ReviewContent() {
           )}
 
           {/* Rating footer */}
-          {isRecord && data?.record && (
+          {isRecord && data?.record && !editing && (
             <div className="mt-10 pt-5 border-t border-gray-100 dark:border-white/[0.08]">
               <p className="text-xs text-gray-500 mb-1 text-center">How well did you recall it?</p>
               <p className="text-[11px] text-gray-500 mb-3 text-center">

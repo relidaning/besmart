@@ -89,7 +89,8 @@ async function sendNow<T>(url: string, method: string, options: RequestInit | un
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || 'Request failed');
+    // The status lets a caller tell a conflict (409) from other failures.
+    throw Object.assign(new Error(err.error || 'Request failed'), { status: res.status });
   }
   const data = await res.json();
 
@@ -160,6 +161,8 @@ export const api = {
   deleteCourse: (id: number) => request<any>(`/reviews/courses/${id}`, { method: 'DELETE' }),
   getRecordDetail: (id: number) => request<any>(`/reviews/records/${id}/detail`),
   getCourseDetail: (id: number) => request<any>(`/reviews/courses/${id}/detail`),
+  saveNote: (courseId: number, content: string, baseHash: string | null, force = false) =>
+    request<any>(`/reviews/courses/${courseId}/content`, { method: 'PUT', body: JSON.stringify({ content, base_hash: baseHash, force }) }),
   getVaultInfo: () => request<any>('/reviews/vault/info'),
   getVaultSuggestions: () => request<any>('/reviews/vault/suggestions'),
   getVaultContent: (notePath: string) =>

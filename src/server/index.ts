@@ -28,7 +28,8 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3001');
 
 app.use(cors());
-app.use(express.json());
+// Notes saved from the editor can be a few hundred kB (the largest is ~160 kB).
+app.use(express.json({ limit: '5mb' }));
 
 initializeDatabase();
 initGarden();
