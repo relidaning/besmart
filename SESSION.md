@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-17 — Note breadcrumb and in-app note editing in Review
+The note view now has a fixed breadcrumb under the header showing the heading being read and its parents (`1. … › 1.2. … › 1.2.3. …`). Notes can also be edited as raw markdown in `NoteEditor.tsx` and saved with `PUT /reviews/courses/:id/content`. Saving answers 409 if the file changed in the meantime, a save without changes is byte-identical even for mixed CRLF/LF notes, and the editor opens and closes at the same place in the note. Follow-up fixes for the phone: the bottom nav hides while typing, form fields are 16px so iOS doesn't zoom in, and the page no longer jumps when you press backspace near the end of a note. Deployed and pushed (`c5b0215`, `6bb6352`, `cb90f48`, `3537c83`, `f81bef5`). The backspace fix was only tested in Chromium, not on the iPhone.
+
 ## 2026-10-17 — Loading spinner and top loading bar
 Added `components/Loading.tsx`. `PageSpinner` replaces each page's first-load spinner and the blank lazy-chunk `Suspense` fallback, centered between header and nav. `LoadingBar` under the header runs while any `api.ts` request is pending, and through `trackLoading()` also while a note's images and KaTeX/HTML chunks load, so a note no longer looks finished too early. Both wait 150 ms before showing. Deployed by swapping `dist/` into the container, then committed and pushed as `cdff2d4`, with the earlier Garden Today-tab change in its own commit `378afcb`.
 
