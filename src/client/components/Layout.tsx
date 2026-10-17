@@ -9,6 +9,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import MusicPlayer from './MusicPlayer';
 import { LoadingBar, PageSpinner } from './Loading';
 
+// Fields that bring up the on-screen keyboard.
+const NON_TEXT_INPUTS = new Set(['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit']);
+const isTextField = (el: EventTarget | null) =>
+  el instanceof HTMLTextAreaElement || (el instanceof HTMLElement && el.isContentEditable)
+  || (el instanceof HTMLInputElement && !NON_TEXT_INPUTS.has(el.type));
+
 // Its modal pulls in the garden art, so it loads in its own chunk.
 const AchievementWatcher = lazy(() => import('./AchievementWatcher'));
 
@@ -67,6 +73,20 @@ export default function Layout() {
   const [scoreToday, setScoreToday] = useState<number | null>(null);
   const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported');
   const [pushLoading, setPushLoading] = useState(false);
+  // While the keyboard is up on a touch screen, iOS lifts the fixed bottom nav off the
+  // bottom of the screen (it floated mid-screen over the note editor), so it's hidden.
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const coarse = window.matchMedia('(pointer: coarse)');
+    const onFocusIn = (e: FocusEvent) => setTyping(coarse.matches && isTextField(e.target));
+    const onFocusOut = () => setTyping(false);
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+    };
+  }, []);
   const swRegRef = useRef<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
@@ -258,7 +278,7 @@ export default function Layout() {
       {user && <Suspense fallback={null}><AchievementWatcher userId={user.id} /></Suspense>}
 
       {/* Bottom nav (mobile) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/80 backdrop-blur-lg border-t border-gray-100 safe-area-bottom dark:bg-gray-950/80 dark:border-white/[0.08]">
+      <nav className={`${typing ? 'hidden' : ''} md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/80 backdrop-blur-lg border-t border-gray-100 safe-area-bottom dark:bg-gray-950/80 dark:border-white/[0.08]`}>
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map((item) => {
             const isActive = item.path === '/'
