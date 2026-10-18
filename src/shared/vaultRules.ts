@@ -11,14 +11,3 @@ export function isExcludedVaultPath(rel: string | null | undefined): boolean {
   if (parts.length === 1 && rel.endsWith('.md')) return true; // a note in the vault root (folders pass)
   return VAULT_EXCLUDE.includes(parts[0]);
 }
-
-// A note can also opt out on its own with the frontmatter property `review: false`
-// (an Obsidian checkbox property; `no`/`off` work too). It stays in the vault but is
-// never scheduled, suggested or imported, and adding the property to a note that's
-// already a course removes that course (watcher on change, and the startup sync).
-const OPT_OUT = /^review:\s*["']?(false|no|off)["']?\s*$/im;
-
-export function isReviewOptOut(text: string): boolean {
-  const m = /^﻿?---\r?\n([\s\S]*?)\r?\n---\s*(\r?\n|$)/.exec(text);
-  return !!m && OPT_OUT.test(m[1]);
-}
