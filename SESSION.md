@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-18 — Single newlines render as line breaks in Review
+Lines in a note with no blank line between them were joined into one, because standard Markdown treats a single newline as a space while Obsidian (with "Strict line breaks" off) shows it as a break. A small hand-written `remarkSoftBreaks` plugin in `ReviewContent.tsx` now does what `remark-breaks` does, without adding the package, in paragraphs, list items and quotes; code and math keep their own newlines. Deployed and pushed as `f952dcd`.
+
 ## 2026-10-17 — Note breadcrumb and in-app note editing in Review
 The note view now has a fixed breadcrumb under the header showing the heading being read and its parents (`1. … › 1.2. … › 1.2.3. …`). Notes can also be edited as raw markdown in `NoteEditor.tsx` and saved with `PUT /reviews/courses/:id/content`. Saving answers 409 if the file changed in the meantime, a save without changes is byte-identical even for mixed CRLF/LF notes, and the editor opens and closes at the same place in the note. Follow-up fixes for the phone: the bottom nav hides while typing, form fields are 16px so iOS doesn't zoom in, and the page no longer jumps when you press backspace near the end of a note. Deployed and pushed (`c5b0215`, `6bb6352`, `cb90f48`, `3537c83`, `f81bef5`). The backspace fix was only tested in Chromium, not on the iPhone.
 
