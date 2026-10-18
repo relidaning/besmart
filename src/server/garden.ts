@@ -191,6 +191,7 @@ export function growFromReview(userId: number, courseId: number, recordId: numbe
 
 // Water the note plants that have gone longest without water (still growing ones first).
 // A plant takes water once a day, and only until water has given it GROWTH.waterMax.
+// A note taken out of review keeps its plant as it is: it gets no more water.
 function waterGarden(userId: number, sourceType: string, sourceId: number): number {
   const plants = db.prepare(`
     SELECT p.id,
@@ -199,6 +200,7 @@ function waterGarden(userId: number, sourceType: string, sourceId: number): numb
       (SELECT MAX(created_at) FROM garden_events e WHERE e.plant_id = p.id AND e.kind = 'water') AS watered,
       EXISTS (SELECT 1 FROM garden_events e WHERE e.plant_id = p.id AND e.kind = 'water' AND e.day = ?) AS today
     FROM garden_plants p WHERE p.user_id = ? AND p.source_type = 'note'
+      AND NOT EXISTS (SELECT 1 FROM review_courses c WHERE c.id = p.source_id AND c.excluded_at IS NOT NULL)
   `).all(effectiveDate(), userId) as any[];
   const chosen = plants
     .filter((p) => !p.today && p.water < GROWTH.waterMax)

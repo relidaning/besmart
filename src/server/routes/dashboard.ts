@@ -54,7 +54,7 @@ dashboardRoutes.get('/stats', (req, res) => {
   `).get(userId, today) as any).c;
 
   const totalCourses = (db.prepare(
-    'SELECT COUNT(*) as c FROM review_courses WHERE user_id = ?'
+    'SELECT COUNT(*) as c FROM review_courses WHERE user_id = ? AND excluded_at IS NULL'
   ).get(userId) as any).c;
 
   const todoActive = (db.prepare(

@@ -55,6 +55,7 @@ export default function Review() {
   const [importingVault, setImportingVault] = useState(false);
   const [courseCount, setCourseCount] = useState<number | null>(null);
   const [wisdom, setWisdom] = useState<GardenSummary['attributes'][number] | null>(null);
+  const [excluded, setExcluded] = useState<{ id: number; name: string; vault_path: string | null }[]>([]);
 
   const initialLoadDone = useRef(false);
 
@@ -83,6 +84,7 @@ export default function Review() {
 
   useEffect(() => {
     api.getVaultInfo().then((r: any) => setVaultName(r.vault_name)).catch(() => {});
+    api.getExcludedCourses().then((r: any) => setExcluded(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -296,6 +298,27 @@ export default function Review() {
           })}
           <div ref={dueSentinelRef} className="h-1" />
         </>
+      )}
+
+      {/* Notes taken out of review on their page; open one to add it back */}
+      {excluded.length > 0 && !debouncedQuery && (
+        <motion.details variants={listItem} className="card">
+          <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+            {excluded.length} note{excluded.length > 1 ? 's' : ''} removed from review
+          </summary>
+          <div className="mt-2 space-y-0.5 max-h-72 overflow-y-auto -mx-1 px-1">
+            {excluded.map((c) => (
+              <button key={c.id} onClick={() => navigate(`/review/course/${c.id}`)}
+                className="w-full text-left flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-900 dark:text-gray-100 truncate">{c.name}</p>
+                  {c.vault_path && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{c.vault_path}</p>}
+                </div>
+                <ChevronRight size={14} className="text-gray-400 dark:text-gray-600 flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        </motion.details>
       )}
 
       {/* Form modal */}

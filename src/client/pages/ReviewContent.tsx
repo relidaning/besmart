@@ -30,7 +30,7 @@ import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import toast from 'react-hot-toast';
 import { celebrate } from '../lib/garden';
-import { ArrowLeft, ChevronRight, ExternalLink, Pencil } from 'lucide-react';
+import { ArrowLeft, CalendarOff, CalendarPlus, ChevronRight, ExternalLink, Pencil } from 'lucide-react';
 import { api, trackLoading } from '../hooks/api';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
@@ -259,6 +259,7 @@ export default function ReviewContent() {
 
   // Per-user, per-record reading position key
   const posKey = user && id ? `rpos-${user.id}-${id}` : null;
+  const title = data?.title ?? data?.record?.course_name ?? data?.course?.name ?? 'Note';
 
   const courseId = (data?.record?.course_id ?? data?.course?.id) as number | undefined;
   const draftKey = user && courseId ? `ndraft-${user.id}-${courseId}` : null;
@@ -381,6 +382,27 @@ export default function ReviewContent() {
     setRatingLoading(false);
   };
 
+  // Take the note out of review for good (it stays in the vault), or put it back.
+  const excluded = !!(data?.record?.excluded_at ?? data?.course?.excluded_at);
+  const [excluding, setExcluding] = useState(false);
+  const toggleExcluded = async () => {
+    if (!courseId) return;
+    if (!excluded && !confirm(`Remove "${title}" from review? It stays in your vault and is never scheduled again, until you add it back.`)) return;
+    setExcluding(true);
+    try {
+      const r = await api.setCourseExcluded(courseId, !excluded);
+      if (excluded) {
+        setData((d: any) => ({ ...d, course: d.course ? { ...d.course, excluded_at: null } : d.course }));
+        toast.success('Back in review. First review tomorrow.');
+      } else {
+        toast.success('Removed from review');
+        if (isRecord) navigate('/review');
+        else setData((d: any) => ({ ...d, course: { ...d.course, excluded_at: r.data.excluded_at } }));
+      }
+    } catch (err: any) { toast.error(err.message); }
+    setExcluding(false);
+  };
+
   // Reset to 0 every render so heading IDs keep their document order
   const hCountRef = useRef(0);
   hCountRef.current = 0;
@@ -426,8 +448,6 @@ export default function ReviewContent() {
   }), [resolvedTheme]);
 
   if (loading) return <PageSpinner />;
-
-  const title = data?.title ?? data?.record?.course_name ?? data?.course?.name ?? 'Note';
   const obsidianUris = (data?.obsidian_uris ?? []) as string[];
   const paths = (data?.paths ?? []) as string[];
   const reviewedTimes = data?.record?.reviewed_times as number | undefined;
@@ -475,6 +495,13 @@ export default function ReviewContent() {
             <Pencil size={16} />
           </button>
         )}
+        {courseId && !editing && (
+          <button onClick={toggleExcluded} disabled={excluding}
+            title={excluded ? 'Add back to review' : 'Remove from review (keeps the note)'}
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors flex-shrink-0 disabled:opacity-40">
+            {excluded ? <CalendarPlus size={16} /> : <CalendarOff size={16} />}
+          </button>
+        )}
         {obsidianUris[0] && (
           <a href={obsidianUris[0]} title="Open in Obsidian"
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950 text-purple-400 hover:text-purple-600 transition-colors flex-shrink-0">
@@ -485,6 +512,9 @@ export default function ReviewContent() {
 
       {/* Meta badges */}
       <div className="flex items-center gap-2 mb-6 flex-wrap">
+        {excluded && (
+          <span className="badge bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">Not in review</span>
+        )}
         {reviewedTimes !== undefined && (
           <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400">Review #{reviewedTimes + 1}</span>
         )}

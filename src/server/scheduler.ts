@@ -125,7 +125,8 @@ export function scheduleJob() {
       SELECT c.id, c.fsrs_stability, c.fsrs_last_review,
         (SELECT MAX(reviewed_times) FROM review_records WHERE course_id = c.id) AS times
       FROM review_courses c
-      WHERE EXISTS (SELECT 1 FROM review_records WHERE course_id = c.id)
+      WHERE c.excluded_at IS NULL
+        AND EXISTS (SELECT 1 FROM review_records WHERE course_id = c.id)
         AND NOT EXISTS (SELECT 1 FROM review_records WHERE course_id = c.id AND is_reviewed = 0)
     `).all() as any[];
     const insertRecord = db.prepare(

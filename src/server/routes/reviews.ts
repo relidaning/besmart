@@ -102,17 +102,19 @@ export function scheduleVaultNote(userId: number, vaultRoot: string, relPath: st
 
 // Called when a vault note is updated: if the note isn't tracked yet, schedule it;
 // if it's tracked but has no pending (unreviewed) record, queue a fresh review for tomorrow.
+// A course taken out of review (`excluded_at`) is left alone.
 export function ensureScheduleForNote(
   userId: number,
   vaultRoot: string,
   relPath: string
 ): 'created' | 'rescheduled' | 'noop' {
   const course = db.prepare(
-    'SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?'
-  ).get(userId, relPath) as { id: number } | undefined;
+    'SELECT id, excluded_at FROM review_courses WHERE user_id = ? AND vault_path = ?'
+  ).get(userId, relPath) as { id: number; excluded_at: string | null } | undefined;
   if (!course) {
     return scheduleVaultNote(userId, vaultRoot, relPath) ? 'created' : 'noop';
   }
+  if (course.excluded_at) return 'noop';
 
   const pending = db.prepare(
     'SELECT id FROM review_records WHERE course_id = ? AND is_reviewed = 0 LIMIT 1'
@@ -238,7 +240,7 @@ reviewRoutes.get('/due', (req, res) => {
   const dueWhere = `
     FROM review_records r
     JOIN review_courses c ON c.id = r.course_id
-    WHERE c.user_id = ? AND r.is_reviewed = 0 AND r.planned_date <= ?
+    WHERE c.user_id = ? AND r.is_reviewed = 0 AND r.planned_date <= ? AND c.excluded_at IS NULL
       AND (? = '' OR c.name LIKE '%' || ? || '%')
       AND r.id = (
         SELECT rr.id FROM review_records rr
@@ -337,7 +339,7 @@ reviewRoutes.get('/records/:id/detail', (req, res) => {
   const userId = req.user!.id;
   const record = db.prepare(`
     SELECT r.*, c.name as course_name, c.description as course_description,
-           c.vault_path, c.vault_match_status,
+           c.vault_path, c.vault_match_status, c.excluded_at,
            c.fsrs_stability, c.fsrs_difficulty, c.fsrs_last_review, c.fsrs_reps, c.fsrs_lapses
     FROM review_records r
     JOIN review_courses c ON r.course_id = c.id
@@ -373,6 +375,13 @@ reviewRoutes.get('/records/:id/detail', (req, res) => {
 
 reviewRoutes.get('/courses', (req, res) => {
   const userId = req.user!.id;
+  // ?excluded=1: only the courses taken out of review, latest first.
+  if (req.query.excluded === '1') {
+    const rows = db.prepare(
+      'SELECT id, name, vault_path, excluded_at FROM review_courses WHERE user_id = ? AND excluded_at IS NOT NULL ORDER BY excluded_at DESC, id DESC'
+    ).all(userId);
+    return res.json({ data: rows });
+  }
   const courses = db.prepare(`
     SELECT c.*,
       (SELECT MAX(reviewed_times) FROM review_records WHERE course_id = c.id AND is_reviewed = 1) as total_reviews,
@@ -423,6 +432,35 @@ reviewRoutes.put('/courses/:id', (req, res) => {
     req.params.id
   );
   res.json({ data: db.prepare('SELECT * FROM review_courses WHERE id = ?').get(req.params.id) });
+});
+
+// Takes a course out of review, or puts it back. Out: its pending record goes, and no
+// scheduling rule touches it again; its review history, FSRS state and plant stay.
+// Back in: the next review is tomorrow, as for a new note.
+reviewRoutes.put('/courses/:id/excluded', (req, res) => {
+  const userId = req.user!.id;
+  const { excluded } = req.body ?? {};
+  if (typeof excluded !== 'boolean') return res.status(400).json({ error: 'excluded must be a boolean' });
+  const course = db.prepare('SELECT id, excluded_at FROM review_courses WHERE id = ? AND user_id = ?').get(req.params.id, userId) as any;
+  if (!course) return res.status(404).json({ error: 'Course not found' });
+
+  db.transaction(() => {
+    if (excluded) {
+      if (course.excluded_at) return;
+      db.prepare('DELETE FROM review_records WHERE course_id = ? AND is_reviewed = 0').run(course.id);
+      db.prepare('UPDATE review_courses SET excluded_at = ? WHERE id = ?').run(new Date().toISOString(), course.id);
+    } else {
+      if (!course.excluded_at) return;
+      db.prepare('UPDATE review_courses SET excluded_at = NULL WHERE id = ?').run(course.id);
+      const last = db.prepare('SELECT MAX(reviewed_times) AS t FROM review_records WHERE course_id = ?').get(course.id) as any;
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      db.prepare(
+        'INSERT INTO review_records (course_id, is_reviewed, reviewed_times, planned_date, ease_factor, interval_days) VALUES (?, 0, ?, ?, 2.5, 1)'
+      ).run(course.id, last?.t != null ? last.t + 1 : 0, localDate(tomorrow));
+    }
+  })();
+  res.json({ data: db.prepare('SELECT * FROM review_courses WHERE id = ?').get(course.id) });
 });
 
 reviewRoutes.delete('/courses/:id', (req, res) => {

@@ -158,6 +158,9 @@ export const api = {
   getCourses: () => request<any>('/reviews/courses'),
   createCourse: (data: any) => request<any>('/reviews/courses', { method: 'POST', body: JSON.stringify(data) }),
   updateCourse: (id: number, data: any) => request<any>(`/reviews/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getExcludedCourses: () => request<any>('/reviews/courses?excluded=1'),
+  setCourseExcluded: (id: number, excluded: boolean) =>
+    request<any>(`/reviews/courses/${id}/excluded`, { method: 'PUT', body: JSON.stringify({ excluded }) }),
   deleteCourse: (id: number) => request<any>(`/reviews/courses/${id}`, { method: 'DELETE' }),
   getRecordDetail: (id: number) => request<any>(`/reviews/records/${id}/detail`),
   getCourseDetail: (id: number) => request<any>(`/reviews/courses/${id}/detail`),

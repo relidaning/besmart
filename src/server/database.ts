@@ -502,6 +502,16 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 16: a course can be taken out of review (the note's "Remove from review"
+  // button) without deleting it. `excluded_at` set = no pending record, and no rule
+  // (watcher, startup sync, the scheduler's safety net) schedules it again.
+  if (version < 16) {
+    db.transaction(() => {
+      db.exec('ALTER TABLE review_courses ADD COLUMN excluded_at TEXT');
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (16)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'
