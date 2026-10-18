@@ -11,7 +11,7 @@ import { awardXp, REVIEW_XP } from '../garden.js';
 export const reviewRoutes = Router();
 
 const DEFAULT_VAULT_PATH = process.env.VAULT_PATH ?? '';
-import { isExcludedVaultPath } from '../../shared/vaultRules.js';
+import { isExcludedVaultPath, isReviewOptOut } from '../../shared/vaultRules.js';
 
 // ── SM-2 ──────────────────────────────────────────────────────────────────────
 
@@ -49,6 +49,16 @@ function scanVault(base: string, rel: string): string[] {
   return results;
 }
 
+// Whether a note's frontmatter says `review: false` (vaultRules.ts). An unreadable
+// file doesn't opt out: the callers already handle a missing note on their own.
+export function noteOptsOut(vaultRoot: string, relPath: string): boolean {
+  try {
+    return isReviewOptOut(fs.readFileSync(path.join(vaultRoot, relPath), 'utf-8'));
+  } catch {
+    return false;
+  }
+}
+
 function buildObsidianUris(paths: string[], vaultName: string): string[] {
   return paths.map(
     (p) => `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(p.replace(/\.md$/, ''))}`
@@ -79,7 +89,7 @@ function serializeCourse(c: any) {
 // ── Vault sync ────────────────────────────────────────────────────────────────
 
 export function scheduleVaultNote(userId: number, vaultRoot: string, relPath: string): boolean {
-  if (isExcludedVaultPath(relPath)) return false;
+  if (isExcludedVaultPath(relPath) || noteOptsOut(vaultRoot, relPath)) return false;
   const existing = db.prepare(
     'SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?'
   ).get(userId, relPath);
@@ -102,11 +112,15 @@ export function scheduleVaultNote(userId: number, vaultRoot: string, relPath: st
 
 // Called when a vault note is updated: if the note isn't tracked yet, schedule it;
 // if it's tracked but has no pending (unreviewed) record, queue a fresh review for tomorrow.
+// A note that now says `review: false` loses its course (the file is left alone).
 export function ensureScheduleForNote(
   userId: number,
   vaultRoot: string,
   relPath: string
-): 'created' | 'rescheduled' | 'noop' {
+): 'created' | 'rescheduled' | 'evicted' | 'noop' {
+  if (noteOptsOut(vaultRoot, relPath)) {
+    return deleteCourseForNote(userId, relPath) ? 'evicted' : 'noop';
+  }
   const course = db.prepare(
     'SELECT id FROM review_courses WHERE user_id = ? AND vault_path = ?'
   ).get(userId, relPath) as { id: number } | undefined;
@@ -196,6 +210,14 @@ export function syncVaultForUser(userId: number): { missing: number; restored: n
     } else if (exists && row.vault_match_status === 'missing') {
       db.prepare("UPDATE review_courses SET vault_match_status = 'matched' WHERE id = ?").run(row.id);
       restored++;
+    }
+  }
+
+  // Notes given `review: false` while the app wasn't watching.
+  for (const row of exactRows) {
+    if (fileSet.has(row.vault_path) && noteOptsOut(vaultRoot, row.vault_path)
+      && deleteCourseForNote(userId, row.vault_path)) {
+      console.log(`[vault-sync] evicted (review: false): ${row.vault_path}`);
     }
   }
 
@@ -560,7 +582,7 @@ reviewRoutes.get('/vault/suggestions', (req, res) => {
   const scheduledPaths = new Set(scheduled.map((r: any) => r.vault_path));
 
   try {
-    const notes = scanVault(cfg.vaultRoot, '').filter((p) => !scheduledPaths.has(p));
+    const notes = scanVault(cfg.vaultRoot, '').filter((p) => !scheduledPaths.has(p) && !noteOptsOut(cfg.vaultRoot, p));
     const suggestions = notes
       .map((relPath) => {
         try {
@@ -657,8 +679,8 @@ reviewRoutes.post('/vault/import', (req, res) => {
   if (!Array.isArray(requested) || !requested.length) return res.status(400).json({ error: 'paths required' });
   // Only notes inside the vault, and never from the excluded folders.
   const paths = requested.filter((p) => typeof p === 'string' && p.endsWith('.md') && !p.startsWith('/')
-    && !p.split('/').includes('..') && !isExcludedVaultPath(p));
-  if (!paths.length) return res.status(400).json({ error: 'No importable notes (excluded folders and paths outside the vault are skipped)' });
+    && !p.split('/').includes('..') && !isExcludedVaultPath(p) && !noteOptsOut(cfg.vaultRoot, p));
+  if (!paths.length) return res.status(400).json({ error: 'No importable notes (excluded folders, `review: false` notes and paths outside the vault are skipped)' });
 
   const today = localDate(new Date());
   const tomorrow = new Date();
