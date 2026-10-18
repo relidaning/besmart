@@ -146,6 +146,22 @@ function rehypeSourceLines() {
   return (tree: any) => walk(tree);
 }
 
+// Obsidian shows a single newline inside a paragraph as a line break ("Strict line
+// breaks" is off in the vault); plain markdown joins the lines into one. Each newline
+// in a text node becomes a hard break, as remark-breaks does. Code and math are not
+// text nodes, so they keep their newlines.
+function remarkSoftBreaks() {
+  const walk = (node: any) => {
+    if (!node.children) return;
+    node.children = node.children.flatMap((child: any) => {
+      if (child.type !== 'text' || !child.value.includes('\n')) { walk(child); return [child]; }
+      return child.value.split(/\r?\n/).flatMap((value: string, i: number) =>
+        [...(i ? [{ type: 'break' }] : []), ...(value ? [{ type: 'text', value }] : [])]);
+    });
+  };
+  return (tree: any) => walk(tree);
+}
+
 // ── Vault images ──────────────────────────────────────────────────────────────
 
 const IMAGE_EMBED = /!\[\[([^\]|]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif))(?:\|([^\]]*))?\]\]/gi;
@@ -530,7 +546,7 @@ export default function ReviewContent() {
               prose-li:text-gray-600 dark:prose-li:text-gray-300 prose-strong:text-gray-800 dark:prose-strong:text-gray-100 prose-hr:border-gray-200 dark:prose-hr:border-gray-800">
               <NotePathContext.Provider value={paths[0] ?? null}>
                 <ReactMarkdown
-                  remarkPlugins={katex ? [remarkGfm, katex.remarkMath] : [remarkGfm]}
+                  remarkPlugins={katex ? [remarkGfm, remarkSoftBreaks, katex.remarkMath] : [remarkGfm, remarkSoftBreaks]}
                   rehypePlugins={rehypePlugins}
                   components={mdComponents}
                 >
