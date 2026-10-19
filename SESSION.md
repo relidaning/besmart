@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-19 — Notes can be taken out of review from the app; 习思想概论 notes removed
+A first try used a `review: false` frontmatter property, but the user wanted the flag stored in the app, not in the note. That change was reverted (`277e53a`) and replaced by `review_courses.excluded_at` (migration 16), set by a new button on the note page. The Review page lists removed notes at the bottom, and the same button adds a note back. While the frontmatter edits were being undone, the still-running old code created 19 duplicate courses. They were deleted, the originals were restored from the morning's backup with their history and plants, and all 19 `9_others/习思想概论-*` notes were then excluded. Tested through the API only, not on a screen. Deployed and pushed as `100e967`. Open for the user: what to do with a removed note's plant. For now it stays as it is and gets no more water; the alternatives are removing it or still watering it. Open PR #14's migration must now be renumbered to 17.
+
 ## 2026-10-18 — Single newlines render as line breaks in Review
 Lines in a note with no blank line between them were joined into one, because standard Markdown treats a single newline as a space while Obsidian (with "Strict line breaks" off) shows it as a break. A small hand-written `remarkSoftBreaks` plugin in `ReviewContent.tsx` now does what `remark-breaks` does, without adding the package, in paragraphs, list items and quotes; code and math keep their own newlines. Deployed and pushed as `f952dcd`.
 
