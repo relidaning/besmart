@@ -83,6 +83,7 @@ function App() {
             <Route path="review" element={<Review />} />
             <Route path="review/record/:id" element={<ReviewContent />} />
             <Route path="review/course/:id" element={<ReviewContent />} />
+            <Route path="news" element={<ReviewContent />} />
             <Route path="todos" element={<Todos />} />
             <Route path="music" element={<MusicLibrary />} />
             <Route path="garden" element={<Garden />} />

@@ -561,6 +561,26 @@ reviewRoutes.get('/vault/info', (req, res) => {
   res.json({ vault_name: cfg?.vaultName ?? '' });
 });
 
+// The newest dated note claude-maxer wrote into news/, read-only (never a review course).
+const NEWS_FOLDER = 'claude-maxer/news';
+reviewRoutes.get('/news', (req, res) => {
+  const cfg = getUserVaultConfig(req.user!.id);
+  if (!cfg) return res.status(404).json({ error: 'No vault configured' });
+  let names: string[] = [];
+  try { names = fs.readdirSync(path.join(cfg.vaultRoot, NEWS_FOLDER)); } catch { /* no folder yet */ }
+  // Named by date, so the greatest name is the newest note.
+  const date = names.filter((n) => /^\d{4}-\d{2}-\d{2}\.md$/.test(n)).sort().pop()?.slice(0, -3);
+  if (!date) return res.status(404).json({ error: `No news notes in ${NEWS_FOLDER}` });
+  const rel = `${NEWS_FOLDER}/${date}.md`;
+  res.json({
+    date,
+    title: `News · ${date}`,
+    content: fs.readFileSync(path.join(cfg.vaultRoot, rel), 'utf8'),
+    paths: [rel],
+    obsidian_uris: buildObsidianUris([rel], cfg.vaultName),
+  });
+});
+
 reviewRoutes.get('/vault/config', (req, res) => {
   const userId = req.user!.id;
   const user = db.prepare('SELECT vault_root, vault_name FROM users WHERE id = ?').get(userId) as any;

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Moon, Sun, ChevronRight, Shield, Sprout } from 'lucide-react';
+import { Moon, Sun, ChevronRight, Newspaper, Shield, Sprout } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useEffect, useState } from 'react';
 import AttributeBar from '../components/AttributeBar';
@@ -152,7 +152,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_1fr] lg:items-start [&>*]:min-w-0">
         <div className="space-y-4 lg:sticky lg:top-20">
           {/* Today: check-in ring + meters */}
-          <motion.div variants={item}>
+          <motion.div variants={item} className="relative">
             <Link to="/checkin" className="card block">
               <CardHead
                 title="Today"
@@ -160,7 +160,7 @@ export default function Dashboard() {
                   ? left > 0 ? `${left} left` : 'all done'
                   : 'no check-ins'}
               />
-              <div className="flex items-center gap-5">
+              <div className="flex items-center gap-5 pr-[4.5rem]">
                 <div className="relative w-24 h-24 flex-shrink-0">
                   <svg className="w-24 h-24 -rotate-90" viewBox="0 0 80 80">
                     <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" strokeWidth="7" className="text-gray-200/70 dark:text-white/[0.08]" />
@@ -195,6 +195,12 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
+            </Link>
+            {/* Today's news note, beside the check-in ring. A sibling, not inside the card's link. */}
+            <Link to="/news" title="Today's news"
+              className="absolute right-4 bottom-4 w-16 h-24 rounded-xl flex flex-col items-center justify-center gap-1.5 bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900 dark:bg-white/[0.06] dark:text-gray-300 dark:hover:bg-white/[0.1] dark:hover:text-gray-100 transition-colors">
+              <Newspaper size={20} />
+              <span className="text-[11px] font-semibold">News</span>
             </Link>
           </motion.div>
 
