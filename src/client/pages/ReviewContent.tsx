@@ -212,6 +212,9 @@ export default function ReviewContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const isRecord = location.pathname.includes('/record/');
+  // /news shows the newest claude-maxer news note, read-only.
+  const isNews = location.pathname === '/news';
+  const backTo = isNews ? '/' : '/review';
   const { user } = useAuth();
   const { resolvedTheme } = useTheme();
 
@@ -258,7 +261,7 @@ export default function ReviewContent() {
   ], [rehypeRaw, katex]);
 
   // Per-user, per-record reading position key
-  const posKey = user && id ? `rpos-${user.id}-${id}` : null;
+  const posKey = !user ? null : id ? `rpos-${user.id}-${id}` : isNews && data?.date ? `rpos-${user.id}-news-${data.date}` : null;
   const title = data?.title ?? data?.record?.course_name ?? data?.course?.name ?? 'Note';
 
   const courseId = (data?.record?.course_id ?? data?.course?.id) as number | undefined;
@@ -275,10 +278,10 @@ export default function ReviewContent() {
   }, [draftKey, canEdit]);
 
   useEffect(() => {
-    const req = isRecord ? api.getRecordDetail(Number(id)) : api.getCourseDetail(Number(id));
+    const req = isNews ? api.getNews() : isRecord ? api.getRecordDetail(Number(id)) : api.getCourseDetail(Number(id));
     req
       .then(setData)
-      .catch((err: any) => { toast.error(err.message); navigate('/review'); })
+      .catch((err: any) => { toast.error(err.message); navigate(backTo); })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -482,7 +485,7 @@ export default function ReviewContent() {
 
       {/* Page header */}
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={() => navigate('/review')}
+        <button onClick={() => navigate(backTo)}
           className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors flex-shrink-0">
           <ArrowLeft size={18} />
         </button>
@@ -573,7 +576,7 @@ export default function ReviewContent() {
               prose-pre:bg-gray-100 dark:prose-pre:bg-gray-900 prose-pre:text-gray-800 dark:prose-pre:text-gray-100 prose-pre:overflow-x-auto prose-pre:max-w-full
               prose-th:whitespace-nowrap prose-td:max-w-[22rem]
               prose-blockquote:border-brand-300 dark:prose-blockquote:border-brand-700 prose-blockquote:text-gray-500 dark:prose-blockquote:text-gray-400
-              prose-li:text-gray-600 dark:prose-li:text-gray-300 prose-strong:text-gray-800 dark:prose-strong:text-gray-100 prose-hr:border-gray-200 dark:prose-hr:border-gray-800">
+              prose-ol:pl-8 prose-li:text-gray-600 dark:prose-li:text-gray-300 prose-strong:text-gray-800 dark:prose-strong:text-gray-100 prose-hr:border-gray-200 dark:prose-hr:border-gray-800">
               <NotePathContext.Provider value={paths[0] ?? null}>
                 <ReactMarkdown
                   remarkPlugins={katex ? [remarkGfm, remarkSoftBreaks, katex.remarkMath] : [remarkGfm, remarkSoftBreaks]}

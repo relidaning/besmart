@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-23 — News in BeSmart instead of Obsidian
+At the user's request, a News tile on the right of Home's Today card opens `/news`, the newest `claude-maxer/news` note rendered read-only by the note reader (new `GET /reviews/news`). Tested against a copy of the DB and the news folder with headless Chromium at phone and desktop width: the tile opens the note, Back returns Home, and the rest of the Today card still opens Check In. Also widened ordered-list indents, which clipped the news items' numbers on phones. The Obsidian plugin `open-latest-news` (0.4.0, in the vault, not in this repo) no longer opens the note by itself; it still starts the mobile sync.
+
 ## 2026-10-21 — Daily review check-in; Linux and deep learning notes rebuilt as textbook chapters
 Added check-in schedule 40, "Review notes for 20 minutes (reshaping counts)" (daily, score 10, wisdom), through the API. A count-based check-in is planned for once the big OneNote-exported notes are split. At the user's request (their first attempt, a reorganization of their own `linux.md`, was rejected: they wanted an outside textbook as the outline, with their own notes and stories folded in), `0_dev/os/Linux/` now holds 17 chapter notes following *How Linux Works* 3e, plus an index. Earlier versions are in the vault's `.trash/`. `0_dev/0_AI/Deep learning/` holds 16 chapter notes following d2l (zh 2.0), with a chapter 16 on modern LLMs, all 18 of the user's images and the d2l exercises, plus an index. Both indexes were taken out of review, and the chapters are due the next day. The user's old notes (`linux.md`, inode/tmp/centos, `深度学习：deep learning.md`, `MOE.md`) are untouched and still in review until the user deletes them. No app code changed.
 

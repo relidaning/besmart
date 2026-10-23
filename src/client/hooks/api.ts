@@ -167,6 +167,7 @@ export const api = {
   saveNote: (courseId: number, content: string, baseHash: string | null, force = false) =>
     request<any>(`/reviews/courses/${courseId}/content`, { method: 'PUT', body: JSON.stringify({ content, base_hash: baseHash, force }) }),
   getVaultInfo: () => request<any>('/reviews/vault/info'),
+  getNews: () => request<any>('/reviews/news'),
   getVaultSuggestions: () => request<any>('/reviews/vault/suggestions'),
   getVaultContent: (notePath: string) =>
     request<any>(`/reviews/vault/content?path=${encodeURIComponent(notePath)}`),
