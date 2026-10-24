@@ -90,7 +90,7 @@ async function sendNow<T>(url: string, method: string, options: RequestInit | un
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     // The status lets a caller tell a conflict (409) from other failures.
-    throw Object.assign(new Error(err.error || 'Request failed'), { status: res.status });
+    throw Object.assign(new Error(err.error || `Request failed (${res.status})`), { status: res.status });
   }
   const data = await res.json();
 
@@ -150,15 +150,38 @@ export const api = {
   getStreak: () => request<any>('/checkins/streak'),
 
   // Reviews
-  getDueReviews: (search?: string) => request<any>(`/reviews/due${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-  addDiaryEntry: (text: string, type: string = 'daily', previous = false) =>
-    request<{ success: boolean; path: string; heading: string }>('/checkins/diary', { method: 'POST', body: JSON.stringify({ text, type, previous }) }),
+  getDueReviews: (search?: string, offset = 0, limit = 20) =>
+    request<any>(`/reviews/due?offset=${offset}&limit=${limit}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
+  addDiaryEntry: (text: string, type: string = 'daily', previous = false, photos: string[] = []) =>
+    request<{ success: boolean; path: string; heading: string }>('/checkins/diary', { method: 'POST', body: JSON.stringify({ text, type, previous, photos }) }),
+  // A shrunk JPEG goes up in 64 KB pieces (see /diary/photo in server/routes/checkins.ts):
+  // the phone's link drops large bodies. A failed piece is retried twice.
+  uploadDiaryPhoto: async (photo: Blob, type: string, previous: boolean, onProgress?: (share: number) => void) => {
+    const CHUNK = 64 * 1024;
+    const upload = Array.from(crypto.getRandomValues(new Uint8Array(10)), (b) => (b % 36).toString(36)).join('');
+    for (let offset = 0; ; offset += CHUNK) {
+      const done = offset + CHUNK >= photo.size;
+      const url = `/checkins/diary/photo?type=${type}&previous=${previous ? 1 : 0}&upload=${upload}&offset=${offset}&done=${done ? 1 : 0}`;
+      const body = photo.slice(offset, offset + CHUNK);
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const r = await request<{ name?: string }>(url, {
+            method: 'POST', body, headers: { 'Content-Type': 'application/octet-stream', ...authHeaders() },
+          });
+          onProgress?.(Math.min(1, (offset + CHUNK) / photo.size));
+          if (done) return r.name!;
+          break;
+        } catch (err: any) {
+          if (attempt >= 2 || (err.status && err.status < 500)) throw err;
+        }
+      }
+    }
+  },
   completeReview: (id: number, rating: 'again' | 'hard' | 'ok' | 'easy') =>
     request<any>(`/reviews/records/${id}/complete`, { method: 'POST', body: JSON.stringify({ rating }) }, { quiet: true }),
   getCourses: () => request<any>('/reviews/courses'),
   createCourse: (data: any) => request<any>('/reviews/courses', { method: 'POST', body: JSON.stringify(data) }),
   updateCourse: (id: number, data: any) => request<any>(`/reviews/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  getExcludedCourses: () => request<any>('/reviews/courses?excluded=1'),
   setCourseExcluded: (id: number, excluded: boolean) =>
     request<any>(`/reviews/courses/${id}/excluded`, { method: 'PUT', body: JSON.stringify({ excluded }) }),
   deleteCourse: (id: number) => request<any>(`/reviews/courses/${id}`, { method: 'DELETE' }),

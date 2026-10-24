@@ -32,6 +32,7 @@ import toast from 'react-hot-toast';
 import { celebrate } from '../lib/garden';
 import { ArrowLeft, CalendarOff, CalendarPlus, ChevronRight, ExternalLink, Pencil } from 'lucide-react';
 import { api, trackLoading } from '../hooks/api';
+import { dropFromReviewList, trackReviewWrite } from '../lib/reviewList';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import { PageSpinner } from '../components/Loading';
@@ -220,7 +221,8 @@ export default function ReviewContent() {
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [ratingLoading, setRatingLoading] = useState(false);
+  // A ref, not state: re-rendering the note before leaving cost ~100 ms
+  const rated = useRef(false);
   // Editing the note's markdown in place; startHeading is where the reader was.
   const [editing, setEditing] = useState<{ start?: ScreenLine } | null>(null);
   // Where the note should reopen once the editor closes.
@@ -371,18 +373,23 @@ export default function ReviewContent() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const handleRating = async (rating: Rating) => {
-    if (!data?.record) return;
-    setRatingLoading(true);
-    try {
-      const r = await api.completeReview(data.record.id, rating);
-      if (posKey) localStorage.removeItem(posKey);
+  // Back to the list at once; the rating is saved on the way (a round trip on the
+  // phone's link was a visible pause). If it fails, the note comes back to the list.
+  const handleRating = (rating: Rating) => {
+    if (!data?.record || rated.current) return;
+    rated.current = true;
+    const recordId = data.record.id;
+    const preview = data.memory?.preview?.[rating] ?? 1;
+    const req = api.completeReview(recordId, rating);
+    trackReviewWrite(req);
+    dropFromReviewList(recordId);
+    if (posKey) localStorage.removeItem(posKey);
+    navigate('/review', { state: { instant: true } });
+    req.then((r) => {
       // One toast: the XP it earned and when it comes back.
-      const next = rating === 'again' ? 'back tomorrow' : `next in ${fmtGap(r.next?.days ?? 1)}`;
+      const next = rating === 'again' ? 'back tomorrow' : `next in ${fmtGap(r.next?.days ?? preview)}`;
       if (!celebrate(r.xp, undefined, next)) toast(next[0].toUpperCase() + next.slice(1), { id: 'review-next' });
-      navigate('/review');
-    } catch (err: any) { toast.error(err.message); }
-    setRatingLoading(false);
+    }).catch((err: any) => toast.error(`Rating not saved: ${err.message}`));
   };
 
   // Take the note out of review for good (it stays in the vault), or put it back.
@@ -399,7 +406,7 @@ export default function ReviewContent() {
         toast.success('Back in review. First review tomorrow.');
       } else {
         toast.success('Removed from review');
-        if (isRecord) navigate('/review');
+        if (isRecord) { dropFromReviewList(data.record.id); navigate('/review'); }
         else setData((d: any) => ({ ...d, course: { ...d.course, excluded_at: r.data.excluded_at } }));
       }
     } catch (err: any) { toast.error(err.message); }
@@ -602,7 +609,7 @@ export default function ReviewContent() {
               </p>
               <div className="grid grid-cols-4 gap-2">
                 {RATINGS.map((r) => (
-                  <button key={r.id} onClick={() => handleRating(r.id)} disabled={ratingLoading}
+                  <button key={r.id} onClick={() => handleRating(r.id)}
                     className={`h-14 rounded-xl border flex flex-col items-center justify-center transition-colors disabled:opacity-40 ${r.cls}`}>
                     <span className="text-sm font-bold">{r.label}</span>
                     <span className="text-[11px] opacity-80">{fmtGap(data.memory?.preview?.[r.id] ?? 1)}</span>

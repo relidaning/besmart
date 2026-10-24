@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { ClipboardCheck, Check, Flame, NotebookPen } from 'lucide-react';
+import { ClipboardCheck, Check, Flame, NotebookPen, ImagePlus, X } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { ATTRIBUTES, ATTR_META, type Attribute } from '../lib/garden';
@@ -59,6 +59,25 @@ const typeBadges: Record<string, string> = {
   yearly: 'badge bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
 };
 
+// Diary photos are shrunk on the device before upload: a phone photo is 3–10 MB,
+// and slow over the phone's link. 1600 px on the long side, JPEG 0.82, comes to about
+// 0.3–0.5 MB, still sharp on a phone or laptop screen. Each is uploaded on its own.
+const DIARY_IMAGE_EDGE = 1600;
+
+async function shrinkPhoto(file: File): Promise<Blob> {
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const scale = Math.min(1, DIARY_IMAGE_EDGE / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#fff'; // transparent PNGs get a white background, not black
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close();
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('encode'))), 'image/jpeg', 0.82));
+}
+
 // The diary dialog's wording per kind; the prompts follow the vault's diary templates.
 const DIARY_COPY: Record<DiaryType, { tab: string; title: string; placeholder: string; unit: string }> = {
   daily: { tab: 'Daily', title: 'A moment of today', placeholder: 'What happened, what you did, how it felt…', unit: 'day' },
@@ -83,6 +102,11 @@ export default function CheckIn() {
   const [diaryType, setDiaryType] = useState<DiaryType>('daily');
   const [diaryPrevious, setDiaryPrevious] = useState(false);
   const [savingDiary, setSavingDiary] = useState(false);
+  // `name` is set once the photo is on the server, so a retry after a failed save skips it.
+  const [diaryImages, setDiaryImages] = useState<{ blob: Blob; src: string; name?: string }[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [addingImages, setAddingImages] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [scheduleForm, setScheduleForm] = useState<{ name: string; type: string; score: number; category?: Attribute }>({ name: '', type: 'daily', score: 0 });
   const [completingId, setCompletingId] = useState<number | null>(null);
@@ -118,18 +142,45 @@ export default function CheckIn() {
     setCompletingId(null);
   };
 
+  const handlePhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ''; // picking the same photo again still fires onChange
+    setAddingImages(true);
+    for (const f of files) {
+      try {
+        const blob = await shrinkPhoto(f);
+        setDiaryImages((prev) => [...prev, { blob, src: URL.createObjectURL(blob) }]);
+      } catch { toast.error(`Couldn't read ${f.name}`); }
+    }
+    setAddingImages(false);
+  };
+
   const handleDiarySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!diaryText.trim()) return;
+    if (!diaryText.trim() && !diaryImages.length) return;
     setSavingDiary(true);
     try {
-      await api.addDiaryEntry(diaryText, diaryType, diaryPrevious);
+      const names: string[] = [];
+      for (const [i, img] of diaryImages.entries()) {
+        if (!img.name) {
+          const label = diaryImages.length > 1 ? `Uploading ${i + 1}/${diaryImages.length}` : 'Uploading';
+          setUploadProgress(`${label}…`);
+          img.name = await api.uploadDiaryPhoto(img.blob, diaryType, diaryPrevious,
+            (share) => setUploadProgress(`${label} · ${Math.round(share * 100)}%`));
+        }
+        names.push(img.name);
+      }
+      setUploadProgress(null);
+      await api.addDiaryEntry(diaryText, diaryType, diaryPrevious, names);
       toast.success(diaryType === 'daily' ? 'Added to your diary' : `Added to your ${diaryType} diary`);
       setDiaryText('');
+      diaryImages.forEach((img) => URL.revokeObjectURL(img.src));
+      setDiaryImages([]);
       setShowDiary(false);
       setDiaryType('daily');
       setDiaryPrevious(false);
     } catch (err: any) { toast.error(err.message); }
+    setUploadProgress(null);
     setSavingDiary(false);
   };
 
@@ -375,6 +426,21 @@ export default function CheckIn() {
                 {/* Phone height leaves the buttons above the on-screen keyboard. */}
                 <textarea className={`input block ${diaryType === 'daily' ? 'h-[32dvh]' : 'h-[26dvh]'} sm:h-[45vh] lg:h-[60vh] min-h-[140px] leading-relaxed lg:text-base`} autoFocus value={diaryText} onChange={(e) => setDiaryText(e.target.value)}
                   placeholder={DIARY_COPY[diaryType].placeholder} />
+                {(diaryImages.length > 0 || addingImages) && (
+                  <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
+                    {diaryImages.map(({ src }, i) => (
+                      <div key={i} className="relative shrink-0">
+                        <img src={src} alt="" className="h-16 w-16 object-cover rounded-lg border border-gray-200 dark:border-white/10" />
+                        <button type="button" disabled={savingDiary} aria-label="Remove photo"
+                          onClick={() => { URL.revokeObjectURL(src); setDiaryImages((prev) => prev.filter((_, j) => j !== i)); }}
+                          className="absolute -top-1.5 -right-1.5 bg-gray-900/80 text-white rounded-full p-0.5">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                    {addingImages && <div className="h-16 w-16 shrink-0 rounded-lg bg-gray-100 dark:bg-white/5 animate-pulse" />}
+                  </div>
+                )}
                 <p className="text-xs text-gray-500 mt-1.5 truncate">
                   {(() => {
                     const p = diaryPeriod(diaryType, todayLocal(), diaryPrevious);
@@ -384,8 +450,13 @@ export default function CheckIn() {
                 </p>
               </div>
               <div className="flex justify-end gap-2">
+                <input ref={photoInput} type="file" accept="image/*" multiple hidden onChange={handlePhotos} />
+                <button type="button" onClick={() => photoInput.current?.click()} disabled={savingDiary || addingImages}
+                  className="btn-secondary text-sm flex items-center gap-1.5 mr-auto" title="Add photos from your library">
+                  <ImagePlus size={15} /> Photos
+                </button>
                 <button type="button" onClick={() => setShowDiary(false)} disabled={savingDiary} className="btn-secondary text-sm">Cancel</button>
-                <button type="submit" disabled={savingDiary || !diaryText.trim()} className="btn-primary text-sm">{savingDiary ? 'Saving…' : 'Add to diary'}</button>
+                <button type="submit" disabled={savingDiary || addingImages || (!diaryText.trim() && !diaryImages.length)} className="btn-primary text-sm">{savingDiary ? (uploadProgress ?? 'Saving…') : 'Add to diary'}</button>
               </div>
             </form>
           </motion.div>

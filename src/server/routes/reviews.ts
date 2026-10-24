@@ -220,7 +220,9 @@ export function syncVaultForAllConfiguredUsers() {
 
 // ── Due records ───────────────────────────────────────────────────────────────
 
-const DUE_DAILY_LIMIT = 20;
+// The due list comes in pages; the client asks for the next one as it scrolls.
+const DUE_PAGE_SIZE = 20;
+const DUE_MAX_PAGE = 500;
 
 // Due-list tie-break by vault folder (the list is ordered latest note first): AI/ML/DL
 // notes first, then the rest of 0_dev, then everything else. The AI folder was renamed
@@ -236,6 +238,8 @@ reviewRoutes.get('/due', (req, res) => {
   const userId = req.user!.id;
   const today = localDate(new Date());
   const search = (req.query.search as string || '').trim();
+  const offset = Math.max(0, Math.floor(Number(req.query.offset)) || 0);
+  const limit = Math.min(DUE_MAX_PAGE, Math.max(1, Math.floor(Number(req.query.limit)) || DUE_PAGE_SIZE));
 
   const dueWhere = `
     FROM review_records r
@@ -271,8 +275,8 @@ reviewRoutes.get('/due', (req, res) => {
     ORDER BY c.is_postponed ASC,
       c.created_at DESC, c.id DESC, -- latest notes first
       ${DUE_TOPIC_TIER}, r.planned_date ASC
-    LIMIT ?
-  `).all(userId, today, search, search, today, DUE_DAILY_LIMIT) as any[];
+    LIMIT ? OFFSET ?
+  `).all(userId, today, search, search, today, limit, offset) as any[];
 
   res.json({
     data: records.map((r) => ({
@@ -283,7 +287,7 @@ reviewRoutes.get('/due', (req, res) => {
       interval_days: r.interval_days ?? 1,
     })),
     total,
-    limit: DUE_DAILY_LIMIT,
+    limit,
   });
 });
 

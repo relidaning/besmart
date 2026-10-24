@@ -1,7 +1,8 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import db from '../database.js';
 import { localDate, effectiveDate, effectiveDayBounds } from '../date.js';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { awardXp, revokeXp, scheduleCategory, isAttribute, MIN_CHECKIN_XP } from '../garden.js';
 import { getUserVaultConfig } from './reviews.js';
@@ -239,29 +240,109 @@ export function computeStreak(userId: number): number {
 
 const DIARY_DIR = process.env.DIARY_DIR ?? '0_lidaning/Diaries';
 const DIARY_MAX = { daily: 4000, weekly: 20000, monthly: 20000, yearly: 20000 };
+// Photos are uploaded one per request (the client shrinks each to a JPEG first, so
+// any number fits under the body limit) into an attachs/ folder beside the note,
+// Obsidian's "./attachs" attachment setting. The entry then names them in `photos`,
+// and each is embedded as a "![[name]]" sub-item after the text.
+const DIARY_PHOTO_NAME = /^diary-\d{8}-\d{6}-\d+\.jpg$/;
+
+function diaryNoteFile(root: string, type: DiaryType, previous: unknown, now: Date) {
+  const period = diaryPeriod(type, localDate(now), type !== 'daily' && previous === true);
+  const rel = `${DIARY_DIR}/${period.note}`;
+  return { period, rel, file: path.join(root, rel) };
+}
+
+function mkdirOwned(dir: string, owner: fs.Stats) {
+  if (fs.existsSync(dir)) return;
+  fs.mkdirSync(dir, { recursive: true });
+  try { fs.chownSync(dir, owner.uid, owner.gid); } catch { /* best effort */ }
+}
+
+// The phone's link drops large request bodies (a 0.4 MB photo never arrived in 25 s,
+// while small requests went through), so a photo comes in 64 KB pieces, each its own
+// request: `upload` names the photo, `offset` is where the piece goes, and the last
+// piece has `done=1`. Pieces collect in a temp file; a retried piece overwrites from
+// its offset. On the last piece the JPEG moves into the note's attachs/ folder.
+const UPLOAD_DIR = path.join(os.tmpdir(), 'besmart-diary-uploads');
+const UPLOAD_MAX = 10 * 1024 * 1024;
+
+checkinRoutes.post('/diary/photo', express.raw({ type: 'application/octet-stream', limit: '1mb' }), (req, res) => {
+  const chunk = req.body;
+  const upload = String(req.query.upload ?? '');
+  const offset = Number(req.query.offset);
+  if (!Buffer.isBuffer(chunk) || !/^[a-z0-9]{8,32}$/.test(upload) || !Number.isInteger(offset) || offset < 0) {
+    return res.status(400).json({ error: 'Bad upload' });
+  }
+  const type: DiaryType = isDiaryType(req.query.type) ? req.query.type : 'daily';
+  const cfg = getUserVaultConfig(req.user!.id);
+  if (!cfg) return res.status(400).json({ error: 'No vault configured' });
+
+  try {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    // Pieces of photos whose entry was never saved.
+    for (const f of fs.readdirSync(UPLOAD_DIR)) {
+      try { if (Date.now() - fs.statSync(path.join(UPLOAD_DIR, f)).mtimeMs > 86_400_000) fs.unlinkSync(path.join(UPLOAD_DIR, f)); } catch { /* gone */ }
+    }
+    const part = path.join(UPLOAD_DIR, `${req.user!.id}-${upload}.part`);
+    const size = fs.existsSync(part) ? fs.statSync(part).size : 0;
+    if (offset > size) return res.status(409).json({ error: 'Missing piece', received: size });
+    if (offset + chunk.length > UPLOAD_MAX) return res.status(400).json({ error: 'Photo too large' });
+    const fd = fs.openSync(part, size ? 'r+' : 'w');
+    try {
+      fs.ftruncateSync(fd, offset);
+      fs.writeSync(fd, chunk, 0, chunk.length, offset);
+    } finally { fs.closeSync(fd); }
+    if (req.query.done !== '1') return res.json({ received: offset + chunk.length });
+
+    const head = Buffer.alloc(3);
+    const fd2 = fs.openSync(part, 'r');
+    try { fs.readSync(fd2, head, 0, 3, 0); } finally { fs.closeSync(fd2); }
+    // JPEG files start with FF D8 FF.
+    if (head[0] !== 0xff || head[1] !== 0xd8 || head[2] !== 0xff) {
+      fs.unlinkSync(part);
+      return res.status(400).json({ error: 'Photos must be JPEG' });
+    }
+    const now = new Date();
+    const { file } = diaryNoteFile(cfg.vaultRoot, type, req.query.previous === '1', now);
+    const owner = fs.statSync(cfg.vaultRoot);
+    const dir = path.join(path.dirname(file), 'attachs');
+    mkdirOwned(dir, owner);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = `${localDate(now).replace(/-/g, '')}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    let n = 1, name: string;
+    do name = `diary-${stamp}-${n++}.jpg`; while (fs.existsSync(path.join(dir, name)));
+    // copy + unlink: the temp dir and the vault may be on different filesystems.
+    fs.copyFileSync(part, path.join(dir, name));
+    fs.unlinkSync(part);
+    try { fs.chownSync(path.join(dir, name), owner.uid, owner.gid); } catch { /* best effort */ }
+    res.json({ name });
+  } catch (err) {
+    res.status(500).json({ error: `Couldn't save the photo: ${(err as Error).message}` });
+  }
+});
 
 checkinRoutes.post('/diary', (req, res) => {
   const text: string = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
   const type: DiaryType = isDiaryType(req.body?.type) ? req.body.type : 'daily';
-  if (!text) return res.status(400).json({ error: 'Write something first' });
+  const photos: unknown = req.body?.photos ?? [];
+  if (!Array.isArray(photos) || !photos.every((p) => typeof p === 'string' && DIARY_PHOTO_NAME.test(p))) {
+    return res.status(400).json({ error: 'Bad photos' });
+  }
+  if (!text && !photos.length) return res.status(400).json({ error: 'Write something first' });
   if (text.length > DIARY_MAX[type]) return res.status(400).json({ error: `Too long (${DIARY_MAX[type]} characters at most)` });
   const cfg = getUserVaultConfig(req.user!.id);
   if (!cfg) return res.status(400).json({ error: 'No vault configured' });
 
   const now = new Date();
   const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const period = diaryPeriod(type, localDate(now), type !== 'daily' && req.body?.previous === true);
-  const rel = `${DIARY_DIR}/${period.note}`;
-  const file = path.join(cfg.vaultRoot, rel);
+  const { period, rel, file } = diaryNoteFile(cfg.vaultRoot, type, req.body?.previous, now);
   try {
     const owner = fs.statSync(cfg.vaultRoot);
-    if (!fs.existsSync(path.dirname(file))) {
-      fs.mkdirSync(path.dirname(file), { recursive: true });
-      try { fs.chownSync(path.dirname(file), owner.uid, owner.gid); } catch { /* best effort */ }
-    }
+    mkdirOwned(path.dirname(file), owner);
     const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : '';
     // A line typed as a list item ("- x") is not bulleted twice.
     const lines = text.split(/\r?\n/).map((l) => l.trim().replace(/^[-*+]\s+/, '')).filter(Boolean);
+    lines.push(...photos.map((p) => `![[${p}]]`));
     const label = { daily: 'Diary', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' }[type];
     const entry = [`- ${time} **${label}**`, ...lines.map((l) => `\t- ${l}`)];
 
