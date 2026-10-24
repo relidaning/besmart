@@ -19,8 +19,8 @@ export const TODO_XP = { high: 15, medium: 10, low: 5 } as const;
 export const PLAN_TASK_XP = 15;
 export const PLAN_XP = 50;
 export const MIN_CHECKIN_XP = 5;
-// Matches DUE_DAILY_LIMIT in reviews.ts: reviews past the daily cap earn nothing,
-// so the garden rewards learning, not grinding.
+// Reviews past the daily cap earn nothing, so the garden rewards learning, not
+// grinding. (The due list itself is no longer capped.)
 export const REVIEW_XP_DAILY_CAP = 20;
 const CRIT_CHANCE = 1 / 8;
 

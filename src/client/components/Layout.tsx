@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate, useNavigationType, useOutlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Bell, BellOff, Brain, Flame, Home, ClipboardCheck, ListTodo, RefreshCw, FolderOpen, Sprout, LogOut, Sun, Moon, MonitorSmartphone } from 'lucide-react';
@@ -8,6 +8,24 @@ import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import MusicPlayer from './MusicPlayer';
 import { LoadingBar, PageSpinner } from './Loading';
+
+// The route's page as it was when this outlet mounted. A plain <Outlet /> in the
+// page that AnimatePresence is fading out renders the *new* route, so the next
+// page mounted twice and its first copy ran (and used up) one-shot effects such
+// as the Review list's saved scroll position.
+function FrozenOutlet() {
+  const outlet = useOutlet();
+  const [page] = useState(outlet);
+  return page;
+}
+
+// Page change fade. `custom` is true for back/forward, which the exiting page
+// reads too (through AnimatePresence), so neither side animates then.
+const pageFade = {
+  enter: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.2 } },
+  exit: (pop: boolean) => pop ? { opacity: 1, transition: { duration: 0 } } : { opacity: 0, y: -12, transition: { duration: 0.2 } },
+};
 
 // Fields that bring up the on-screen keyboard.
 const NON_TEXT_INPUTS = new Set(['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit']);
@@ -67,6 +85,9 @@ const SECTION_TITLE: [string, string][] = [
 
 export default function Layout() {
   const location = useLocation();
+  const navType = useNavigationType();
+  // Back/forward, or a page that asks for it (rating a note returns to the list)
+  const isPop = navType === 'POP' || !!(location.state as { instant?: boolean } | null)?.instant;
   const navigate = useNavigate();
   const { user, clearAuth } = useAuth();
   const [streak, setStreak] = useState(0);
@@ -259,17 +280,19 @@ export default function Layout() {
 
       {/* Main content */}
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 pt-[72px] pb-24 md:pb-6 overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
-        <AnimatePresence mode="wait">
+        {/* Back/forward (a swipe on iOS, which animates on its own) swaps the page at once */}
+        <AnimatePresence mode="wait" custom={isPop}>
           <motion.div
             key={location.pathname}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.2 }}
+            custom={isPop}
+            variants={pageFade}
+            initial={isPop ? false : 'enter'}
+            animate="show"
+            exit="exit"
           >
             {/* Keep header/nav on screen while a lazy page chunk loads */}
             <Suspense fallback={<PageSpinner />}>
-              <Outlet />
+              <FrozenOutlet />
             </Suspense>
           </motion.div>
         </AnimatePresence>

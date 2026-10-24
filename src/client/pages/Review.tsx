@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { Trophy, FileText, ExternalLink, ChevronRight, RefreshCw, Search, Brain } from 'lucide-react';
 import { api } from '../hooks/api';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { useAuth } from '../store/auth';
+import { reviewList, reviewWritesDone } from '../lib/reviewList';
 import { PageHeader, StatTiles, XpChip } from '../components/PageKit';
 import type { GardenSummary } from '../components/GardenStats';
 import { PageSpinner } from '../components/Loading';
@@ -30,6 +31,8 @@ interface VaultNote {
   mtime: string;
 }
 
+const PAGE = 20;
+
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
 const listItem  = { hidden: { opacity: 0, x: -16 }, show: { opacity: 1, x: 0 } };
 
@@ -37,42 +40,96 @@ function obsidianUri(vaultName: string, p: string) {
   return `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(p.replace(/\.md$/, ''))}`;
 }
 
+type Snapshot = {
+  userId: number | undefined; query: string; dueRecords: ReviewRecord[]; dueTotal: number;
+  courseCount: number | null; wisdom: GardenSummary['attributes'][number] | null;
+  vaultName: string;
+};
+
 export default function Review() {
   const navigate = useNavigate();
-  const [dueRecords, setDueRecords] = useState<ReviewRecord[]>([]);
-  const [dueTotal, setDueTotal] = useState(0);
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+  const userId = useAuth((st) => st.user?.id);
+  const saved = reviewList.snapshot as Snapshot | null;
+  const snap = saved?.userId === userId ? saved : null;
+  const [dueRecords, setDueRecords] = useState<ReviewRecord[]>(snap?.dueRecords ?? []);
+  const [dueTotal, setDueTotal] = useState(snap?.dueTotal ?? 0);
+  const [query, setQuery] = useState(snap?.query ?? '');
+  const [debouncedQuery, setDebouncedQuery] = useState(snap?.query ?? '');
+  const [loading, setLoading] = useState(!snap);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ReviewRecord | null>(null);
   const [form, setForm] = useState({ name: '', description: '', is_postponed: false });
 
-  const [vaultName, setVaultName] = useState('');
+  const [vaultName, setVaultName] = useState(snap?.vaultName ?? '');
   const [vaultSuggestions, setVaultSuggestions] = useState<VaultNote[]>([]);
   const [selectedVault, setSelectedVault] = useState<Set<string>>(new Set());
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [importingVault, setImportingVault] = useState(false);
-  const [courseCount, setCourseCount] = useState<number | null>(null);
-  const [wisdom, setWisdom] = useState<GardenSummary['attributes'][number] | null>(null);
-  const [excluded, setExcluded] = useState<{ id: number; name: string; vault_path: string | null }[]>([]);
+  const [courseCount, setCourseCount] = useState<number | null>(snap?.courseCount ?? null);
+  const [wisdom, setWisdom] = useState<GardenSummary['attributes'][number] | null>(snap?.wisdom ?? null);
 
-  const initialLoadDone = useRef(false);
+  const initialLoadDone = useRef(!!snap);
+  // Coming back from a note: show the list at once, not fading in card by card.
+  const returning = useRef(!!sessionStorage.getItem('review-anchor')).current;
 
-  const fetchAll = (search = debouncedQuery) => {
+  useEffect(() => {
+    if (loading) return;
+    reviewList.snapshot = { userId, query: debouncedQuery, dueRecords, dueTotal, courseCount, wisdom, vaultName };
+  }, [loading, userId, debouncedQuery, dueRecords, dueTotal, courseCount, wisdom, vaultName]);
+
+  // Refetch what is on screen: the first page, or as many rows as were already
+  // scrolled into view, so a quiet refresh never cuts the list under the reader.
+  const fetchSeq = useRef(0);
+  const fetchAll = (search = debouncedQuery, count = PAGE) => {
     if (!initialLoadDone.current) setLoading(true);
-    api.getDueReviews(search || undefined)
-      .then((dueR) => { setDueRecords(dueR.data); setDueTotal(dueR.total ?? dueR.data.length); initialLoadDone.current = true; })
-      .finally(() => setLoading(false));
+    const seq = ++fetchSeq.current;
+    reviewWritesDone()
+      .then(() => api.getDueReviews(search || undefined, 0, Math.max(PAGE, count)))
+      .then((dueR) => {
+        if (seq !== fetchSeq.current) return; // a newer search or refresh won
+        setDueRecords(dueR.data); setDueTotal(dueR.total ?? dueR.data.length); initialLoadDone.current = true;
+      })
+      .finally(() => { if (seq === fetchSeq.current) setLoading(false); });
   };
+
+  // Next page as the end of the list comes near.
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMore = () => {
+    if (loadingMore || dueRecords.length >= dueTotal) return;
+    setLoadingMore(true);
+    const seq = fetchSeq.current;
+    api.getDueReviews(debouncedQuery || undefined, dueRecords.length, PAGE)
+      .then((dueR) => {
+        if (seq !== fetchSeq.current) return;
+        setDueRecords((prev) => {
+          const have = new Set(prev.map((r) => r.id));
+          return [...prev, ...dueR.data.filter((r: ReviewRecord) => !have.has(r.id))];
+        });
+        setDueTotal(dueR.total ?? dueTotal);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  };
+  const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
+  useEffect(() => {
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(([e]) => { if (e.isIntersecting) loadMoreRef.current(); }, { rootMargin: '600px 0px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [sentinel, dueRecords.length]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 400);
     return () => clearTimeout(t);
   }, [query]);
 
+  const firstFetch = useRef(true);
   useEffect(() => {
-    fetchAll(debouncedQuery);
+    // Back from a note: refresh as many rows as the saved list holds
+    fetchAll(debouncedQuery, firstFetch.current ? dueRecords.length : PAGE);
+    firstFetch.current = false;
   }, [debouncedQuery]);
 
   useEffect(() => {
@@ -84,28 +141,25 @@ export default function Review() {
 
   useEffect(() => {
     api.getVaultInfo().then((r: any) => setVaultName(r.vault_name)).catch(() => {});
-    api.getExcludedCourses().then((r: any) => setExcluded(r.data)).catch(() => {});
   }, []);
 
-  useEffect(() => {
+  // Before paint, so the list never shows a frame at the top first
+  useLayoutEffect(() => {
     if (loading) return;
     const saved = sessionStorage.getItem('review-anchor');
     if (!saved) return;
     sessionStorage.removeItem('review-anchor');
 
-    const [savedId, savedIdx] = saved.split(':').map(Number);
+    const [savedId, savedIdx, savedY] = saved.split(':').map(Number);
     // Prefer exact match (user went back); fall back to same position (item was completed)
-    const target = dueRecords.find((r) => r.id === savedId)
-      ?? dueRecords[Math.min(savedIdx, dueRecords.length - 1)];
+    const exact = dueRecords.find((r) => r.id === savedId);
+    const target = exact ?? dueRecords[Math.min(savedIdx, dueRecords.length - 1)];
     if (!target) return;
 
-    const targetIdx = dueRecords.indexOf(target);
-    const needsExpand = targetIdx + 1 > dueVisible;
-    if (needsExpand) setDueVisible(targetIdx + 5);
-
-    setTimeout(() => {
-      document.getElementById(`review-item-${target.id}`)?.scrollIntoView({ block: 'center', behavior: 'instant' });
-    }, needsExpand ? 50 : 0);
+    // Back from the note: put the list exactly where it was. A rated note is
+    // already gone from it, so the next one sits where it was.
+    if (!isNaN(savedY)) window.scrollTo({ top: savedY, behavior: 'instant' });
+    else document.getElementById(`review-item-${target.id}`)?.scrollIntoView({ block: 'center', behavior: 'instant' });
   }, [loading]);
 
   useEffect(() => {
@@ -130,7 +184,7 @@ export default function Review() {
       toast.success(`Added ${n} note${n > 1 ? 's' : ''} to review queue. First review tomorrow.`);
       setSelectedVault(new Set());
       setVaultSuggestions([]);
-      fetchAll();
+      fetchAll(debouncedQuery, dueRecords.length);
     } catch (err: any) { toast.error(err.message); }
     setImportingVault(false);
   };
@@ -142,7 +196,7 @@ export default function Review() {
       if (!editing) return;
       await api.updateCourse(editing.course_id, form);
       toast.success('Updated');
-      setShowForm(false); setEditing(null); fetchAll();
+      setShowForm(false); setEditing(null); fetchAll(debouncedQuery, dueRecords.length);
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -159,7 +213,7 @@ export default function Review() {
     try {
       const r = await api.deleteCourse(record.course_id);
       toast.success(r.trashed ? 'Deleted · note moved to .trash' : 'Deleted');
-      fetchAll();
+      fetchAll(debouncedQuery, dueRecords.length);
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -167,24 +221,19 @@ export default function Review() {
     try {
       await api.updateCourse(record.course_id, { is_postponed: !record.is_postponed });
       toast.success(record.is_postponed ? 'Un-postponed' : 'Postponed to the back of the queue');
-      fetchAll();
+      fetchAll(debouncedQuery, dueRecords.length);
     } catch (err: any) { toast.error(err.message); }
   };
 
-  const { visible: dueVisible, setVisible: setDueVisible, sentinelRef: dueSentinelRef } = useInfiniteScroll(dueRecords.length);
 
   if (loading) return <PageSpinner />;
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 md:ml-16">
+    <motion.div variants={container} initial={returning ? false : 'hidden'} animate="show" className="space-y-5 md:ml-16">
       <PageHeader
         icon={RefreshCw}
         title="Review"
-        subtitle={dueRecords.length > 0
-          ? dueTotal > dueRecords.length
-            ? `Showing ${dueRecords.length} of ${dueTotal} due`
-            : `${dueRecords.length} due for review`
-          : 'Spaced repetition for lasting memory'}
+        subtitle={dueTotal > 0 ? `${dueTotal} due for review` : 'Spaced repetition for lasting memory'}
       />
 
       <StatTiles stats={[
@@ -236,7 +285,7 @@ export default function Review() {
         </motion.div>
       ) : (
         <>
-          {dueRecords.slice(0, dueVisible).map((record) => {
+          {dueRecords.map((record) => {
             const pp = record.vault_path;
             const isMissing = record.vault_match_status === 'missing';
             const isOverdue = record.planned_date < new Date().toISOString().slice(0, 10);
@@ -246,7 +295,7 @@ export default function Review() {
                 className={`card cursor-pointer ${record.is_postponed ? 'opacity-60' : ''}`}
                 onClick={() => {
                   const idx = dueRecords.indexOf(record);
-                  sessionStorage.setItem('review-anchor', `${record.id}:${idx}`);
+                  sessionStorage.setItem('review-anchor', `${record.id}:${idx}:${Math.round(window.scrollY)}`);
                   navigate(`/review/record/${record.id}`);
                 }}
               >
@@ -296,29 +345,9 @@ export default function Review() {
               </motion.div>
             );
           })}
-          <div ref={dueSentinelRef} className="h-1" />
+          <div ref={setSentinel} className="h-1" />
+          {loadingMore && <p className="text-center text-xs text-gray-400 dark:text-gray-500 py-2">Loading more…</p>}
         </>
-      )}
-
-      {/* Notes taken out of review on their page; open one to add it back */}
-      {excluded.length > 0 && !debouncedQuery && (
-        <motion.details variants={listItem} className="card">
-          <summary className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer select-none">
-            {excluded.length} note{excluded.length > 1 ? 's' : ''} removed from review
-          </summary>
-          <div className="mt-2 space-y-0.5 max-h-72 overflow-y-auto -mx-1 px-1">
-            {excluded.map((c) => (
-              <button key={c.id} onClick={() => navigate(`/review/course/${c.id}`)}
-                className="w-full text-left flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-900 dark:text-gray-100 truncate">{c.name}</p>
-                  {c.vault_path && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{c.vault_path}</p>}
-                </div>
-                <ChevronRight size={14} className="text-gray-400 dark:text-gray-600 flex-shrink-0" />
-              </button>
-            ))}
-          </div>
-        </motion.details>
       )}
 
       {/* Form modal */}

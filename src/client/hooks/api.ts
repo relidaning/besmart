@@ -150,7 +150,8 @@ export const api = {
   getStreak: () => request<any>('/checkins/streak'),
 
   // Reviews
-  getDueReviews: (search?: string) => request<any>(`/reviews/due${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  getDueReviews: (search?: string, offset = 0, limit = 20) =>
+    request<any>(`/reviews/due?offset=${offset}&limit=${limit}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
   addDiaryEntry: (text: string, type: string = 'daily', previous = false) =>
     request<{ success: boolean; path: string; heading: string }>('/checkins/diary', { method: 'POST', body: JSON.stringify({ text, type, previous }) }),
   completeReview: (id: number, rating: 'again' | 'hard' | 'ok' | 'easy') =>
@@ -158,7 +159,6 @@ export const api = {
   getCourses: () => request<any>('/reviews/courses'),
   createCourse: (data: any) => request<any>('/reviews/courses', { method: 'POST', body: JSON.stringify(data) }),
   updateCourse: (id: number, data: any) => request<any>(`/reviews/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  getExcludedCourses: () => request<any>('/reviews/courses?excluded=1'),
   setCourseExcluded: (id: number, excluded: boolean) =>
     request<any>(`/reviews/courses/${id}/excluded`, { method: 'PUT', body: JSON.stringify({ excluded }) }),
   deleteCourse: (id: number) => request<any>(`/reviews/courses/${id}`, { method: 'DELETE' }),
