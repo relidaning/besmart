@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-24 — Review list stays put on swipe back; paged due list; rating returns at once
+The list reloaded on return because `Layout.tsx`'s fading-out `<Outlet />` rendered the new route, so every page mounted twice and the first copy used up the saved scroll position; `FrozenOutlet` now keeps the old page's element, back/forward swaps with no fade, and `lib/reviewList.ts` redraws the last list at once while it refetches quietly. Also `GET /reviews/due` is paged (20 at a time, loaded as you scroll), rating returns to the list at once and saves in the background, and the "removed from review" list was dropped. Deployed; two test ratings (DL 11, DL 12) were undone afterwards at the user's request (backup `besmart.db.bak-2026-10-24-pre-undo-test-ratings`). Committed as `020be4c` on the pushed branch `feat/review-list-instant`; no PR opened yet, so `master` doesn't have it.
+
 ## 2026-10-23 — News in BeSmart instead of Obsidian
 At the user's request, a News tile on the right of Home's Today card opens `/news`, the newest `claude-maxer/news` note rendered read-only by the note reader (new `GET /reviews/news`). Tested against a copy of the DB and the news folder with headless Chromium at phone and desktop width: the tile opens the note, Back returns Home, and the rest of the Today card still opens Check In. Also widened ordered-list indents, which clipped the news items' numbers on phones. The Obsidian plugin `open-latest-news` (0.4.0, in the vault, not in this repo) no longer opens the note by itself; it still starts the mobile sync.
 
