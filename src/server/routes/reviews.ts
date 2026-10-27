@@ -263,7 +263,7 @@ reviewRoutes.get('/due', (req, res) => {
            c.vault_path, c.vault_match_status, c.is_postponed
     ${dueWhere}
     ORDER BY c.is_postponed ASC,
-      r.planned_date DESC, -- most recently due first
+      r.planned_date ASC, -- longest overdue first
       c.name COLLATE NOCASE ASC, c.id ASC
     LIMIT ? OFFSET ?
   `).all(userId, today, search, search, today, limit, offset) as any[];
