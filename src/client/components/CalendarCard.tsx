@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Bell, BellOff, Check, Clock, ChevronLeft, ChevronRight, Plus, Trash2, X } from 'lucide-react';
 import { api } from '../hooks/api';
+import { useModalViewport } from '../hooks/useModalViewport';
 import DatePicker from './ui/DatePicker';
 
 export interface CalendarItem {
@@ -65,6 +66,7 @@ export default function CalendarCard() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  const overlayStyle = useModalViewport(formOpen);
 
   useEffect(() => {
     if (linked) setParams({}, { replace: true });
@@ -316,12 +318,13 @@ export default function CalendarCard() {
           otherwise make `fixed` relative to the card. */}
       {formOpen && createPortal(
         <div
-          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex overflow-y-auto overscroll-contain p-4 z-50"
+          style={overlayStyle}
           onClick={(e) => { if (e.target === e.currentTarget) closeForm(); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5 m-auto"
           >
             <div className="flex items-start justify-between gap-3 mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{editingId ? 'Edit item' : 'New item'}</h2>
