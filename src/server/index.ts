@@ -21,8 +21,7 @@ import { calendarRoutes } from './routes/calendar.js';
 import { sendDueCalendarReminders } from './calendar.js';
 import { initGarden } from './garden.js';
 import { MUSIC_DIR, VIDEOS_DIR } from './musicLibrary.js';
-import { initWebPush, sendDailyReviewReminders } from './push.js';
-import { localDate } from './date.js';
+import { initWebPush } from './push.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,32 +40,6 @@ initWebPush();
 
 scheduleJob();
 setInterval(scheduleJob, 60 * 60 * 1000);
-
-// Daily push notification at configured time (default 10:30 local time)
-const [PUSH_HOUR, PUSH_MINUTE] = (process.env.PUSH_NOTIFY_TIME ?? '10:30').split(':').map(Number);
-let lastPushDate = '';
-// Sleep until the next push time instead of waking every minute to check the clock.
-function schedulePush() {
-  const now = new Date();
-  const next = new Date(now);
-  next.setHours(PUSH_HOUR, PUSH_MINUTE, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  setTimeout(async () => {
-    // Guards against a double send if the timer fires a hair before the wall-clock minute.
-    const today = localDate(new Date());
-    try {
-      if (today !== lastPushDate) {
-        lastPushDate = today;
-        await sendDailyReviewReminders();
-      }
-    } catch (err) {
-      // An unhandled rejection here would crash the whole server.
-      console.error('Daily push failed:', err);
-    }
-    schedulePush();
-  }, next.getTime() - now.getTime());
-}
-schedulePush();
 
 // Calendar reminders: checked every 30 s, so an alert lands within half a minute of its time.
 setInterval(sendDueCalendarReminders, 30 * 1000);

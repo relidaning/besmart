@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../database.js';
-import { computeRemindAt, nextSeriesReminder, occurrences, REPEATS, type Repeat } from '../calendar.js';
+import { computeRemindAt, nextSeriesReminder, occurrences, REPEATS, type Repeat } from '../calendarDates.js';
 
 export const calendarRoutes = Router();
 

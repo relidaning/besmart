@@ -152,7 +152,6 @@ services:
       - 'VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:?set it in .env (see .env.example)}'
       - 'VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:?set it in .env (see .env.example)}'
       - 'VAPID_EMAIL=re453882101@gmail.com'
-      - 'PUSH_NOTIFY_TIME=11:30'
       - 'CA_CERT_PATH=/certs/rootCA.pem'
       - 'MUSIC_VIDEOS_DIR=/media/videos'
       - 'MUSIC_DIR=/media/music'
