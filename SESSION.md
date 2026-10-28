@@ -1,5 +1,8 @@
 # Sessions
 
+## 2026-10-28 — Calendar on Home with push reminders and repeating items; merged and deployed from master
+Added a Calendar card at the top of Home (month grid with swipe, the day's items, add/edit pop-up, "Coming up", Calendar/Items tabs on phones) backed by `calendar_events` (migration 17) and web-push reminders checked every 30 s, plus weekly/monthly/yearly repeating items whose occurrences are computed, never stored (migration 18, `calendar_done` for ticks). The 11:30 daily review push was removed at the user's request, so calendar reminders are now the only pushes. After the user's test it was merged as PR #17 (bringing the due-order branch with it), both side branches were deleted, and the image was rebuilt from `master` so production no longer depends on a `dist/` swap (backup `besmart.db.bak-2026-10-28-pre-master-deploy`).
+
 ## 2026-10-27 — Check-in: LeetCode off, "Read 5 paper abstracts" added
 Through the app's API, the daily "Leetcode everyday!" schedule (#22) was deactivated, and a daily "Read 5 paper abstracts" was added (#41, 10 points, Wisdom). `POST /schedules` only creates today's task for non-daily types, so `besmart` was restarted to make the scheduler add today's task at once. Today's LeetCode task was already created and stays in the list; the user was asked whether to delete it or let it time out tonight.
 
