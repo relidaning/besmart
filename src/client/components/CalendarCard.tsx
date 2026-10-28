@@ -55,6 +55,11 @@ const REPEAT_OPTIONS: [RepeatKind | '', string][] = [
 ];
 const REPEAT_SHORT: Record<RepeatKind, string> = { weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
 const itemKey = (it: CalendarItem) => `${it.id}:${it.date}`;
+const TAB_KEY = 'besmart-calendar-tab';
+// Both tabs are as tall as the six-week grid (a 20 px weekday row + 6 × 32 px), so
+// switching doesn't move the cards below.
+const PANEL_H = 'h-[212px]';
+const isWide = () => window.matchMedia('(min-width: 1024px)').matches;
 
 function sortItems(items: CalendarItem[]): CalendarItem[] {
   return [...items].sort((a, b) =>
@@ -78,6 +83,16 @@ export default function CalendarCard() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
   const overlayStyle = useModalViewport(formOpen);
+  // Phones show the grid or the day's items, one at a time (a desktop shows both).
+  // A tapped reminder opens straight onto Items.
+  const [tab, setTabState] = useState<'calendar' | 'items'>(() => {
+    if (linked) return 'items';
+    try { return localStorage.getItem(TAB_KEY) === 'items' ? 'items' : 'calendar'; } catch { return 'calendar'; }
+  });
+  const setTab = (t: 'calendar' | 'items') => {
+    setTabState(t);
+    try { localStorage.setItem(TAB_KEY, t); } catch { /* private mode */ }
+  };
   // Which way the month grid slides in: 1 = next month (from the right), -1 = previous.
   const [slideDir, setSlideDir] = useState(0);
   const touch = useRef<{ x: number; y: number; swiped: boolean } | null>(null);
@@ -122,6 +137,13 @@ export default function CalendarCard() {
     }
     closeForm();
   };
+
+  // On a phone, tapping a day opens its items.
+  const pickDay = (date: string) => {
+    select(date);
+    if (!isWide()) setTab('items');
+  };
+  const stepDay = (n: number) => select(toDateStr(addDays(parseDate(selected), n)));
 
   const shiftMonth = (n: number) => {
     setSlideDir(n);
@@ -234,17 +256,25 @@ export default function CalendarCard() {
   // Switching between timed and all-day keeps the choice only when the new list has it.
   const draftRemind = reminders.some(([v]) => v === draft.remind_before) ? draft.remind_before : 0;
   const noPush = typeof Notification === 'undefined' || Notification.permission !== 'granted';
-  const selectedLabel = parseDate(selected).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const selectedLabel = parseDate(selected).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
     <div className="card">
-      {/* Title and month switcher share one row, to keep the card short. */}
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-baseline gap-2 min-w-0">
+      {/* Tabs (phone) or title (desktop), and the month switcher, share one row. */}
+      <div className="flex items-center justify-between gap-2 mb-1 min-h-[32px]">
+        <div className="seg !p-0.5 lg:hidden" role="tablist">
+          {(['calendar', 'items'] as const).map((t) => (
+            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
+              className={`!flex-none !py-1 !px-3 !text-xs whitespace-nowrap ${tab === t ? 'on' : ''}`}>
+              {t === 'calendar' ? 'Calendar' : <>Items{todayLeft > 0 && <span className="ml-1 text-[#e66666]">{todayLeft}</span>}</>}
+            </button>
+          ))}
+        </div>
+        <h2 className="hidden lg:flex text-sm font-bold text-gray-900 dark:text-gray-100 items-baseline gap-2 min-w-0">
           Calendar
           {meta && <span className="text-[11px] font-normal text-gray-500 truncate">{meta}</span>}
         </h2>
-        <div className="flex items-center flex-shrink-0">
+        <div className={`items-center flex-shrink-0 ${tab === 'calendar' ? 'flex' : 'hidden lg:flex'}`}>
           <button type="button" onClick={() => shiftMonth(-1)}
             className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500" aria-label="Previous month">
             <ChevronLeft size={16} />
@@ -262,7 +292,7 @@ export default function CalendarCard() {
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[316px_1fr] lg:gap-5 [&>*]:min-w-0">
         {/* Month grid */}
-        <div>
+        <div className={tab === 'calendar' ? '' : 'hidden lg:block'}>
           <motion.div
             key={from}
             initial={slideDir ? { x: slideDir * 40, opacity: 0 } : false}
@@ -284,7 +314,7 @@ export default function CalendarCard() {
               const isSel = ds === selected;
               const isToday = ds === today;
               return (
-                <button key={ds} type="button" onClick={() => select(ds)}
+                <button key={ds} type="button" onClick={() => pickDay(ds)}
                   className={`relative h-8 rounded-lg flex items-center justify-center text-sm transition-colors
                     ${isSel ? 'bg-brand-400 text-ink font-bold'
                       : isToday ? 'bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 font-semibold'
@@ -304,13 +334,25 @@ export default function CalendarCard() {
           </motion.div>
         </div>
 
-        {/* The selected day */}
-        <div>
+        {/* The selected day; on a phone its own tab, scrolling inside a fixed height. */}
+        <div className={tab === 'items'
+          ? `${PANEL_H} overflow-y-auto overscroll-contain lg:h-auto lg:overflow-visible`
+          : 'hidden lg:block'}>
           <div className="flex items-center justify-between gap-2 mb-2">
-            <span className="text-[13px] font-bold text-gray-900 dark:text-gray-100 truncate">
-              {selected === today ? 'Today' : selectedLabel}
-              {selected === today && <span className="font-normal text-gray-500"> · {selectedLabel}</span>}
-            </span>
+            <div className="flex items-center gap-0.5 min-w-0">
+              <button type="button" onClick={() => stepDay(-1)} aria-label="Previous day"
+                className="p-1 -ml-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500 flex-shrink-0">
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-[13px] font-bold text-gray-900 dark:text-gray-100 truncate">
+                {selected === today ? 'Today' : selectedLabel}
+                {selected === today && <span className="font-normal text-gray-500"> · {selectedLabel}</span>}
+              </span>
+              <button type="button" onClick={() => stepDay(1)} aria-label="Next day"
+                className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500 flex-shrink-0">
+                <ChevronRight size={14} />
+              </button>
+            </div>
             <button type="button" onClick={openNew} className="btn-ghost text-xs flex items-center gap-1 flex-shrink-0">
               <Plus size={14} /> Add
             </button>
