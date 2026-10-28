@@ -1,5 +1,11 @@
 # Sessions
 
+## 2026-10-27 — Check-in: LeetCode off, "Read 5 paper abstracts" added
+Through the app's API, the daily "Leetcode everyday!" schedule (#22) was deactivated, and a daily "Read 5 paper abstracts" was added (#41, 10 points, Wisdom). `POST /schedules` only creates today's task for non-daily types, so `besmart` was restarted to make the scheduler add today's task at once. Today's LeetCode task was already created and stays in the list; the user was asked whether to delete it or let it time out tonight.
+
+## 2026-10-27 — Due list by review date then name; Redis split notes dated back, old note deleted
+At the user's request the due list now sorts by review date, oldest first, then note name A→Z. For a short time that day it sorted newest first. Deployed by swapping `dist/` into the container and pushed as `fcd030b` and `57ce536` on `feat/due-order-date-name`. It isn't merged to `master` yet; the user was asked to try it first. The 16 `0_dev/databases/redis/Redis 00–15` notes, split from `redis.md`, had been imported that day as new notes due tomorrow. They were given the original note's dates (studied 2024-03-17, due 2024-07-24; backup `besmart.db.bak-2026-10-27-pre-redis-split-dates`) but not its review history. The old `redis.md` (course 40) was first excluded, then deleted through the API at the user's request, which moved it to the vault's `.trash`.
+
 ## 2026-10-24 — Photos in Check In's diary
 The diary dialog's new Photos button attaches up to 6 pictures. Before sending, the phone shrinks each one to a 2048 px JPEG and sends it as base64 inside the same `POST /checkins/diary`, which now waits up to 120 s. The server saves them in an `attachs/` folder next to the monthly note, matching Obsidian's `./attachs` setting, and adds each as a `![[…]]` sub-item. An entry can be photos only. The endpoint was tested on a separate server with a copy of the DB and a scratch vault; the picker hasn't been tried on an iPhone. Deployed by swapping `dist/` into the container, but not committed: the changes sit uncommitted on `feat/review-list-instant`, and the user was asked whether to move them to their own branch and open a PR.
 

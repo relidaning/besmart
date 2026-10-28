@@ -10,7 +10,8 @@
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "TZ=Asia/Shanghai tsx --test 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.3.0",

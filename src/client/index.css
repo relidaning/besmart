@@ -146,7 +146,8 @@
   background-color: #92640a;
 }
 
-.dark input[type="date"] {
+.dark input[type="date"],
+.dark input[type="time"] {
   color-scheme: dark;
 }
 

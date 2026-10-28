@@ -219,6 +219,12 @@ export const api = {
     request<any>(`/garden/events?${new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]))}`),
   getGardenTrees: () => request<any>('/garden/trees'),
 
+  // Calendar
+  getCalendar: (from: string, to: string) => request<any>(`/calendar?from=${from}&to=${to}`),
+  createCalendarItem: (data: any) => request<any>('/calendar', { method: 'POST', body: JSON.stringify(data) }),
+  updateCalendarItem: (id: number, data: any) => request<any>(`/calendar/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCalendarItem: (id: number) => request<any>(`/calendar/${id}`, { method: 'DELETE' }),
+
   // Music
   getMusicCatalog: () => request<any>('/music/catalog'),
   getMusicLibrary: () => request<any>('/music/library'),

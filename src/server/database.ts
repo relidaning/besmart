@@ -512,6 +512,47 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 17: calendar items on Home. `remind_at` (UTC ISO, derived from date, time and
+  // remind_before) is when calendar.ts pushes the alert; `reminded_at` marks it sent.
+  if (version < 17) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS calendar_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          time TEXT,
+          title TEXT NOT NULL,
+          remind_before INTEGER,
+          remind_at TEXT,
+          reminded_at TEXT,
+          done INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_calendar_user_date ON calendar_events(user_id, date);
+        CREATE INDEX IF NOT EXISTS idx_calendar_remind ON calendar_events(reminded_at, remind_at);
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (17)').run();
+    })();
+  }
+
+  // Migration 18: repeating calendar items. A row with `repeat` is a series starting at
+  // `date`; its occurrences are computed (calendar.ts), and each one ticked off is a
+  // calendar_done row. For a series, `remind_at` is the next occurrence's reminder.
+  if (version < 18) {
+    db.transaction(() => {
+      db.exec(`
+        ALTER TABLE calendar_events ADD COLUMN repeat TEXT;
+        CREATE TABLE IF NOT EXISTS calendar_done (
+          event_id INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          PRIMARY KEY (event_id, date)
+        );
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (18)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'

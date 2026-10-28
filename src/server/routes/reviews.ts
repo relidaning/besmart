@@ -224,16 +224,6 @@ export function syncVaultForAllConfiguredUsers() {
 const DUE_PAGE_SIZE = 20;
 const DUE_MAX_PAGE = 500;
 
-// Due-list tie-break by vault folder (the list is ordered latest note first): AI/ML/DL
-// notes first, then the rest of 0_dev, then everything else. The AI folder was renamed
-// from 0_dev/AI to 0_dev/0_AI, and older courses still carry the old path.
-const DUE_TOPIC_TIER = `CASE
-    WHEN COALESCE(c.vault_path, '') LIKE '%0_dev/0_AI/%'
-      OR COALESCE(c.vault_path, '') LIKE '%0_dev/AI/%' THEN 0
-    WHEN COALESCE(c.vault_path, '') LIKE '%0_dev/%' THEN 1
-    ELSE 2
-  END`;
-
 reviewRoutes.get('/due', (req, res) => {
   const userId = req.user!.id;
   const today = localDate(new Date());
@@ -273,8 +263,8 @@ reviewRoutes.get('/due', (req, res) => {
            c.vault_path, c.vault_match_status, c.is_postponed
     ${dueWhere}
     ORDER BY c.is_postponed ASC,
-      c.created_at DESC, c.id DESC, -- latest notes first
-      ${DUE_TOPIC_TIER}, r.planned_date ASC
+      r.planned_date ASC, -- longest overdue first
+      c.name COLLATE NOCASE ASC, c.id ASC
     LIMIT ? OFFSET ?
   `).all(userId, today, search, search, today, limit, offset) as any[];
 
