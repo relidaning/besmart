@@ -3,14 +3,19 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Bell, BellOff, Check, Clock, ChevronLeft, ChevronRight, Plus, Trash2, X } from 'lucide-react';
+import { Bell, BellOff, Check, Clock, ChevronLeft, ChevronRight, Plus, Repeat, Trash2, X } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useModalViewport } from '../hooks/useModalViewport';
 import DatePicker from './ui/DatePicker';
 
+type RepeatKind = 'weekly' | 'monthly' | 'yearly';
+
+// One entry per occurrence: a repeating item comes once for each date it falls on.
 export interface CalendarItem {
   id: number;
-  date: string; // 'YYYY-MM-DD'
+  date: string; // 'YYYY-MM-DD', this occurrence
+  start_date: string; // the series' first day (= date for a one-off)
+  repeat: RepeatKind | null;
   time: string | null; // 'HH:MM', null = all day
   title: string;
   remind_before: number | null; // minutes, null = no reminder
@@ -45,13 +50,19 @@ function reminderLabel(item: Pick<CalendarItem, 'time' | 'remind_before'>): stri
   return list.find(([v]) => v === item.remind_before)?.[1] ?? `${item.remind_before} min before`;
 }
 
+const REPEAT_OPTIONS: [RepeatKind | '', string][] = [
+  ['', 'Never'], ['weekly', 'Every week'], ['monthly', 'Every month'], ['yearly', 'Every year'],
+];
+const REPEAT_SHORT: Record<RepeatKind, string> = { weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
+const itemKey = (it: CalendarItem) => `${it.id}:${it.date}`;
+
 function sortItems(items: CalendarItem[]): CalendarItem[] {
   return [...items].sort((a, b) =>
     a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? '') || a.id - b.id);
 }
 
-interface Draft { date: string; title: string; time: string; remind_before: number | null }
-const EMPTY_DRAFT: Draft = { date: '', title: '', time: '', remind_before: 0 };
+interface Draft { date: string; title: string; time: string; remind_before: number | null; repeat: RepeatKind | '' }
+const EMPTY_DRAFT: Draft = { date: '', title: '', time: '', remind_before: 0, repeat: '' };
 
 export default function CalendarCard() {
   const [params, setParams] = useSearchParams();
@@ -130,7 +141,8 @@ export default function CalendarCard() {
   };
   const openEdit = (it: CalendarItem) => {
     setEditingId(it.id);
-    setDraft({ date: it.date, title: it.title, time: it.time ?? '', remind_before: it.remind_before });
+    // A repeating item is edited as a whole series, from its first day.
+    setDraft({ date: it.start_date, title: it.title, time: it.time ?? '', remind_before: it.remind_before, repeat: it.repeat ?? '' });
     setFormOpen(true);
   };
 
@@ -138,17 +150,16 @@ export default function CalendarCard() {
     e.preventDefault();
     if (!draft.title.trim() || saving) return;
     setSaving(true);
-    const body = { date: draft.date, title: draft.title.trim(), time: draft.time || null, remind_before: draftRemind };
+    const body = {
+      date: draft.date, title: draft.title.trim(), time: draft.time || null, remind_before: draftRemind,
+      repeat: draft.repeat || null,
+    };
     try {
-      if (editingId) {
-        const updated: CalendarItem = await api.updateCalendarItem(editingId, body);
-        apply((l) => l.map((x) => (x.id === updated.id ? updated : x)));
-      } else {
-        const created: CalendarItem = await api.createCalendarItem(body);
-        apply((l) => [...l, created]);
-      }
-      // Show the day the item is on, which an edit may have moved.
-      if (body.date !== selected) select(body.date);
+      if (editingId) await api.updateCalendarItem(editingId, body);
+      else await api.createCalendarItem(body);
+      // Show the day a one-off is on, which an edit may have moved. A series stays put:
+      // its first day may be long past, and it shows on the selected day if it falls there.
+      if (!body.repeat && body.date !== selected) select(body.date);
       else closeForm();
       load();
     } catch (err: any) {
@@ -165,18 +176,21 @@ export default function CalendarCard() {
     return () => document.removeEventListener('keydown', onKey);
   }, [formOpen]);
 
+  // Ticks off this occurrence only; for a series the server needs to know which one.
   const toggleDone = async (it: CalendarItem) => {
-    apply((l) => l.map((x) => (x.id === it.id ? { ...x, done: !it.done } : x)));
+    const same = (x: CalendarItem) => x.id === it.id && x.date === it.date;
+    apply((l) => l.map((x) => (same(x) ? { ...x, done: !it.done } : x)));
     try {
-      await api.updateCalendarItem(it.id, { done: !it.done });
+      await api.updateCalendarItem(it.id, it.repeat ? { done: !it.done, occurrence: it.date } : { done: !it.done });
     } catch (err: any) {
-      apply((l) => l.map((x) => (x.id === it.id ? { ...x, done: it.done } : x)));
+      apply((l) => l.map((x) => (same(x) ? { ...x, done: it.done } : x)));
       toast.error(err.message);
     }
   };
 
   const remove = async (it: CalendarItem) => {
-    if (!confirm(`Delete "${it.title}"?`)) return;
+    const what = it.repeat ? `"${it.title}" and all its repeats (${REPEAT_SHORT[it.repeat].toLowerCase()})` : `"${it.title}"`;
+    if (!confirm(`Delete ${what}?`)) return;
     try {
       await api.deleteCalendarItem(it.id);
       apply((l) => l.filter((x) => x.id !== it.id));
@@ -241,7 +255,7 @@ export default function CalendarCard() {
                   {/* Pinned to the bottom edge, out of the flow, so the number stays centered. */}
                   <span className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
                     {its.slice(0, 3).map((i) => (
-                      <span key={i.id} className={`w-1 h-1 rounded-full ${isSel ? 'bg-ink/70' : i.done ? 'bg-gray-300 dark:bg-gray-600' : 'bg-[#e66666]'}`} />
+                      <span key={itemKey(i)} className={`w-1 h-1 rounded-full ${isSel ? 'bg-ink/70' : i.done ? 'bg-gray-300 dark:bg-gray-600' : 'bg-[#e66666]'}`} />
                     ))}
                   </span>
                   <span className="sr-only">{pending} pending</span>
@@ -268,7 +282,7 @@ export default function CalendarCard() {
           )}
           <div className="grid gap-1.5">
             {dayItems.map((it) => (
-              <div key={it.id} className="row flex items-center gap-2.5">
+              <div key={itemKey(it)} className="row flex items-center gap-2.5">
                 <button type="button" onClick={() => toggleDone(it)} aria-label={it.done ? 'Mark not done' : 'Mark done'}
                   className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors
                     ${it.done ? 'bg-[#1fa874] border-[#1fa874] text-white' : 'border-gray-300 dark:border-gray-600 hover:border-[#1fa874]'}`}>
@@ -283,6 +297,7 @@ export default function CalendarCard() {
                     <span>·</span>
                     {it.remind_before == null ? <BellOff size={10} /> : <Bell size={10} />}
                     <span className="truncate">{reminderLabel(it)}</span>
+                    {it.repeat && <><span>·</span><Repeat size={10} className="flex-shrink-0" /><span>{REPEAT_SHORT[it.repeat]}</span></>}
                   </div>
                 </button>
                 <button type="button" onClick={() => remove(it)} aria-label="Delete"
@@ -299,7 +314,7 @@ export default function CalendarCard() {
               <div className="text-[11px] text-gray-500 mb-1.5">Coming up</div>
               <div className="grid gap-1">
                 {comingUp.map((it) => (
-                  <button key={it.id} type="button" onClick={() => select(it.date)}
+                  <button key={itemKey(it)} type="button" onClick={() => select(it.date)}
                     className="flex items-center gap-2 text-left text-[12px] px-1 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06]">
                     <span className="w-16 flex-shrink-0 text-gray-500">
                       {it.date === today ? 'Today' : parseDate(it.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -340,7 +355,7 @@ export default function CalendarCard() {
                   onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{draft.repeat ? 'Starts' : 'Date'}</label>
                 <DatePicker value={draft.date} required onChange={(date) => setDraft({ ...draft, date })} />
               </div>
               <div>
@@ -359,6 +374,16 @@ export default function CalendarCard() {
                     className="input flex items-center gap-2 text-left text-gray-500" title="Set a time">
                     <Clock size={14} className="flex-shrink-0" /> All day <span className="ml-auto text-[11px]">tap to set a time</span>
                   </button>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Repeat</label>
+                <select className="input" value={draft.repeat} aria-label="Repeat"
+                  onChange={(e) => setDraft({ ...draft, repeat: e.target.value as RepeatKind | '' })}>
+                  {REPEAT_OPTIONS.map(([v, label]) => <option key={label} value={v}>{label}</option>)}
+                </select>
+                {draft.repeat === 'monthly' && Number(draft.date.slice(8)) > 28 && (
+                  <p className="text-[11px] text-gray-500 mt-1">In shorter months it falls on the last day.</p>
                 )}
               </div>
               <div>

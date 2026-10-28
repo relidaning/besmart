@@ -536,6 +536,23 @@ export function initializeDatabase() {
     })();
   }
 
+  // Migration 18: repeating calendar items. A row with `repeat` is a series starting at
+  // `date`; its occurrences are computed (calendar.ts), and each one ticked off is a
+  // calendar_done row. For a series, `remind_at` is the next occurrence's reminder.
+  if (version < 18) {
+    db.transaction(() => {
+      db.exec(`
+        ALTER TABLE calendar_events ADD COLUMN repeat TEXT;
+        CREATE TABLE IF NOT EXISTS calendar_done (
+          event_id INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          PRIMARY KEY (event_id, date)
+        );
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (18)').run();
+    })();
+  }
+
   // Seed default schedules for admin user if none exist
   const adminScheduleCount = (db.prepare(
     'SELECT COUNT(*) as c FROM checkin_schedules WHERE user_id = 1'
