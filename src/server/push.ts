@@ -36,7 +36,8 @@ function isTransient(err: any): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function sendPushToUser(userId: number, title: string, body: string) {
+// `url` is the page a tap on the notification opens (sw.js), Home by default.
+export async function sendPushToUser(userId: number, title: string, body: string, url?: string) {
   if (!initialized) return;
 
   const subs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(userId) as any[];
@@ -46,7 +47,7 @@ export async function sendPushToUser(userId: number, title: string, body: string
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({ title, body }),
+          JSON.stringify({ title, body, url }),
           { timeout: 15_000 }
         );
         break;

@@ -7,6 +7,7 @@ import AttributeBar from '../components/AttributeBar';
 import { PageHeader, CardHead } from '../components/PageKit';
 import { Achievements, YearOfGrowth, type GardenSummary } from '../components/GardenStats';
 import { PageSpinner } from '../components/Loading';
+import CalendarCard from '../components/CalendarCard';
 
 interface ScoreRecord {
   id: number;
@@ -148,6 +149,10 @@ export default function Dashboard() {
         title={greetingText}
         subtitle={new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
       />
+
+      <motion.div variants={item}>
+        <CalendarCard />
+      </motion.div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_1fr] lg:items-start [&>*]:min-w-0">
         <div className="space-y-4 lg:sticky lg:top-20">

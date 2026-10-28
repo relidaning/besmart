@@ -17,6 +17,8 @@ import { scheduleJob } from './scheduler.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { musicRoutes } from './routes/music.js';
 import { gardenRoutes } from './routes/garden.js';
+import { calendarRoutes } from './routes/calendar.js';
+import { sendDueCalendarReminders } from './calendar.js';
 import { initGarden } from './garden.js';
 import { MUSIC_DIR, VIDEOS_DIR } from './musicLibrary.js';
 import { initWebPush, sendDailyReviewReminders } from './push.js';
@@ -66,6 +68,9 @@ function schedulePush() {
 }
 schedulePush();
 
+// Calendar reminders: checked every 30 s, so an alert lands within half a minute of its time.
+setInterval(sendDueCalendarReminders, 30 * 1000);
+
 // Serve root CA cert over plain HTTP so phones can install it before trusting HTTPS
 const CA_CERT_PATH = process.env.CA_CERT_PATH;
 if (CA_CERT_PATH && fs.existsSync(CA_CERT_PATH)) {
@@ -112,6 +117,7 @@ app.use('/api/todos', requireAuth, todoRoutes);
 app.use('/api/dashboard', requireAuth, dashboardRoutes);
 app.use('/api/music', requireAuth, musicRoutes);
 app.use('/api/garden', requireAuth, gardenRoutes);
+app.use('/api/calendar', requireAuth, calendarRoutes);
 
 // The user's own ~/Videos and ~/Music folders (mounted read-only in the container), served
 // straight from disk; express.static answers Range requests, so long tracks seek without a

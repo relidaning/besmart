@@ -73,11 +73,12 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title || 'BeSmart', {
       body: data.body || '',
       icon: '/icons/icon-192.png',
+      data: { url: data.url || '/' },
     })
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow('/'));
+  event.waitUntil(clients.openWindow(event.notification.data?.url || '/'));
 });
