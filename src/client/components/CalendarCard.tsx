@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Bell, BellOff, Check, Clock, ChevronLeft, ChevronRight, Plus, Trash2, X } from 'lucide-react';
 import { api } from '../hooks/api';
+import DatePicker from './ui/DatePicker';
 
 export interface CalendarItem {
   id: number;
@@ -46,8 +49,8 @@ function sortItems(items: CalendarItem[]): CalendarItem[] {
     a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? '') || a.id - b.id);
 }
 
-interface Draft { title: string; time: string; remind_before: number | null }
-const EMPTY_DRAFT: Draft = { title: '', time: '', remind_before: 0 };
+interface Draft { date: string; title: string; time: string; remind_before: number | null }
+const EMPTY_DRAFT: Draft = { date: '', title: '', time: '', remind_before: 0 };
 
 export default function CalendarCard() {
   const [params, setParams] = useSearchParams();
@@ -120,12 +123,12 @@ export default function CalendarCard() {
 
   const openNew = () => {
     setEditingId(null);
-    setDraft(EMPTY_DRAFT);
+    setDraft({ ...EMPTY_DRAFT, date: selected });
     setFormOpen(true);
   };
   const openEdit = (it: CalendarItem) => {
     setEditingId(it.id);
-    setDraft({ title: it.title, time: it.time ?? '', remind_before: it.remind_before });
+    setDraft({ date: it.date, title: it.title, time: it.time ?? '', remind_before: it.remind_before });
     setFormOpen(true);
   };
 
@@ -133,7 +136,7 @@ export default function CalendarCard() {
     e.preventDefault();
     if (!draft.title.trim() || saving) return;
     setSaving(true);
-    const body = { date: selected, title: draft.title.trim(), time: draft.time || null, remind_before: draftRemind };
+    const body = { date: draft.date, title: draft.title.trim(), time: draft.time || null, remind_before: draftRemind };
     try {
       if (editingId) {
         const updated: CalendarItem = await api.updateCalendarItem(editingId, body);
@@ -142,7 +145,9 @@ export default function CalendarCard() {
         const created: CalendarItem = await api.createCalendarItem(body);
         apply((l) => [...l, created]);
       }
-      closeForm();
+      // Show the day the item is on, which an edit may have moved.
+      if (body.date !== selected) select(body.date);
+      else closeForm();
       load();
     } catch (err: any) {
       toast.error(err.message);
@@ -150,6 +155,13 @@ export default function CalendarCard() {
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!formOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeForm(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [formOpen]);
 
   const toggleDone = async (it: CalendarItem) => {
     apply((l) => l.map((x) => (x.id === it.id ? { ...x, done: !it.done } : x)));
@@ -243,14 +255,12 @@ export default function CalendarCard() {
               {selected === today ? 'Today' : selectedLabel}
               {selected === today && <span className="font-normal text-gray-500"> · {selectedLabel}</span>}
             </span>
-            {!formOpen && (
-              <button type="button" onClick={openNew} className="btn-ghost text-xs flex items-center gap-1 flex-shrink-0">
-                <Plus size={14} /> Add
-              </button>
-            )}
+            <button type="button" onClick={openNew} className="btn-ghost text-xs flex items-center gap-1 flex-shrink-0">
+              <Plus size={14} /> Add
+            </button>
           </div>
 
-          {dayItems.length === 0 && !formOpen && (
+          {dayItems.length === 0 && (
             <p className="text-[12px] text-gray-400 dark:text-gray-500 py-2">Nothing on this day.</p>
           )}
           <div className="grid gap-1.5">
@@ -280,42 +290,6 @@ export default function CalendarCard() {
             ))}
           </div>
 
-          {formOpen && (
-            <form onSubmit={save} className="mt-2 space-y-2">
-              <input className="input" placeholder="What's on this day?" value={draft.title} autoFocus maxLength={200}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
-              <div className="flex gap-2">
-                {draft.time ? (
-                  <div className="relative flex-1 min-w-0">
-                    <input type="time" className="input pr-8" value={draft.time} aria-label="Time" required
-                      onChange={(e) => setDraft({ ...draft, time: e.target.value })} />
-                    <button type="button" onClick={() => setDraft({ ...draft, time: '' })} aria-label="Make it all day"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <button type="button" onClick={() => setDraft({ ...draft, time: '09:00' })}
-                    className="input flex-1 min-w-0 flex items-center gap-2 text-left text-gray-500" title="Set a time">
-                    <Clock size={14} className="flex-shrink-0" /> All day
-                  </button>
-                )}
-                <select className="input flex-1 min-w-0" value={draftRemind ?? 'none'} aria-label="Reminder"
-                  onChange={(e) => setDraft({ ...draft, remind_before: e.target.value === 'none' ? null : Number(e.target.value) })}>
-                  {reminders.map(([v, label]) => <option key={label} value={v ?? 'none'}>{label}</option>)}
-                </select>
-              </div>
-              {draftRemind != null && noPush && (
-                <p className="text-[11px] text-gray-500">Turn on the bell at the top to get alerts on this device.</p>
-              )}
-              <div className="flex gap-2 justify-end">
-                <button type="button" onClick={closeForm} className="btn-secondary text-sm">Cancel</button>
-                <button type="submit" disabled={!draft.title.trim() || saving} className="btn-primary text-sm">
-                  {editingId ? 'Save' : 'Add'}
-                </button>
-              </div>
-            </form>
-          )}
 
           {comingUp.length > 0 && (
             <div className="mt-4">
@@ -336,6 +310,74 @@ export default function CalendarCard() {
           )}
         </div>
       </div>
+
+      {/* Add/edit dialog, in a portal: a transformed ancestor (the page's stagger) would
+          otherwise make `fixed` relative to the card. */}
+      {formOpen && createPortal(
+        <div
+          className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
+          onClick={(e) => { if (e.target === e.currentTarget) closeForm(); }}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
+          >
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">{editingId ? 'Edit item' : 'New item'}</h2>
+              <button type="button" onClick={closeForm} aria-label="Close"
+                className="p-1 -m-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={save} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                <input className="input" placeholder="What's on this day?" value={draft.title} autoFocus maxLength={200} required
+                  onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
+                <DatePicker value={draft.date} required onChange={(date) => setDraft({ ...draft, date })} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Time</label>
+                {draft.time ? (
+                  <div className="relative">
+                    <input type="time" className="input pr-8" value={draft.time} aria-label="Time" required
+                      onChange={(e) => setDraft({ ...draft, time: e.target.value })} />
+                    <button type="button" onClick={() => setDraft({ ...draft, time: '' })} aria-label="Make it all day"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setDraft({ ...draft, time: '09:00' })}
+                    className="input flex items-center gap-2 text-left text-gray-500" title="Set a time">
+                    <Clock size={14} className="flex-shrink-0" /> All day <span className="ml-auto text-[11px]">tap to set a time</span>
+                  </button>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reminder</label>
+                <select className="input" value={draftRemind ?? 'none'} aria-label="Reminder"
+                  onChange={(e) => setDraft({ ...draft, remind_before: e.target.value === 'none' ? null : Number(e.target.value) })}>
+                  {reminders.map(([v, label]) => <option key={label} value={v ?? 'none'}>{label}</option>)}
+                </select>
+                {draftRemind != null && noPush && (
+                  <p className="text-[11px] text-gray-500 mt-1">Turn on the bell at the top to get alerts on this device.</p>
+                )}
+              </div>
+              <div className="flex gap-2 justify-end pt-1">
+                <button type="button" onClick={closeForm} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={!draft.title.trim() || saving} className="btn-primary">
+                  {editingId ? 'Save' : 'Add'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
