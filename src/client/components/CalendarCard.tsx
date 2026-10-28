@@ -87,14 +87,11 @@ export default function CalendarCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Monday-first weeks covering the month.
+  // Always six Monday-first weeks, the most a month spans, so the grid keeps one height
+  // and swiping between months doesn't move the page below it.
   const days = useMemo(() => {
     const start = addDays(view, -((view.getDay() + 6) % 7));
-    const last = new Date(view.getFullYear(), view.getMonth() + 1, 0);
-    const end = addDays(last, 6 - ((last.getDay() + 6) % 7));
-    const out: Date[] = [];
-    for (let d = start; d <= end; d = addDays(d, 1)) out.push(d);
-    return out;
+    return Array.from({ length: 42 }, (_, i) => addDays(start, i));
   }, [view]);
   const from = toDateStr(days[0]);
   const to = toDateStr(days[days.length - 1]);
