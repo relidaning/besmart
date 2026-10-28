@@ -230,13 +230,14 @@ export default function CalendarCard() {
               const isToday = ds === today;
               return (
                 <button key={ds} type="button" onClick={() => select(ds)}
-                  className={`h-8 rounded-lg flex flex-col items-center justify-center gap-0.5 text-sm transition-colors
+                  className={`relative h-8 rounded-lg flex items-center justify-center text-sm transition-colors
                     ${isSel ? 'bg-brand-400 text-ink font-bold'
                       : isToday ? 'bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 font-semibold'
                       : inMonth ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.06]'
                       : 'text-gray-300 dark:text-gray-600 hover:bg-gray-100 dark:hover:bg-white/[0.06]'}`}>
                   <span className="leading-none">{d.getDate()}</span>
-                  <span className="flex gap-0.5 h-1">
+                  {/* Pinned to the bottom edge, out of the flow, so the number stays centered. */}
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
                     {its.slice(0, 3).map((i) => (
                       <span key={i.id} className={`w-1 h-1 rounded-full ${isSel ? 'bg-ink/70' : i.done ? 'bg-gray-300 dark:bg-gray-600' : 'bg-[#e66666]'}`} />
                     ))}
