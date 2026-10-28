@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Bell, BellOff, Check, Clock, ChevronLeft, ChevronRight, Plus, Trash2, X } from 'lucide-react';
 import { api } from '../hooks/api';
-import { CardHead } from './PageKit';
 
 export interface CalendarItem {
   id: number;
@@ -96,6 +95,7 @@ export default function CalendarCard() {
   const comingUp = upcoming.filter((it) => !it.done && it.date !== selected).slice(0, 5);
   const todayLeft = upcoming.filter((it) => it.date === today && !it.done).length;
   const pendingAhead = upcoming.filter((it) => !it.done).length;
+  const meta = todayLeft > 0 ? `${todayLeft} today` : pendingAhead > 0 ? `${pendingAhead} coming up` : null;
 
   const select = (date: string) => {
     setSelected(date);
@@ -180,31 +180,34 @@ export default function CalendarCard() {
 
   return (
     <div className="card">
-      <CardHead
-        title="Calendar"
-        meta={todayLeft > 0 ? `${todayLeft} today` : pendingAhead > 0 ? `${pendingAhead} coming up` : undefined}
-      />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[316px_1fr] [&>*]:min-w-0">
+      {/* Title and month switcher share one row, to keep the card short. */}
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-baseline gap-2 min-w-0">
+          Calendar
+          {meta && <span className="text-[11px] font-normal text-gray-500 truncate">{meta}</span>}
+        </h2>
+        <div className="flex items-center flex-shrink-0">
+          <button type="button" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}
+            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500" aria-label="Previous month">
+            <ChevronLeft size={16} />
+          </button>
+          <button type="button" onClick={() => select(today)}
+            className="text-[13px] font-semibold text-gray-900 dark:text-gray-100 px-1.5 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06]"
+            title="Back to today">
+            {view.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+          </button>
+          <button type="button" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}
+            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500" aria-label="Next month">
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[316px_1fr] lg:gap-5 [&>*]:min-w-0">
         {/* Month grid */}
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <button type="button" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500" aria-label="Previous month">
-              <ChevronLeft size={16} />
-            </button>
-            <button type="button" onClick={() => select(today)}
-              className="text-sm font-semibold text-gray-900 dark:text-gray-100 px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06]"
-              title="Back to today">
-              {view.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-            </button>
-            <button type="button" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500" aria-label="Next month">
-              <ChevronRight size={16} />
-            </button>
-          </div>
-          <div className="grid grid-cols-7 gap-0.5">
+          <div className="grid grid-cols-7 gap-x-0.5">
             {WEEKDAYS.map((w, i) => (
-              <div key={i} className="text-center text-[11px] font-medium text-gray-400 dark:text-gray-500 h-6 flex items-center justify-center">{w}</div>
+              <div key={i} className="text-center text-[11px] font-medium text-gray-400 dark:text-gray-500 h-5 flex items-center justify-center">{w}</div>
             ))}
             {days.map((d) => {
               const ds = toDateStr(d);
@@ -215,7 +218,7 @@ export default function CalendarCard() {
               const isToday = ds === today;
               return (
                 <button key={ds} type="button" onClick={() => select(ds)}
-                  className={`h-10 rounded-lg flex flex-col items-center justify-center gap-0.5 text-sm transition-colors
+                  className={`h-8 rounded-lg flex flex-col items-center justify-center gap-0.5 text-sm transition-colors
                     ${isSel ? 'bg-brand-400 text-ink font-bold'
                       : isToday ? 'bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 font-semibold'
                       : inMonth ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/[0.06]'
