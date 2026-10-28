@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
@@ -78,6 +78,9 @@ export default function CalendarCard() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
   const overlayStyle = useModalViewport(formOpen);
+  // Which way the month grid slides in: 1 = next month (from the right), -1 = previous.
+  const [slideDir, setSlideDir] = useState(0);
+  const touch = useRef<{ x: number; y: number; swiped: boolean } | null>(null);
 
   useEffect(() => {
     if (linked) setParams({}, { replace: true });
@@ -117,9 +120,39 @@ export default function CalendarCard() {
     setSelected(date);
     const d = parseDate(date);
     if (d.getMonth() !== view.getMonth() || d.getFullYear() !== view.getFullYear()) {
+      setSlideDir(d > view ? 1 : -1);
       setView(new Date(d.getFullYear(), d.getMonth(), 1));
     }
     closeForm();
+  };
+
+  const shiftMonth = (n: number) => {
+    setSlideDir(n);
+    setView(new Date(view.getFullYear(), view.getMonth() + n, 1));
+  };
+
+  // A horizontal swipe on the grid turns the month; vertical drags still scroll the page
+  // (touch-action: pan-y), and the tap that ends a swipe doesn't select a day.
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touch.current = { x: t.clientX, y: t.clientY, swiped: false };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touch.current;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > 1.5 * Math.abs(dy)) {
+      start.swiped = true;
+      shiftMonth(dx < 0 ? 1 : -1);
+    }
+  };
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (touch.current?.swiped) {
+      e.stopPropagation();
+      touch.current = null;
+    }
   };
 
   // Keeps both lists in step with a change, without waiting for a refetch.
@@ -215,7 +248,7 @@ export default function CalendarCard() {
           {meta && <span className="text-[11px] font-normal text-gray-500 truncate">{meta}</span>}
         </h2>
         <div className="flex items-center flex-shrink-0">
-          <button type="button" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}
+          <button type="button" onClick={() => shiftMonth(-1)}
             className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500" aria-label="Previous month">
             <ChevronLeft size={16} />
           </button>
@@ -224,7 +257,7 @@ export default function CalendarCard() {
             title="Back to today">
             {view.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
           </button>
-          <button type="button" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}
+          <button type="button" onClick={() => shiftMonth(1)}
             className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/[0.06] text-gray-500" aria-label="Next month">
             <ChevronRight size={16} />
           </button>
@@ -233,7 +266,16 @@ export default function CalendarCard() {
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[316px_1fr] lg:gap-5 [&>*]:min-w-0">
         {/* Month grid */}
         <div>
-          <div className="grid grid-cols-7 gap-x-0.5">
+          <motion.div
+            key={from}
+            initial={slideDir ? { x: slideDir * 40, opacity: 0 } : false}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+            className="grid grid-cols-7 gap-x-0.5 touch-pan-y select-none"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+            onClickCapture={onClickCapture}
+          >
             {WEEKDAYS.map((w, i) => (
               <div key={i} className="text-center text-[11px] font-medium text-gray-400 dark:text-gray-500 h-5 flex items-center justify-center">{w}</div>
             ))}
@@ -262,7 +304,7 @@ export default function CalendarCard() {
                 </button>
               );
             })}
-          </div>
+          </motion.div>
         </div>
 
         {/* The selected day */}
