@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd -- "$(dirname -- "$0")/.."
+
+compose_environment=$(docker compose config --environment)
+database_path=$(printf '%s\n' "$compose_environment" | sed -n 's/^BESMART_DB_PATH=//p')
+
+if [[ -n "$database_path" ]]; then
+    if [[ ! -f "$database_path" ]]; then
+        printf 'BESMART_DB_PATH does not point to an existing file: %s\n' "$database_path" >&2
+        exit 1
+    fi
+
+    export _BESMART_DB_DIR="$(cd -- "$(dirname -- "$database_path")" && pwd -P)"
+    export _BESMART_DB_FILENAME="$(basename -- "$database_path")"
+fi
+
+exec docker compose "$@"

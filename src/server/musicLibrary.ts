@@ -14,7 +14,7 @@ const SLEEP_FOLDER = process.env.MUSIC_SLEEP_FOLDER || 'Rain';
 
 // Only the on/off choices are app state: ~/Videos tracks are on unless removed, so new
 // downloads join the rotation by themselves.
-const LIBRARY_FILE = path.join(path.dirname(DB_PATH), 'music-library.json');
+const LIBRARY_FILE = process.env.MUSIC_LIBRARY_FILE || path.join(path.dirname(DB_PATH), 'music-library.json');
 
 const PLAYABLE = new Set(['.mp3', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.flac', '.mp4', '.m4v', '.webm']);
 

@@ -33,10 +33,31 @@ npm run dev        # starts both client (Vite) and server (tsx watch) concurrent
 Docker builds the client and server from source. Build the image and start BeSmart with its HTTPS proxy.
 
 ```bash
-docker compose up -d --build besmart-https
+./scripts/compose up -d --build besmart-https
 ```
 
 Data is persisted at `./data/besmart/`.
+
+### SQLite database location
+
+Set `BESMART_DB_PATH` in the project's `.env` to the full path of an existing
+SQLite database on the Docker host. The database and its directory must be writable.
+
+```dotenv
+BESMART_DB_PATH=/absolute/path/to/besmart.db
+```
+
+The default is `./data/besmart/besmart.db`. To move an existing
+database, stop BeSmart with `docker compose stop besmart` and use SQLite's
+backup command to copy it to the new directory before starting BeSmart again
+with `./scripts/compose up -d --build besmart`, then reload the HTTPS proxy
+with `docker compose exec besmart-https nginx -s reload` if it is running.
+Make sure the configured file exists before starting BeSmart, and verify that
+your data appears in the app before deleting the old copy.
+
+Use a local filesystem path for the live database. For Nextcloud storage,
+sync a SQLite backup and use a dedicated local copy for BeSmart. The live
+database uses WAL and needs its companion files and SQLite file locks.
 
 ## Environment Variables
 
