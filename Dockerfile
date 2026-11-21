@@ -1,20 +1,34 @@
-FROM node:20-alpine
+FROM node:22-alpine AS base
 
 WORKDIR /app
 
-# Need build tools only for rebuilding native modules (better-sqlite3)
-RUN apk add --no-cache python3 make g++
+FROM base AS dependencies
 
-COPY package*.json ./
-COPY node_modules ./node_modules
-# Pre-built on host; rebuild only the server-side native module for Alpine/musl
-RUN npm rebuild better-sqlite3 --build-from-source
+COPY package.json package-lock.json ./
+# Install the toolchain only if a native dependency needs a source build.
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund || \
+    (apk add --no-cache python3 make g++ && npm ci --no-audit --no-fund)
 
-COPY dist ./dist
+FROM dependencies AS build
 
-RUN mkdir -p data
+COPY index.html vite.config.ts postcss.config.js tailwind.config.js tsconfig.json tsconfig.server.json ./
+COPY public ./public
+COPY src ./src
+RUN npm run build
+
+FROM dependencies AS production-dependencies
+
+RUN npm prune --omit=dev --no-audit --no-fund
+
+FROM base AS runtime
 
 ENV NODE_ENV=production
+
+COPY package.json ./
+COPY --from=production-dependencies /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+RUN mkdir -p data
 
 EXPOSE 3001
 

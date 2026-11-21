@@ -31,11 +31,10 @@ npm run dev        # starts both client (Vite) and server (tsx watch) concurrent
 
 ## Deployment
 
-Build the client and server, then rebuild the Docker image:
+Docker builds the client and server from source. Build the image and start BeSmart with its HTTPS proxy.
 
 ```bash
-npm run build
-docker compose build besmart && docker compose up -d besmart
+docker compose up -d --build besmart-https
 ```
 
 Data is persisted at `./data/besmart/`.
