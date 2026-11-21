@@ -19,7 +19,6 @@ src/
   shared/       Shared TypeScript types
 Dockerfile
 docker-compose.yml
-deprecated/     Archived old Flask micro-apps
 ```
 
 ## Development
