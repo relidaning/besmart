@@ -4,7 +4,7 @@ import { BookOpen, Droplets, Flower2, Leaf, Lock, Maximize2, Minus, Plus, Snowfl
 import { api } from '../hooks/api';
 import { useTheme } from '../contexts/ThemeContext';
 import { ATTR_META, setSoundEnabled, soundEnabled } from '../lib/garden';
-import { GROUND, autumnColor, drawPlant, growthFor, seasonOf, type Season } from '../lib/gardenArt';
+import { GROUND, autumnColor, drawGroundDetail, drawPlant, growthFor, rng, seasonOf, type Season } from '../lib/gardenArt';
 import {
   ACHIEVEMENT_TREES, COMMON_LADDER, FAMILY_LABEL, GROWTH, MILESTONE_EVERY, MILESTONE_SPECIES, SPECIES, STARTER_TREES,
   TIER_LEVELS, TREES, type Attribute,
@@ -276,6 +276,12 @@ function GardenCanvas({ all, period, today, season, highlight, onPick }: {
     const order = placed.map((pl, k) => ({ ...pl, ...grown[k], k }))
       .sort((a, b) => a.i + a.j - (b.i + b.j) || a.i - b.i);
     const many = placed.length > 180;
+    const groundRandom = rng(837);
+    const groundDetails = Array.from({ length: 140 }, () => ({
+      point: corner(0.025 * ni + groundRandom() * 0.95 * ni, 0.025 * nj + groundRandom() * 0.95 * nj),
+      size: 1.6 + groundRandom() * 2.4,
+      tilt: groundRandom() * Math.PI,
+    }));
     const pos = (o: { i: number; j: number }) => ({ x: ox + ((o.i - o.j) * tw) / 2, y: oy + ((o.i + o.j + 1) * th) / 2 });
     const worldTransform = (c: CanvasRenderingContext2D) => {
       const v = viewRef.current;
@@ -295,6 +301,13 @@ function GardenCanvas({ all, period, today, season, highlight, onPick }: {
       grad.addColorStop(1, g.top);
       sctx.fillStyle = grad;
       sctx.beginPath(); sctx.moveTo(ox, oy); sctx.lineTo(R.x, R.y); sctx.lineTo(B.x, B.y); sctx.lineTo(L.x, L.y); sctx.closePath(); sctx.fill();
+      sctx.save();
+      sctx.clip();
+      sctx.globalAlpha = season === 'winter' ? 0.45 : 0.65;
+      groundDetails.forEach(({ point, size, tilt }, index) => {
+        drawGroundDetail(sctx, season, point.x, point.y, size, index, tilt);
+      });
+      sctx.restore();
       const k = viewRef.current.k;
       if (tw * k > 9) {
         sctx.strokeStyle = g.line;
@@ -308,7 +321,7 @@ function GardenCanvas({ all, period, today, season, highlight, onPick }: {
         const a = pl.i + inset, b = pl.j + inset, e = pl.s - 2 * inset;
         const c0 = corner(a, b), c1 = corner(a + e, b), c2 = corner(a + e, b + e), c3 = corner(a, b + e);
         sctx.beginPath(); sctx.moveTo(c0.x, c0.y); sctx.lineTo(c1.x, c1.y); sctx.lineTo(c2.x, c2.y); sctx.lineTo(c3.x, c3.y); sctx.closePath();
-        sctx.fillStyle = dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.32)';
+        sctx.fillStyle = dark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.16)';
         sctx.fill();
         sctx.strokeStyle = pl.today ? '#f59e0b' : dark ? 'rgba(255,255,255,0.12)' : 'rgba(30,60,20,0.16)';
         sctx.lineWidth = (pl.today ? 2 : 1) / k;

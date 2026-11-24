@@ -476,6 +476,36 @@ export function growthFor(growth: number, target: number) {
   return { scale: 0.3 + 0.7 * g, young: g < 0.1, pct: g };
 }
 
+const GROUND_DETAILS = {
+  spring: ['#eeb4d0', '#fff5c8', '#86c86a'],
+  summer: ['#80ae48', '#568834', '#b9cb59'],
+  autumn: ['#ce631e', '#e8a72e', '#a33f24'],
+  winter: ['#ffffff', '#c2dff2', '#a2c8e0'],
+} satisfies Record<Season, string[]>;
+
+export function drawGroundDetail(
+  ctx: CanvasRenderingContext2D, season: Season, x: number, y: number, size: number, index: number, tilt: number,
+) {
+  const color = GROUND_DETAILS[season][index % 3];
+  switch (season) {
+    case 'spring':
+      ellipse(ctx, x, y, size * 0.46, size * 0.26, tilt, color);
+      if (index % 3 !== 2) ellipse(ctx, x, y, size * 0.16, size * 0.1, tilt, '#c98836');
+      break;
+    case 'summer':
+      line(ctx, x, y, x - size * 0.48, y - size * 0.46, size * 0.13, color);
+      line(ctx, x, y, x + size * 0.28, y - size * 0.65, size * 0.13, color);
+      break;
+    case 'autumn':
+      ellipse(ctx, x, y, size * 0.64, size * 0.29, tilt, color);
+      ellipse(ctx, x, y, size * 0.42, size * 0.04, tilt, '#75401f');
+      break;
+    case 'winter':
+      ellipse(ctx, x, y, size * 1.4, size * 0.38, 0, color);
+      break;
+  }
+}
+
 export const GROUND: Record<Season, Record<'dark' | 'light', { top: string; topEdge: string; line: string; left: string; right: string }>> = {
   spring: {
     dark: { top: '#1f3a28', topEdge: '#2a4d33', line: 'rgba(255,255,255,0.035)', left: '#3a2a1e', right: '#2b1f16' },
@@ -483,14 +513,14 @@ export const GROUND: Record<Season, Record<'dark' | 'light', { top: string; topE
   },
   summer: {
     dark: { top: '#1d3526', topEdge: '#244430', line: 'rgba(255,255,255,0.035)', left: '#3a2a1e', right: '#2b1f16' },
-    light: { top: '#b7dea8', topEdge: '#a5d394', line: 'rgba(30,60,20,0.06)', left: '#a57e57', right: '#8d6947' },
+    light: { top: '#80b95f', topEdge: '#a7ce70', line: 'rgba(30,60,20,0.06)', left: '#a57e57', right: '#8d6947' },
   },
   autumn: {
-    dark: { top: '#33321f', topEdge: '#3d3a22', line: 'rgba(255,255,255,0.035)', left: '#3a2a1e', right: '#2b1f16' },
-    light: { top: '#dcd29a', topEdge: '#cfc486', line: 'rgba(60,50,20,0.07)', left: '#a57e57', right: '#8d6947' },
+    dark: { top: '#513522', topEdge: '#70502c', line: 'rgba(255,255,255,0.05)', left: '#3a2419', right: '#2b1a12' },
+    light: { top: '#ca954b', topEdge: '#e3bc74', line: 'rgba(60,50,20,0.07)', left: '#ae754b', right: '#895332' },
   },
   winter: {
-    dark: { top: '#3a4452', topEdge: '#4a5566', line: 'rgba(255,255,255,0.05)', left: '#3a2f28', right: '#2c231d' },
-    light: { top: '#e8eef5', topEdge: '#f5f8fb', line: 'rgba(40,60,90,0.07)', left: '#a58c75', right: '#8d7661' },
+    dark: { top: '#647e9b', topEdge: '#8babc2', line: 'rgba(255,255,255,0.07)', left: '#3e536d', right: '#2e4159' },
+    light: { top: '#dcebf8', topEdge: '#f8fcff', line: 'rgba(40,60,90,0.07)', left: '#acbfd4', right: '#8fa6bf' },
   },
 };
