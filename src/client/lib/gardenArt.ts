@@ -81,6 +81,17 @@ export function mix(a: string, b: string, t = 0.5) {
   return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0')}`;
 }
 
+function foliage(
+  ctx: CanvasRenderingContext2D, x: number, y: number, radius: number,
+  shade: string, leaf: string, light: string, tilt: number,
+) {
+  ellipse(ctx, x, y, radius, radius * 0.76, tilt, shade);
+  ellipse(ctx, x - radius * 0.08, y - radius * 0.15, radius * 0.92, radius * 0.65, tilt, leaf);
+  if (radius < 3) return;
+  ellipse(ctx, x - radius * 0.43, y - radius * 0.34, radius * 0.36, radius * 0.14, tilt - 0.35, light);
+  ellipse(ctx, x + radius * 0.12, y - radius * 0.37, radius * 0.29, radius * 0.12, tilt + 0.35, light);
+}
+
 /** Foliage color a deciduous plant turns in autumn. */
 export function autumnColor(sp: Species, seed: number) {
   return sp.autumn ?? AUTUMN_DEFAULTS[seed % AUTUMN_DEFAULTS.length];
@@ -162,6 +173,8 @@ export function drawPlant(
       : season === 'autumn' ? autumnColor(sp, opts.seed)
         : sp.leaf;
   const bud = mix(sp.color, '#ffffff', 0.35);
+  const leafShade = mix(leaf, '#262337', 0.32);
+  const leafLight = mix(leaf, '#fff0c4', 0.32);
   const herb = !WOODY.has(sp.kind); // flowers, ferns, sprouts
 
   // Winter: herbs die back to a dry stub; deciduous woody plants stand bare.
@@ -216,9 +229,12 @@ export function drawPlant(
         const pr = h * 0.11;
         for (let k = 0; k < 6; k++) {
           const a = (k / 6) * Math.PI * 2;
-          circle(ctx, cx + Math.cos(a) * pr, cy + Math.sin(a) * pr * 0.8, pr * 0.85, sp.color);
+          const px = cx + Math.cos(a) * pr, py = cy + Math.sin(a) * pr * 0.8;
+          ellipse(ctx, px, py, pr * 0.98, pr * 0.65, a, sp.color);
+          ellipse(ctx, px - Math.cos(a) * pr * 0.18, py - Math.sin(a) * pr * 0.18, pr * 0.54, pr * 0.28, a, bud);
         }
         circle(ctx, cx, cy, pr * 0.6, '#fde68a');
+        circle(ctx, cx, cy, pr * 0.24, '#a16207');
       } else {
         circle(ctx, cx, cy, h * 0.07, DRY_HEAD);
       }
@@ -264,11 +280,21 @@ export function drawPlant(
       const reach = state === 'bud' ? 0.55 : 1;
       for (let k = 0; k < 5; k++) {
         const a = -Math.PI / 2 + (k - 2) * 0.45;
+        const controlX = Math.cos(a) * h * 0.5 * reach;
+        const controlY = Math.sin(a) * h * 0.9 * reach;
+        const tipX = Math.cos(a) * h * 0.75 * reach;
+        const tipY = Math.sin(a) * h * 0.6 * reach + (state === 'dry' ? h * 0.2 : 0);
         ctx.beginPath();
         ctx.moveTo(x, y);
-        ctx.quadraticCurveTo(x + Math.cos(a) * h * 0.5 * reach, y + Math.sin(a) * h * 0.9 * reach,
-          x + Math.cos(a) * h * 0.75 * reach, y + Math.sin(a) * h * 0.6 * reach + (state === 'dry' ? h * 0.2 : 0));
+        ctx.quadraticCurveTo(x + controlX, y + controlY, x + tipX, y + tipY);
         ctx.stroke();
+        for (const t of [0.4, 0.59, 0.77]) {
+          const fx = x + 2 * (1 - t) * t * controlX + t * t * tipX;
+          const fy = y + 2 * (1 - t) * t * controlY + t * t * tipY;
+          const size = h * reach * (0.13 - t * 0.08);
+          ellipse(ctx, fx - size * 0.6, fy, size, size * 0.27, a - 0.8, herbLeaf);
+          ellipse(ctx, fx + size * 0.6, fy, size, size * 0.27, a + 0.8, state === 'dry' ? DRY_STEM : leafLight);
+        }
       }
       break;
     }
@@ -285,7 +311,7 @@ export function drawPlant(
       }
       clumps.forEach(([dx, dy, rr], k) => {
         if (sparse && k % 2) return;
-        circle(ctx, x + dx * h, y + dy * h, h * rr * (sparse ? 0.8 : 1), k % 3 === 0 ? mix(leaf, '#000000', 0.12) : leaf);
+        foliage(ctx, x + dx * h, y + dy * h, h * rr * (sparse ? 0.8 : 1), leafShade, leaf, leafLight, (r() - 0.5) * 0.8);
       });
       const dots = season === 'summer' ? 11 : season === 'spring' ? 7 : 0;
       for (let k = 0; k < dots; k++) {
@@ -300,13 +326,18 @@ export function drawPlant(
       const cy = y - h * 0.68;
       const scale = season === 'spring' ? 0.85 : season === 'autumn' && !evergreen ? 0.9 : 1;
       const puffs = Math.max(3, Math.round((sp.rare ? 8 : 6) * detail));
+      const crownWidth = 0.18 + r() * 0.08;
+      const lean = (r() - 0.5) * h * 0.1;
+      for (const side of [-1, 1]) {
+        line(ctx, x, y - h * 0.35, x + lean + side * h * 0.22, cy, h * 0.045, TRUNK);
+      }
       for (let k = 0; k < puffs; k++) {
         if (season === 'autumn' && !evergreen && k % 3 === 2) continue; // thinning canopy
         const a = (k / puffs) * Math.PI * 2;
-        circle(ctx, x + Math.cos(a) * h * 0.2 * scale, cy + Math.sin(a) * h * 0.14 * scale, h * 0.22 * scale, leaf);
+        foliage(ctx, x + lean + Math.cos(a) * h * crownWidth * scale, cy + Math.sin(a) * h * 0.16 * scale,
+          h * (0.17 + r() * 0.07) * scale, leafShade, leaf, leafLight, (r() - 0.5) * 0.7);
       }
-      // Crown a shade lighter than the canopy; flowers show as dots, never mixed into the green.
-      circle(ctx, x, cy - h * 0.06, h * 0.26 * scale, mix(leaf, '#ffffff', 0.12));
+      foliage(ctx, x + lean, cy - h * 0.1, h * 0.22 * scale, leafShade, leaf, leafLight, -0.2);
       if (season === 'summer' || season === 'spring') {
         for (let k = 0; k < Math.round((sp.rare ? 14 : 10) * detail); k++) {
           circle(ctx, x + (r() - 0.5) * h * 0.65 * scale, cy + (r() - 0.55) * h * 0.45 * scale,
@@ -334,8 +365,16 @@ export function drawPlant(
         ctx.fillStyle = k % 2 ? sp.leaf : mix(sp.leaf, sp.color);
         ctx.beginPath();
         ctx.moveTo(x, top);
-        ctx.lineTo(x - half, top + h * 0.3);
-        ctx.lineTo(x + half, top + h * 0.3);
+        ctx.quadraticCurveTo(x - half * 0.42, top + h * 0.2, x - half, top + h * 0.3);
+        ctx.quadraticCurveTo(x, top + h * 0.39, x + half, top + h * 0.3);
+        ctx.quadraticCurveTo(x + half * 0.42, top + h * 0.2, x, top);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = leafShade;
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.quadraticCurveTo(x + half * 0.42, top + h * 0.2, x + half, top + h * 0.3);
+        ctx.quadraticCurveTo(x + half * 0.45, top + h * 0.35, x, top + h * 0.345);
         ctx.closePath();
         ctx.fill();
         if (snow) {
@@ -373,23 +412,33 @@ export function drawPlant(
         const c = season === 'summer' ? (k % 5 === 0 ? '#ffffff' : sp.color)
           : season === 'spring' ? (k % 3 ? mix(FRESH, '#4d9a5c', 0.3) : bud)
             : autumnColor(sp, opts.seed + k);
-        circle(ctx, x + Math.cos(a) * d * h * 0.42, y - h * 0.7 + Math.sin(a) * d * h * 0.26,
-          h * (season === 'spring' ? 0.045 : 0.06), c);
+        const cx = x + Math.cos(a) * d * h * 0.42;
+        const cy = y - h * 0.7 + Math.sin(a) * d * h * 0.26;
+        const radius = h * (season === 'spring' ? 0.045 : 0.06);
+        if (season === 'autumn') foliage(ctx, cx, cy, radius * 1.25, leafShade, c, leafLight, a);
+        else {
+          circle(ctx, cx, cy, radius, c);
+          if (season === 'summer') circle(ctx, cx - radius * 0.2, cy - radius * 0.25, radius * 0.37, bud);
+        }
       }
       break;
     }
     case 'willow': {
       trunk(ctx, x, y, h * 0.5, h * 0.13);
       const cy = y - h * 0.72;
-      circle(ctx, x, cy, h * 0.3 * (season === 'autumn' ? 0.85 : 1), leaf);
-      ctx.strokeStyle = season === 'summer' ? sp.color : leaf;
-      ctx.lineWidth = Math.max(0.5, h * 0.025);
-      for (let k = 0; k < (season === 'autumn' ? 7 : 11); k++) {
-        const sx = x + (k / 10 - 0.5) * h * 0.7;
+      const strands = season === 'autumn' ? 7 : 11;
+      ctx.lineWidth = Math.max(0.5, h * 0.032);
+      for (let k = 0; k < strands; k++) {
+        const sx = x + (k / (strands - 1) - 0.5) * h * 0.58;
+        ctx.strokeStyle = k % 3 === 0 ? leafShade : k % 3 === 1 ? leaf : leafLight;
         ctx.beginPath();
         ctx.moveTo(sx, cy - h * 0.05);
         ctx.quadraticCurveTo(sx + (sx - x) * 0.3, cy + h * 0.2, sx + (sx - x) * 0.2, cy + h * (0.3 + r() * 0.15));
         ctx.stroke();
+      }
+      for (const offset of [-0.2, 0.2, 0]) {
+        foliage(ctx, x + h * offset, cy - h * (0.08 - Math.abs(offset) * 0.4),
+          h * 0.21, leafShade, leaf, leafLight, offset * 2);
       }
       break;
     }

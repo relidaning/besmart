@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BookOpen, Droplets, Lock, Maximize2, Minus, Plus, Sprout, TreeDeciduous, Trophy, Volume2, VolumeX } from 'lucide-react';
+import { BookOpen, Droplets, Flower2, Leaf, Lock, Maximize2, Minus, Plus, Snowflake, Sprout, Sun, TreeDeciduous, Trophy, Volume2, VolumeX } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useTheme } from '../contexts/ThemeContext';
 import { ATTR_META, setSoundEnabled, soundEnabled } from '../lib/garden';
@@ -63,9 +63,12 @@ const PERIODS: { id: Period; label: string }[] = [
   { id: 'week', label: 'Week' }, { id: 'today', label: 'Today' },
 ];
 
-const SEASONS: { id: Season; label: string }[] = [
-  { id: 'spring', label: 'Spring' }, { id: 'summer', label: 'Summer' }, { id: 'autumn', label: 'Autumn' }, { id: 'winter', label: 'Winter' },
-];
+const SEASONS = {
+  spring: { label: 'Spring', icon: Flower2, tint: 'text-emerald-700 dark:text-emerald-300', backdrop: 'from-emerald-100 via-lime-50 to-teal-100 dark:from-emerald-950 dark:via-lime-950 dark:to-teal-950' },
+  summer: { label: 'Summer', icon: Sun, tint: 'text-yellow-700 dark:text-yellow-300', backdrop: 'from-lime-100 via-yellow-50 to-emerald-100 dark:from-lime-950 dark:via-yellow-950 dark:to-emerald-950' },
+  autumn: { label: 'Autumn', icon: Leaf, tint: 'text-orange-800 dark:text-orange-300', backdrop: 'from-orange-100 via-amber-50 to-rose-100 dark:from-orange-950 dark:via-amber-950 dark:to-rose-950' },
+  winter: { label: 'Winter', icon: Snowflake, tint: 'text-sky-800 dark:text-sky-300', backdrop: 'from-sky-100 via-slate-50 to-indigo-100 dark:from-sky-950 dark:via-slate-950 dark:to-indigo-950' },
+} satisfies Record<Season, { label: string; icon: typeof Leaf; tint: string; backdrop: string }>;
 
 const EVENT_ICON = { plant: Sprout, water: Droplets, review: BookOpen, task: TreeDeciduous, plan: Trophy };
 const EVENT_TINT = {
@@ -609,39 +612,48 @@ export default function Garden() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 px-1 mb-2 text-[11px] text-gray-500">
-          {SEASONS.map((x) => (
-            <button key={x.id} onClick={() => setSeason(x.id)}
-              className={`rounded-md px-2 py-0.5 transition-colors ${season === x.id
-                ? 'bg-gray-100 text-gray-900 font-bold dark:bg-white/[0.08] dark:text-gray-100'
-                : 'hover:text-gray-800 dark:hover:text-gray-200'}`}>
-              {x.label}{x.id === nowSeason ? ' ·now' : ''}
-            </button>
-          ))}
-        </div>
-        {/* One line in every tab, so the island below never moves. */}
-        <div className="flex items-baseline justify-between gap-2 px-1 mb-1 whitespace-nowrap">
-          <span className="min-w-0 truncate text-[11px] text-gray-500">
-            {period === 'all' ? 'Every year' : period === 'today' ? fmtDay(data.today) : `Since ${fmtDay(periodStart(period, data.today))}`}
-          </span>
-          <span className="text-[11px] text-gray-500">{shown.length} plants · {speciesShown} species</span>
-        </div>
-        <div className="relative">
-          <GardenCanvas
-            all={data.plants}
-            period={period}
-            today={data.today}
-            season={season}
-            highlight={highlight}
-            onPick={setPicked}
-          />
-          {shown.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center px-10 text-center text-xs text-gray-600 dark:text-gray-300 pointer-events-none">
-              {data.plants.length === 0
-                ? 'Nothing growing yet. Write a note in your vault or create a study plan to plant your first sapling.'
-                : 'Nothing was planted in this period.'}
+        <div className={`relative overflow-hidden rounded-2xl border border-black/10 bg-gradient-to-br dark:border-white/10 ${SEASONS[season].backdrop}`}>
+          <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-black/10 bg-white/45 px-3 py-3 dark:border-white/10 dark:bg-black/20 sm:px-5">
+            <div>
+              <div className={`text-lg font-bold tracking-tight ${SEASONS[season].tint}`}>{SEASONS[season].label} garden</div>
+              <div className="text-xs text-gray-600 dark:text-gray-300">
+                {period === 'all' ? 'Every year' : period === 'today' ? fmtDay(data.today) : `Since ${fmtDay(periodStart(period, data.today))}`}
+                {' · '}{shown.length} plants · {speciesShown} species
+              </div>
             </div>
-          )}
+            <div role="group" aria-label="Garden season" className="grid grid-cols-4 gap-1 rounded-xl bg-black/5 p-1 dark:bg-black/25">
+              {(Object.keys(SEASONS) as Season[]).map((id) => {
+                const { label, icon: Icon, tint } = SEASONS[id];
+                return (
+                  <button key={id} type="button" onClick={() => setSeason(id)} aria-pressed={id === season}
+                    title={id === nowSeason ? `${label} (current season)` : label}
+                    className={`flex flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors sm:flex-row sm:px-3 ${id === season
+                      ? `bg-white shadow-sm dark:bg-white/15 ${tint}`
+                      : 'text-gray-700 hover:bg-white/50 dark:text-gray-300 dark:hover:bg-white/10'}`}>
+                    <Icon size={15} aria-hidden="true" />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="relative">
+            <GardenCanvas
+              all={data.plants}
+              period={period}
+              today={data.today}
+              season={season}
+              highlight={highlight}
+              onPick={setPicked}
+            />
+            {shown.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center px-10 text-center text-xs text-gray-600 dark:text-gray-300 pointer-events-none">
+                {data.plants.length === 0
+                  ? 'Nothing growing yet. Write a note in your vault or create a study plan to plant your first sapling.'
+                  : 'Nothing was planted in this period.'}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="row mt-2 min-h-[52px]">
