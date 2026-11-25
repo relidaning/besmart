@@ -592,7 +592,7 @@ export default function ReviewContent() {
         {excluded && (
           <span className="badge bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">Not in review</span>
         )}
-        {reviewedTimes !== undefined && (
+        {!editing && reviewedTimes !== undefined && (
           <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400">Review #{reviewedTimes + 1}</span>
         )}
         {paths.map((p) => (
