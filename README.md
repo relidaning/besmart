@@ -18,7 +18,7 @@ src/
   server/       Express backend (SQLite via better-sqlite3)
   shared/       Shared TypeScript types
 Dockerfile
-docker-compose.yml
+docker-compose.yaml
 ```
 
 ## Development
@@ -33,24 +33,25 @@ npm run dev        # starts both client (Vite) and server (tsx watch) concurrent
 Docker builds the client and server from source. Build the image and start BeSmart with its HTTPS proxy.
 
 ```bash
-./scripts/compose up -d --build besmart-https
+docker compose up -d --build besmart-https
 ```
-
-Data is persisted at `./data/besmart/`.
 
 ### SQLite database location
 
-Set `BESMART_DB_PATH` in the project's `.env` to the full path of an existing
-SQLite database on the Docker host. The database and its directory must be writable.
+Set `BESMART_DB_DIR` in the project's `.env` to the directory containing the
+SQLite database on the Docker host. `BESMART_DB_FILENAME` defaults to
+`besmart.db`. The database and its directory must be writable. Compose
+mounts the directory so SQLite can access its WAL and shared-memory files.
+The app also saves music preferences in `music-library.json` in that directory.
 
 ```dotenv
-BESMART_DB_PATH=/absolute/path/to/besmart.db
+BESMART_DB_DIR=/absolute/path/to/database-directory
+BESMART_DB_FILENAME=besmart.db
 ```
 
-The default is `./data/besmart/besmart.db`. To move an existing
-database, stop BeSmart with `docker compose stop besmart` and use SQLite's
+To move an existing database, stop BeSmart with `docker compose stop besmart` and use SQLite's
 backup command to copy it to the new directory before starting BeSmart again
-with `./scripts/compose up -d --build besmart`, then reload the HTTPS proxy
+with `docker compose up -d --build besmart`, then reload the HTTPS proxy
 with `docker compose exec besmart-https nginx -s reload` if it is running.
 Make sure the configured file exists before starting BeSmart, and verify that
 your data appears in the app before deleting the old copy.

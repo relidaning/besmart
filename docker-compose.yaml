@@ -29,8 +29,7 @@ services:
       - 'VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:?set it in .env (see .env.example)}'
       - 'VAPID_EMAIL=re453882101@gmail.com'
       - 'CA_CERT_PATH=/certs/rootCA.pem'
-      - 'DB_PATH=/app/database/${_BESMART_DB_FILENAME:-besmart.db}'
-      - 'MUSIC_LIBRARY_FILE=/app/data/music-library.json'
+      - 'DB_PATH=/app/database/${BESMART_DB_FILENAME:-besmart.db}'
       - 'MUSIC_VIDEOS_DIR=/media/videos'
       - 'MUSIC_DIR=/media/music'
       # Hours before this are treated as the previous day (default: 6)
@@ -51,10 +50,11 @@ services:
       # - 'WECHAT_APP_ID=your-wechat-app-id'
       # - 'WECHAT_APP_SECRET=your-wechat-app-secret'
     volumes:
-      - ./data/besmart:/app/data
       - type: bind
-        source: ${_BESMART_DB_DIR:-./data/besmart}
+        source: ${BESMART_DB_DIR:?set it in .env (see .env.example)}
         target: /app/database
+        bind:
+          create_host_path: false
       - /data/nextcloud/obsidian/lidaning:/vault
       - ./config/mkcert:/certs:ro
       # Focus music plays ~/Videos (audio only); Sleep plays ~/Music/Rain

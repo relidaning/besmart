@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Loader2 } from 'lucide-react';
+import { Check, Loader2, X } from 'lucide-react';
+import NoteActions, { noteActionButton } from './NoteActions';
 import { api } from '../hooks/api';
 
 // An unsaved edit is kept per user per course, so a reload (iOS resuming the app after
@@ -156,18 +157,24 @@ export default function NoteEditor({ courseId, content, baseHash, draftKey, star
     <>
       {/* Toolbar fixed under the header, where the breadcrumb sits while reading */}
       <div className="fixed top-12 inset-x-0 z-30 h-11 bg-white/90 backdrop-blur-lg border-b border-gray-200/70 dark:bg-gray-950/90 dark:border-white/[0.08]">
-        <div className="max-w-5xl mx-auto px-4 md:pl-20 h-full flex items-center gap-2">
+        <div className="max-w-[100rem] mx-auto px-4 md:pl-20 h-full flex items-center gap-2">
           <span className="flex-1 min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">
             {dirty ? 'Editing · unsaved changes' : 'Editing'}
             <span className="hidden sm:inline text-gray-400 dark:text-gray-500"> · ⌘/Ctrl+S to save, Esc to cancel</span>
           </span>
-          <button onClick={cancel} disabled={saving} className="btn-ghost text-xs !px-3 !py-1.5">Cancel</button>
-          <button onClick={() => save()} disabled={saving}
-            className="btn-primary text-xs !px-3 !py-1.5 flex items-center gap-1.5">
-            {saving && <Loader2 size={12} className="animate-spin" />}Save
-          </button>
         </div>
       </div>
+
+      <NoteActions>
+        <button onClick={() => save()} disabled={saving} title="Save" aria-label="Save"
+          className={`${noteActionButton} bg-brand-400 text-ink hover:bg-brand-300`}>
+          {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={20} />}
+        </button>
+        <button onClick={cancel} disabled={saving} title="Cancel" aria-label="Cancel"
+          className={`${noteActionButton} border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800`}>
+          <X size={20} />
+        </button>
+      </NoteActions>
 
       <textarea
         ref={areaRef}
@@ -178,7 +185,7 @@ export default function NoteEditor({ courseId, content, baseHash, draftKey, star
         autoCapitalize="off"
         autoCorrect="off"
         style={{ tabSize: 4 }}
-        className="block w-full min-h-[60vh] mt-6 resize-none overflow-hidden rounded-lg border border-gray-200 bg-white px-3 py-3 font-mono text-sm leading-relaxed text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-400/50 dark:border-white/[0.1] dark:bg-[#161b22] dark:text-gray-100"
+        className="block w-full min-h-[60vh] md:min-h-[calc(100dvh-12rem)] mt-6 resize-none overflow-hidden rounded-lg border border-gray-200 bg-white px-3 py-3 font-mono text-sm leading-relaxed text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-400/50 dark:border-white/[0.1] dark:bg-[#161b22] dark:text-gray-100"
       />
     </>
   );

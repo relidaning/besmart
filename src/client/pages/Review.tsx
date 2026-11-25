@@ -5,7 +5,8 @@ import toast from 'react-hot-toast';
 import { Trophy, FileText, ExternalLink, ChevronRight, RefreshCw, Search, Brain } from 'lucide-react';
 import { api } from '../hooks/api';
 import { useAuth } from '../store/auth';
-import { reviewList, reviewWritesDone } from '../lib/reviewList';
+import { reviewList, reviewWritesDone, trackReviewWrite } from '../lib/reviewList';
+import { celebrate } from '../lib/garden';
 import { PageHeader, StatTiles, XpChip } from '../components/PageKit';
 import type { GardenSummary } from '../components/GardenStats';
 import { PageSpinner } from '../components/Loading';
@@ -59,6 +60,7 @@ export default function Review() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ReviewRecord | null>(null);
   const [form, setForm] = useState({ name: '', description: '', is_postponed: false });
+  const [completingId, setCompletingId] = useState<number | null>(null);
 
   const [vaultName, setVaultName] = useState(snap?.vaultName ?? '');
   const [vaultSuggestions, setVaultSuggestions] = useState<VaultNote[]>([]);
@@ -83,7 +85,7 @@ export default function Review() {
   const fetchAll = (search = debouncedQuery, count = PAGE) => {
     if (!initialLoadDone.current) setLoading(true);
     const seq = ++fetchSeq.current;
-    reviewWritesDone()
+    return reviewWritesDone()
       .then(() => api.getDueReviews(search || undefined, 0, Math.max(PAGE, count)))
       .then((dueR) => {
         if (seq !== fetchSeq.current) return; // a newer search or refresh won
@@ -206,6 +208,25 @@ export default function Review() {
     setShowForm(true);
   };
 
+  const completeReview = async (record: ReviewRecord) => {
+    if (completingId !== null) return;
+    setCompletingId(record.id);
+    const request = api.completeReview(record.id, 'ok');
+    trackReviewWrite(request);
+    const refresh = fetchAll(debouncedQuery, dueRecords.length)
+      .catch(() => toast.error('Could not refresh the review list'));
+    try {
+      const result = await request;
+      if (userId !== undefined) localStorage.removeItem(`rpos-${userId}-${record.id}`);
+      if (!celebrate(result.xp, undefined, 'Review completed')) toast.success('Review completed');
+    } catch (err: any) {
+      toast.error(`Review not saved: ${err.message}`);
+    } finally {
+      await refresh;
+      setCompletingId(null);
+    }
+  };
+
   // Deleting a course also moves its vault note to the vault's .trash folder (server side).
   const handleDelete = async (record: ReviewRecord) => {
     const note = record.vault_path ? `\n\nThe note "${record.vault_path}" will be moved to your vault's .trash folder (restorable).` : '';
@@ -300,7 +321,16 @@ export default function Review() {
                 }}
               >
                 <div className="flex items-start gap-2">
-                  <span className={`dot mt-1.5 ${isOverdue ? 'bg-[#e66666]' : isMissing ? 'bg-brand-400' : 'bg-[#a854f7]'}`} />
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); void completeReview(record); }}
+                    disabled={completingId !== null}
+                    aria-label={`Mark ${record.course_name} as reviewed`}
+                    title="Mark reviewed (OK)"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 hover:text-brand-500 focus-visible:outline-brand-500 disabled:opacity-50"
+                  >
+                    <span aria-hidden="true" className={`h-5 w-5 rounded-full border-2 border-current ${completingId === record.id ? 'animate-pulse bg-current' : ''}`} />
+                  </button>
                   <div className="flex-1 min-w-0">
                     <h3 className={`text-[13px] font-bold leading-snug ${isMissing ? 'text-brand-600 dark:text-brand-400' : 'text-gray-900 dark:text-gray-100'}`}>
                       {record.course_name}
@@ -357,7 +387,7 @@ export default function Review() {
           onClick={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}
         >
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
+            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md md:max-w-4xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-5"
           >
             <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">Edit Course</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -369,7 +399,7 @@ export default function Review() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                <textarea className="input" rows={2} value={form.description}
+                <textarea className="input md:min-h-[45dvh]" rows={2} value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="What did you learn? (optional)" />
               </div>

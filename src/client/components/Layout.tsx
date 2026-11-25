@@ -279,7 +279,7 @@ export default function Layout() {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 max-w-5xl mx-auto w-full px-4 pt-[72px] pb-24 md:pb-6 overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
+      <main className="flex-1 max-w-5xl md:has-[[data-note-editing]]:max-w-[100rem] mx-auto w-full px-4 pt-[72px] pb-24 md:pb-6 overflow-x-hidden" style={{ touchAction: 'pan-y' }}>
         {/* Back/forward (a swipe on iOS, which animates on its own) swaps the page at once */}
         <AnimatePresence mode="wait" custom={isPop}>
           <motion.div

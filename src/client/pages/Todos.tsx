@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { ListTodo, Trophy, Check, AlertTriangle, ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react';
@@ -312,9 +313,8 @@ export default function Todos() {
 
             return (
               <motion.div key={todo.id} variants={listItem}>
-                {/* Tapping anywhere on the card completes it (or reopens it); the action buttons don't. */}
                 <div
-                  onClick={() => { if (completingId !== todo.id) handleToggle(todo); }}
+                  onClick={() => openForm(todo)}
                   className={`card cursor-pointer select-none active:scale-[0.99] transition-transform ${todo.completed ? 'opacity-60 bg-gray-50 dark:bg-gray-900/60' : ''}`}
                 >
                   <div className="flex items-start gap-4">
@@ -392,7 +392,7 @@ export default function Todos() {
       )}
 
       {/* Todo form modal */}
-      {showForm && (
+      {showForm && createPortal(
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           className="fixed inset-0 bg-[#050609]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50"
@@ -400,25 +400,28 @@ export default function Todos() {
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-md p-5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="todo-form-heading"
+            className={`bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/70 dark:border-white/[0.08] shadow-2xl shadow-black/30 w-full max-h-full overflow-y-auto p-5 ${editing ? 'max-w-4xl md:p-6' : 'max-w-md'}`}
           >
-            <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editing ? 'Edit Todo' : 'New Todo'}</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
-                <input className="input" value={form.title}
+            <h2 id="todo-form-heading" className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">{editing ? 'Edit Todo' : 'New Todo'}</h2>
+            <form onSubmit={handleSubmit} className={`grid gap-4 ${editing ? 'md:grid-cols-2' : ''}`}>
+              <div className="col-span-full">
+                <label htmlFor="todo-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                <input id="todo-title" className="input" value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder="What needs to be done?" required autoFocus />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-                <textarea className="input" rows={2} value={form.description}
+              <div className="col-span-full">
+                <label htmlFor="todo-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <textarea id="todo-description" className={`input resize-y ${editing ? 'md:h-[44dvh]' : ''}`} rows={editing ? 8 : 2} value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Details (optional)" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
-                <select className="input" value={form.priority}
+                <label htmlFor="todo-priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
+                <select id="todo-priority" className="input" value={form.priority}
                   onChange={(e) => setForm({ ...form, priority: e.target.value })}>
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -426,8 +429,8 @@ export default function Todos() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
-                <input type="date" className="input" value={form.due_date}
+                <label htmlFor="todo-due-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
+                <input id="todo-due-date" type="date" className="input" value={form.due_date}
                   onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
                 {form.due_date && (
                   <button type="button"
@@ -437,7 +440,7 @@ export default function Todos() {
                   </button>
                 )}
               </div>
-              <div className="flex gap-3 pt-2">
+              <div className="col-span-full flex gap-3 pt-2">
                 <button type="submit" className="btn-primary flex-1">
                   {editing ? 'Save Changes' : 'Create Todo'}
                 </button>
@@ -445,7 +448,8 @@ export default function Todos() {
               </div>
             </form>
           </motion.div>
-        </motion.div>
+        </motion.div>,
+        document.body,
       )}
     </motion.div>
   );

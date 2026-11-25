@@ -7,7 +7,7 @@ import { DB_PATH } from './database.js';
 // ~/Videos (the audio track only, through an <audio> element) that aren't switched off
 // at /music; Sleep plays the ~/Music/<MUSIC_SLEEP_FOLDER> folder, each looped.
 // The rest of ~/Music (Chopin) is kept out of Focus for now.
-// The container mounts both folders read-only (docker-compose.yml).
+// The container mounts both folders read-only (docker-compose.yaml).
 export const VIDEOS_DIR = process.env.MUSIC_VIDEOS_DIR || path.join(os.homedir(), 'Videos');
 export const MUSIC_DIR = process.env.MUSIC_DIR || path.join(os.homedir(), 'Music');
 const SLEEP_FOLDER = process.env.MUSIC_SLEEP_FOLDER || 'Rain';

@@ -36,6 +36,7 @@ import { dropFromReviewList, trackReviewWrite } from '../lib/reviewList';
 import { useAuth } from '../store/auth';
 import { useTheme } from '../contexts/ThemeContext';
 import { PageSpinner } from '../components/Loading';
+import NoteActions, { noteActionButton } from '../components/NoteActions';
 import NoteEditor, { readDraft, type ScreenLine } from '../components/NoteEditor';
 
 // The full Prism build bundles ~300 grammars (~1MB). Register only what the vault's
@@ -463,7 +464,8 @@ export default function ReviewContent() {
   const reviewedTimes = data?.record?.reviewed_times as number | undefined;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="md:ml-16">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="md:ml-16"
+      data-note-editing={editing && courseId && draftKey ? '' : undefined}>
 
       {/* Breadcrumb of the headings above the one being read, fixed under the header */}
       {editing && courseId && draftKey ? (
@@ -499,12 +501,6 @@ export default function ReviewContent() {
         <h1 className={`flex-1 font-bold text-lg truncate text-gray-900 dark:text-gray-100`}>
           {title}
         </h1>
-        {canEdit && !editing && (
-          <button onClick={startEditing} title="Edit note"
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors flex-shrink-0">
-            <Pencil size={16} />
-          </button>
-        )}
         {courseId && !editing && (
           <button onClick={toggleExcluded} disabled={excluding}
             title={excluded ? 'Add back to review' : 'Remove from review (keeps the note)'}
@@ -618,19 +614,15 @@ export default function ReviewContent() {
               </div>
             </div>
           )}
-
-          {/* Room to scroll the last lines (and the rating buttons) out from under the edit button */}
-          {canEdit && !editing && <div className="h-16 md:h-10" />}
         </div>
       </div>
-
-      {/* Edit button, always at hand: above the bottom nav on phones, in the corner on desktop */}
       {canEdit && !editing && !pluginsPending && (
-        <button onClick={startEditing} title="Edit note" aria-label="Edit note"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom) + var(--fab-gap))' }}
-          className="fixed right-4 md:right-6 z-30 w-12 h-12 rounded-full flex items-center justify-center bg-brand-400 text-ink shadow-lg shadow-black/20 hover:bg-brand-300 active:scale-95 transition-all [--fab-gap:5rem] md:[--fab-gap:1.5rem]">
-          <Pencil size={18} />
-        </button>
+        <NoteActions>
+          <button onClick={startEditing} title="Edit note" aria-label="Edit note"
+            className={`${noteActionButton} bg-brand-400 text-ink hover:bg-brand-300`}>
+            <Pencil size={18} />
+          </button>
+        </NoteActions>
       )}
     </motion.div>
   );
