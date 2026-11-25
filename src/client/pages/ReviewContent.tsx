@@ -30,7 +30,7 @@ import yaml from 'react-syntax-highlighter/dist/esm/languages/prism/yaml';
 import { oneLight, oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import toast from 'react-hot-toast';
 import { celebrate } from '../lib/garden';
-import { ArrowLeft, CalendarOff, CalendarPlus, ChevronRight, ExternalLink, Pencil } from 'lucide-react';
+import { ArrowLeft, CalendarOff, CalendarPlus, ChevronRight, ExternalLink, List, Pencil, X } from 'lucide-react';
 import { api, trackLoading } from '../hooks/api';
 import { dropFromReviewList, trackReviewWrite } from '../lib/reviewList';
 import { useAuth } from '../store/auth';
@@ -235,6 +235,31 @@ export default function ReviewContent() {
   const [shown, setShown] = useState<Heading[]>([]);
   const outline = useMemo(() => shown.filter((h) => h.level <= 3), [shown]);
   const contentRef = useRef<HTMLDivElement>(null);
+  const outlineDialog = useRef<HTMLDialogElement>(null);
+  const showOutline = outline.length > 1 && !editing;
+  const showOutlineDialog = !isNews && outline.length > 0 && !editing;
+
+  useEffect(() => {
+    const dialog = outlineDialog.current;
+    if (!showOutlineDialog || !dialog) return;
+    const laptop = window.matchMedia('(1024px <= width <= 1920px)');
+    const onShortcut = (event: KeyboardEvent) => {
+      if (!laptop.matches || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
+        || event.code !== 'KeyC' || event.defaultPrevented || event.repeat) return;
+      event.preventDefault();
+      if (dialog.open) dialog.close();
+      else dialog.showModal();
+    };
+    const onResize = () => {
+      if (!laptop.matches && dialog.open) dialog.close();
+    };
+    window.addEventListener('keydown', onShortcut);
+    laptop.addEventListener('change', onResize);
+    return () => {
+      window.removeEventListener('keydown', onShortcut);
+      laptop.removeEventListener('change', onResize);
+    };
+  }, [showOutlineDialog]);
 
   const rawContent = (data?.content ?? '') as string;
   // Strip frontmatter, then convert ==highlight== → <mark> outside code fences
@@ -462,6 +487,28 @@ export default function ReviewContent() {
   const obsidianUris = (data?.obsidian_uris ?? []) as string[];
   const paths = (data?.paths ?? []) as string[];
   const reviewedTimes = data?.record?.reviewed_times as number | undefined;
+  const outlineLinks = (popup: boolean) => outline.map((h) => (
+    <a
+      key={h.id}
+      href={`#${h.id}`}
+      onClick={(event) => {
+        event.preventDefault();
+        if (outlineDialog.current?.open) outlineDialog.current.close();
+        jumpTo(h.id);
+      }}
+      style={{ paddingInlineStart: popup ? 8 + (h.level - 1) * 12 : (h.level - 1) * 10 }}
+      title={h.text}
+      aria-current={outlineActive === h.id ? 'location' : undefined}
+      className={`block rounded transition-colors leading-snug ${popup
+        ? 'py-2 pr-2 hover:bg-gray-100 dark:hover:bg-white/5'
+        : 'truncate py-1 text-xs'} ${outlineActive === h.id
+        ? 'text-brand-600 dark:text-brand-400 font-semibold'
+        : popup ? 'text-gray-600 dark:text-gray-300'
+          : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+    >
+      {h.text}
+    </a>
+  ));
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="md:ml-16"
@@ -492,6 +539,23 @@ export default function ReviewContent() {
         </nav>
       )}
 
+      {showOutlineDialog && (
+        <dialog ref={outlineDialog} aria-labelledby="review-contents-title"
+          className="w-[min(32rem,calc(100%-2rem))] max-h-[75dvh] overflow-hidden rounded-xl border border-gray-200 bg-white p-0 text-gray-900 shadow-xl backdrop:bg-black/45 dark:border-white/10 dark:bg-gray-900 dark:text-gray-100">
+          <div className="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-2 dark:border-white/10">
+            <h2 id="review-contents-title" className="font-semibold">Contents</h2>
+            <form method="dialog">
+              <button aria-label="Close contents" className="rounded-md p-2 hover:bg-gray-100 dark:hover:bg-white/10">
+                <X size={16} />
+              </button>
+            </form>
+          </div>
+          <nav aria-label="Contents" className="max-h-[calc(75dvh-3.5rem)] overflow-y-auto overscroll-contain p-2">
+            {outlineLinks(true)}
+          </nav>
+        </dialog>
+      )}
+
       {/* Page header */}
       <div className="flex items-center gap-3 mb-4">
         <button onClick={() => navigate(backTo)}
@@ -501,6 +565,13 @@ export default function ReviewContent() {
         <h1 className={`flex-1 font-bold text-lg truncate text-gray-900 dark:text-gray-100`}>
           {title}
         </h1>
+        {showOutlineDialog && (
+          <button type="button" onClick={() => outlineDialog.current?.showModal()}
+            aria-label="Open contents" aria-haspopup="dialog" aria-keyshortcuts="Alt+C" title="Contents (Alt+C)"
+            className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 lg:max-[1920px]:flex">
+            <List size={18} />
+          </button>
+        )}
         {courseId && !editing && (
           <button onClick={toggleExcluded} disabled={excluding}
             title={excluded ? 'Add back to review' : 'Remove from review (keeps the note)'}
@@ -533,27 +604,11 @@ export default function ReviewContent() {
       <div className="flex gap-8 items-start">
 
         {/* Outline sidebar — desktop only, only when there are headings */}
-        {outline.length > 1 && !editing && (
-          <aside className="hidden lg:block w-44 flex-shrink-0">
-            <nav className="sticky top-20 space-y-0.5 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
+        {showOutline && (
+          <aside className={`hidden lg:block w-44 flex-shrink-0 ${isNews ? '' : 'lg:max-[1920px]:hidden'}`}>
+            <nav aria-label="Contents" className="sticky top-20 space-y-0.5 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
               <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Contents</p>
-              {outline.map((h) => (
-                <a
-                  key={h.id + h.text}
-                  href={`#${h.id}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    jumpTo(h.id);
-                  }}
-                  style={{ paddingLeft: `${(h.level - 1) * 10}px` }}
-                  className={`block text-xs py-1 rounded truncate transition-colors leading-snug ${outlineActive === h.id
-                    ? 'text-brand-600 dark:text-brand-400 font-semibold'
-                    : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                    }`}
-                >
-                  {h.text}
-                </a>
-              ))}
+              {outlineLinks(false)}
             </nav>
           </aside>
         )}
